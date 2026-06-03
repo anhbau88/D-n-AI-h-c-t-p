@@ -90,7 +90,7 @@ async function readUsersFromBlob(): Promise<ExcelUser[] | null> {
       return null;
     }
     const data = await res.json() as ExcelUser[];
-    if (!data || data.length === 0) {
+    if (!data) {
       return SEED_USERS;
     }
     return data;
