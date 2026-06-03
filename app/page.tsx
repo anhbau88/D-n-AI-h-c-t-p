@@ -298,14 +298,9 @@ export default function Home() {
   const [sidebarSearchQuery, setSidebarSearchQuery] = useState('');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  // General Chat History State
-  const [generalChatHistory, setGeneralChatHistory] = useState<ChatMessage[]>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('generalChatHistory');
-      return saved ? JSON.parse(saved) : [];
-    }
-    return [];
-  });
+  // General Chat History State & Reset Counter
+  const [generalChatHistory, setGeneralChatHistory] = useState<ChatMessage[]>([]);
+  const [chatResetCount, setChatResetCount] = useState(0);
 
   // Class Management States
   const [classList, setClassList] = useState<Array<{ code: string; name: string; teacherUsername: string }>>([]);
@@ -539,6 +534,16 @@ export default function Home() {
     fetchAssignments();
     fetchHistory();
     loadLibraryDocuments();
+  }, [user]);
+
+  // Đồng bộ lịch sử trò chuyện AI chung theo từng user khi đăng nhập/đăng xuất
+  useEffect(() => {
+    if (user) {
+      const savedChat = localStorage.getItem(`generalChatHistory_${user.username}`);
+      setGeneralChatHistory(savedChat ? JSON.parse(savedChat) : []);
+    } else {
+      setGeneralChatHistory([]);
+    }
   }, [user]);
 
   // Tab Focus Sync (auto sync backend data silently when tab becomes active)
@@ -1064,8 +1069,9 @@ export default function Home() {
   };
 
   const handleSendGeneralMessage = (updatedHistory: ChatMessage[]) => {
+    if (!user) return;
     setGeneralChatHistory(updatedHistory);
-    localStorage.setItem('generalChatHistory', JSON.stringify(updatedHistory));
+    localStorage.setItem(`generalChatHistory_${user.username}`, JSON.stringify(updatedHistory));
   };
 
   const handleJoinClass = async () => {
@@ -2315,7 +2321,10 @@ export default function Home() {
                           onClick={() => {
                             if (confirm(language === 'vi' ? 'Bạn có muốn xóa toàn bộ lịch sử trò chuyện AI?' : 'Do you want to clear the entire AI chat history?')) {
                               setGeneralChatHistory([]);
-                              localStorage.removeItem('generalChatHistory');
+                              if (user) {
+                                localStorage.removeItem(`generalChatHistory_${user.username}`);
+                              }
+                              setChatResetCount(prev => prev + 1);
                             }
                           }}
                           className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold border border-red-200 dark:border-red-900/30 hover:bg-red-50 dark:hover:bg-red-950/20 text-red-500 rounded-xl transition-all"
@@ -2325,7 +2334,7 @@ export default function Home() {
                       )}
                     </div>
                     <ChatBox
-                      key="general-chat"
+                      key={`general-chat-${user.username}-${chatResetCount}`}
                       pdfText=""
                       userRole={user.role}
                       onError={showMessage}
