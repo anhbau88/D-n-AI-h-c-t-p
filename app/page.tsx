@@ -1370,6 +1370,42 @@ export default function Home() {
             <HelpCircle className="w-5.5 h-5.5 text-primary" />
             <span className="text-xs font-bold">{t.helpCenter}</span>
           </button>
+
+          {/* Mobile Profile & Logout */}
+          <div className="lg:hidden mt-4 pt-4 border-t border-gray-200 dark:border-white/5 flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center font-black text-primary text-xs capitalize shrink-0">
+                {user.username.charAt(0)}
+              </div>
+              <div className="text-left min-w-0">
+                <p className="text-xs font-bold leading-none truncate text-foreground">{user.username}</p>
+                <p className="text-[9px] text-gray-500 dark:text-gray-400 mt-1 uppercase font-bold truncate">
+                  {isTeacher ? `${t.teacher} ${user.room}` : `${t.student} ${user.room}`}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-1 shrink-0">
+              {isTeacher && user?.room && (
+                <button 
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    setShowUserManagement(true);
+                  }}
+                  className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-400 hover:text-primary transition-colors"
+                  title={t.classManage}
+                >
+                  <Users className="w-4 h-4" />
+                </button>
+              )}
+              <button 
+                onClick={handleLogout}
+                className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-400 hover:text-red-500 transition-colors"
+                title={t.logout}
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
         </div>
       </aside>
 
@@ -1413,7 +1449,10 @@ export default function Home() {
                 className="w-12 h-12 rounded-xl shadow-md border border-gray-200 dark:border-white/10 p-0.5 bg-white" 
               />
               <div>
-                <span className="text-base sm:text-lg font-black text-primary tracking-tight">AI Study Assistant</span>
+                <span className="text-base sm:text-lg font-black text-primary tracking-tight">
+                  <span className="hidden sm:inline">AI Study Assistant</span>
+                  <span className="sm:hidden">AI Study</span>
+                </span>
                 <p className="text-xs text-gray-500 dark:text-gray-400 opacity-80 hidden md:block leading-none mt-1 font-bold">The Sophisticated Mentor</p>
               </div>
             </div>
@@ -1443,7 +1482,7 @@ export default function Home() {
             </div>
 
             {/* User Profile info */}
-            <div className="flex items-center gap-3 ml-2 border-l border-gray-200 dark:border-white/10 pl-4">
+            <div className="hidden lg:flex items-center gap-3 ml-2 border-l border-gray-200 dark:border-white/10 pl-4">
               <div className="text-right hidden sm:block">
                 <p className="text-sm font-bold leading-none">{user.username}</p>
                 <p className="text-[10px] text-gray-500 dark:text-gray-400 uppercase tracking-wider font-bold mt-1.5">
@@ -2629,7 +2668,7 @@ export default function Home() {
                                         </div>
                                       </div>
 
-                                      <div className="mt-4 flex items-center justify-between border-t border-gray-200 dark:border-white/5 pt-3">
+                                      <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-gray-200 dark:border-white/5 pt-3">
                                         {hasSubmitted ? (
                                           <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30 px-2 py-0.5 rounded">
                                             {language === 'vi' ? 'Điểm thi' : 'Exam score'}: {submission.scale10Score}/10
