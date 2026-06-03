@@ -48,6 +48,7 @@ const QuizPanel = dynamic(() => import('@/components/QuizPanel'), { ssr: false }
 const EssayPanel = dynamic(() => import('@/components/EssayPanel'), { ssr: false });
 const DocumentLibrary = dynamic(() => import('@/components/DocumentLibrary'), { ssr: false });
 const UserManagement = dynamic(() => import('@/components/UserManagement'), { ssr: false });
+const TeacherClassManagement = dynamic(() => import('@/components/TeacherClassManagement'), { ssr: false });
 
 import { FileInfo, QuizQuestion, User, Assignment, QuizHistoryItem, DocumentItem, ChatMessage } from '@/types';
 
@@ -294,7 +295,7 @@ export default function Home() {
   const [quizHistory, setQuizHistory] = useState<QuizHistoryItem[]>([]);
 
   // Redesign Navigation States
-  const [sidebarTab, setSidebarTab] = useState<'dashboard' | 'upload' | 'library' | 'settings' | 'chat'>('dashboard');
+  const [sidebarTab, setSidebarTab] = useState<'dashboard' | 'upload' | 'library' | 'settings' | 'chat' | 'class-management'>('dashboard');
   const [sidebarSearchQuery, setSidebarSearchQuery] = useState('');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -818,6 +819,29 @@ export default function Home() {
     } catch (err) {
       console.error('Lỗi khi xóa bài thi:', err);
       showMessage('Không thể xóa bài thi.');
+    }
+  };
+
+  const handleRemoveStudentFromClass = async (studentUsername: string, classCode: string): Promise<boolean> => {
+    try {
+      const res = await fetch('/api/users', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: studentUsername,
+          room: classCode,
+          mode: 'remove'
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Lỗi khi xóa học sinh khỏi lớp.');
+      }
+      return true;
+    } catch (err: any) {
+      console.error('Lỗi khi xóa học sinh khỏi lớp:', err);
+      showMessage(err.message || 'Lỗi khi xóa học sinh khỏi lớp.');
+      throw err;
     }
   };
 
@@ -1431,6 +1455,21 @@ export default function Home() {
             <TrendingUp className="w-5.5 h-5.5 text-primary" />
             <span className="text-sm font-bold">{t.dashboard}</span>
           </button>
+
+          {isTeacher && (
+            <button 
+              onClick={() => {
+                setActiveDoc(null);
+                setActiveAssignment(null);
+                setSidebarTab('class-management');
+                setMobileMenuOpen(false);
+              }}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-205 ${sidebarTab === 'class-management' && !activeDoc && !activeAssignment ? 'bg-primary-container/20 text-primary font-bold border-r-4 border-primary' : 'text-foreground hover:bg-gray-200/50 dark:hover:bg-sidebar-accent'}`}
+            >
+              <Users className="w-5.5 h-5.5 text-primary" />
+              <span className="text-sm font-bold">{language === 'vi' ? 'Quản lý lớp' : 'Class Management'}</span>
+            </button>
+          )}
 
           <button 
             onClick={() => {
@@ -2353,6 +2392,19 @@ export default function Home() {
                       onSendMessage={handleSendGeneralMessage}
                       className="h-[620px] sm:h-[680px] border border-gray-200 dark:border-white/5 rounded-2xl"
                       language={language}
+                    />
+                  </div>
+                )}
+
+                {/* 5. CLASS MANAGEMENT TAB (Teacher only) */}
+                {isTeacher && sidebarTab === 'class-management' && (
+                  <div className="max-w-4xl mx-auto space-y-6">
+                    <TeacherClassManagement
+                      user={user}
+                      language={language}
+                      classList={classList}
+                      onRemoveStudent={handleRemoveStudentFromClass}
+                      onError={(msg, isErr) => showMessage(msg, isErr ?? true)}
                     />
                   </div>
                 )}
