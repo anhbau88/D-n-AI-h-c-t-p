@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
         username: user.Username,
         fullName: user.FullName,
         role: user.Role,
-        room: user.Room || 'Lớp trống',
+        room: user.Room || '',
       }
     });
   } catch (error) {

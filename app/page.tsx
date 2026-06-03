@@ -472,7 +472,10 @@ export default function Home() {
       try {
         const parsedUser = JSON.parse(savedUser) as User;
         setUser(parsedUser);
-        if (parsedUser.room) setDashboardClass(parsedUser.room);
+        if (parsedUser.room) {
+          const rooms = parsedUser.room.split(',').map(r => r.trim()).filter(Boolean);
+          if (rooms.length > 0) setDashboardClass(rooms[0]);
+        }
         loadLibraryDocuments();
       } catch { }
     }
@@ -486,7 +489,10 @@ export default function Home() {
         setDashboardClass(myClasses[0].code);
       }
     } else if (user && user.role === 'student' && user.room) {
-      setDashboardClass(user.room);
+      const rooms = user.room.split(',').map(r => r.trim()).filter(Boolean);
+      if (rooms.length > 0 && !rooms.includes(dashboardClass)) {
+        setDashboardClass(rooms[0]);
+      }
     }
   }, [user, classList, dashboardClass]);
 
@@ -581,7 +587,10 @@ export default function Home() {
 
   const handleLogin = (newUser: User) => {
     setUser(newUser);
-    if (newUser.room) setDashboardClass(newUser.room);
+    if (newUser.room) {
+      const rooms = newUser.room.split(',').map(r => r.trim()).filter(Boolean);
+      if (rooms.length > 0) setDashboardClass(rooms[0]);
+    }
     localStorage.setItem('user', JSON.stringify(newUser));
     loadLibraryDocuments();
     setActiveDoc(null);
@@ -1000,13 +1009,23 @@ export default function Home() {
 
   const handleJoinClass = async () => {
     if (!user || !joinClassCode.trim()) return;
+    const newCode = joinClassCode.trim().toUpperCase();
+    
+    // Kiểm tra đã tham gia lớp này chưa
+    const currentRooms = (user.room || '').split(',').map(r => r.trim()).filter(Boolean);
+    if (currentRooms.includes(newCode)) {
+      showMessage(language === 'vi' ? 'Bạn đã tham gia lớp này rồi!' : 'You have already joined this class!');
+      return;
+    }
+    
     try {
       const res = await fetch('/api/users', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           username: user.username,
-          room: joinClassCode.trim().toUpperCase()
+          room: newCode,
+          mode: 'add'
         })
       });
       const data = await res.json();
@@ -1014,10 +1033,12 @@ export default function Home() {
         throw new Error(data.error || (language === 'vi' ? 'Mã lớp học không hợp lệ.' : 'Invalid classroom code.'));
       }
       
-      const updatedUser = { ...user, room: joinClassCode.trim().toUpperCase() };
+      // Append class to user's room list
+      const updatedRooms = [...currentRooms, newCode];
+      const updatedUser = { ...user, room: updatedRooms.join(',') };
       setUser(updatedUser);
       localStorage.setItem('user', JSON.stringify(updatedUser));
-      setDashboardClass(joinClassCode.trim().toUpperCase());
+      setDashboardClass(newCode);
       
       // Load lại danh sách lớp học
       const classesRes = await fetch('/api/classes');
@@ -1181,13 +1202,17 @@ export default function Home() {
   const teacherClasses = user && user.role === 'teacher'
     ? classList.filter(c => c.teacherUsername === user.username)
     : [];
-  const studentClass = user && user.role === 'student' && user.room
-    ? classList.find(c => c.code === user.room)
-    : null;
+  // Parse multi-room: user.room is comma-separated string
+  const userRooms = user && user.role === 'student' && user.room
+    ? user.room.split(',').map(r => r.trim()).filter(Boolean)
+    : [];
+  const studentClasses = userRooms
+    .map(code => classList.find(c => c.code === code))
+    .filter(Boolean) as Array<{ code: string; name: string; teacherUsername: string }>;
 
   const activeClassName = isTeacher 
     ? (teacherClasses.find(c => c.code === dashboardClass)?.name || dashboardClass)
-    : (studentClass?.name || user?.room || dashboardClass);
+    : (studentClasses.find(c => c.code === dashboardClass)?.name || dashboardClass || '');
 
   // Student analytics
   const studentHistoryList = quizHistory.filter(h => h.username === user?.username);
@@ -1199,9 +1224,9 @@ export default function Home() {
     ? Math.max(...studentHistoryList.map(h => parseFloat(h.scale10Score))).toFixed(1)
     : '0.0';
 
-  // Room assignments (for Students)
-  const roomAssignments = (!isTeacher && user?.role === 'student' && user.room)
-    ? assignments.filter(a => a.roomId === user.room)
+  // Room assignments (for Students) - show assignments from ALL joined classes
+  const roomAssignments = (!isTeacher && userRooms.length > 0)
+    ? assignments.filter(a => userRooms.includes(a.roomId))
     : [];
 
   // Teacher assignments (for Teachers)
@@ -1382,7 +1407,7 @@ export default function Home() {
               <div className="text-left min-w-0">
                 <p className="text-xs font-bold leading-none truncate text-foreground">{user.username}</p>
                 <p className="text-[9px] text-gray-500 dark:text-gray-400 mt-1 uppercase font-bold truncate">
-                  {isTeacher ? `${t.teacher} ${user.room}` : `${t.student} ${user.room}`}
+                  {isTeacher ? `${t.teacher}` : `${t.student} • ${userRooms.length > 0 ? userRooms.length + ' ' + (language === 'vi' ? 'lớp' : 'classes') : t.unassigned}`}
                 </p>
               </div>
             </div>
@@ -1488,7 +1513,7 @@ export default function Home() {
               <div className="text-right hidden sm:block">
                 <p className="text-sm font-bold leading-none">{user.username}</p>
                 <p className="text-[10px] text-gray-500 dark:text-gray-400 uppercase tracking-wider font-bold mt-1.5">
-                  {isTeacher ? `${t.teacher} ${user.room}` : `${t.student} ${user.room}`}
+                  {isTeacher ? `${t.teacher}` : `${t.student} • ${userRooms.length > 0 ? userRooms.length + ' ' + (language === 'vi' ? 'lớp' : 'classes') : t.unassigned}`}
                 </p>
               </div>
               
@@ -1621,22 +1646,27 @@ export default function Home() {
 
               <div className="space-y-4">
                 <h3 className="text-base font-black text-foreground">
-                  {user?.room 
-                    ? (language === 'vi' ? 'Đổi lớp học mới' : 'Change Class Room') 
-                    : (language === 'vi' ? 'Vào lớp học' : 'Join Class Room')
-                  }
+                  {language === 'vi' ? 'Thêm lớp học' : 'Add Class'}
                 </h3>
                 <p className="text-xs text-gray-500 font-semibold leading-relaxed">
                   {language === 'vi'
-                    ? 'Nhập mã lớp học gồm 6 ký tự do giáo viên cung cấp để tham gia vào lớp học mới.'
-                    : 'Enter the 6-character class code provided by your teacher to join a new classroom.'}
+                    ? 'Nhập mã lớp học do giáo viên cung cấp để thêm lớp mới vào danh sách của bạn. Bạn có thể tham gia nhiều lớp cùng lúc.'
+                    : 'Enter the class code provided by your teacher to add a new class. You can join multiple classes at the same time.'}
                 </p>
 
-                {user?.room && (
-                  <div className="text-xs p-3 bg-amber-50 dark:bg-amber-950/20 text-amber-600 dark:text-amber-400 border border-amber-200/50 dark:border-amber-900/30 rounded-xl font-bold">
-                    ⚠️ {language === 'vi' 
-                      ? `Bạn đang ở lớp: ${user.room}. Khi đổi lớp mới, bạn sẽ chuyển sang làm bài tập của lớp mới.` 
-                      : `Current class: ${user.room}. Changing class will redirect you to the new class's exams.`}
+                {userRooms.length > 0 && (
+                  <div className="text-xs p-3 bg-primary/5 border border-primary/10 rounded-xl space-y-1.5">
+                    <p className="font-bold text-foreground">{language === 'vi' ? 'Lớp đã tham gia:' : 'Joined classes:'}</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {userRooms.map(code => {
+                        const cls = classList.find(c => c.code === code);
+                        return (
+                          <span key={code} className="inline-flex items-center gap-1 px-2 py-0.5 bg-primary/10 text-primary rounded-lg font-bold text-[10px]">
+                            {cls?.name || code}
+                          </span>
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
 
@@ -2082,7 +2112,18 @@ export default function Home() {
                             <p className="font-bold text-foreground">{t.room}</p>
                             <p className="text-xs text-gray-500 dark:text-gray-400">Assigned classroom group</p>
                           </div>
-                          <span className="bg-gray-200/50 dark:bg-gray-800 px-3 py-1.5 rounded-lg text-foreground">{user.room || t.unassigned}</span>
+                          <div className="flex flex-wrap gap-1.5">
+                            {userRooms.length > 0 ? userRooms.map(code => {
+                              const cls = classList.find(c => c.code === code);
+                              return (
+                                <span key={code} className="bg-primary/10 text-primary px-2.5 py-1 rounded-lg text-xs font-bold">
+                                  {cls?.name || code}
+                                </span>
+                              );
+                            }) : (
+                              <span className="bg-gray-200/50 dark:bg-gray-800 px-3 py-1.5 rounded-lg text-foreground">{t.unassigned}</span>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -2196,10 +2237,7 @@ export default function Home() {
                           >
                             <Plus className="w-4 h-4" />
                             <span>
-                              {user.room 
-                                ? (language === 'vi' ? 'Đổi lớp học' : 'Change Class') 
-                                : (language === 'vi' ? 'Vào lớp bằng mã' : 'Join Class')
-                              }
+                              {language === 'vi' ? 'Thêm lớp học' : 'Add Class'}
                             </span>
                           </button>
                         )}
@@ -2217,7 +2255,7 @@ export default function Home() {
 
                     {/* Stats processing block */}
                     {(() => {
-                      const classHistory = quizHistory.filter(h => h.roomId === (isTeacher ? dashboardClass : user.room));
+                      const classHistory = quizHistory.filter(h => isTeacher ? h.roomId === dashboardClass : userRooms.includes(h.roomId));
                       const totalClassSubmissions = classHistory.length;
                       const passCount = classHistory.filter(h => parseFloat(h.scale10Score) >= 5.0).length;
                       const retakeCount = classHistory.filter(h => {
@@ -2644,7 +2682,7 @@ export default function Home() {
                       {/* STUDENT ASSIGNMENT DASHBOARD */}
                       {!isTeacher && (
                         <div className="space-y-6 animate-fade-in-up [animation-delay:0.2s]">
-                          {!user.room ? (
+                          {userRooms.length === 0 ? (
                             /* Join class card for student */
                             <Card className="p-8 border border-gray-300 dark:border-white/5 bg-white dark:bg-gray-900 rounded-3xl shadow-lg relative overflow-hidden">
                               <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-primary/10 to-violet/10 rounded-bl-full"></div>
@@ -2679,14 +2717,14 @@ export default function Home() {
                             <div className="space-y-4">
                               <h3 className="text-sm font-bold text-foreground uppercase tracking-wider flex items-center gap-2">
                                 <GraduationCap className="w-5.5 h-5.5 text-primary" />
-                                {t.assignedExams.replace('{room}', studentClass?.name || user.room)}
+                                {t.assignedExams.replace('{room}', studentClasses.map(c => c.name).join(', ') || activeClassName)}
                               </h3>
 
                               {roomAssignments.length === 0 ? (
                                 /* Empty alert + Welcome Card when no tests */
                                 <div className="space-y-6">
                                   <Card className="p-8 text-center text-gray-500 dark:text-gray-400 text-sm bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-300 dark:border-white/5 font-bold">
-                                    {t.noTestsAssigned.replace('{room}', studentClass?.name || user.room)}
+                                    {t.noTestsAssigned.replace('{room}', studentClasses.map(c => c.name).join(', ') || activeClassName)}
                                   </Card>
 
                                   <div className="glass-card min-h-[380px] rounded-3xl flex flex-col items-center justify-center text-center p-10 overflow-hidden relative border border-gray-300 dark:border-white/5">

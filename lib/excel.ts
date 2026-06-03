@@ -200,13 +200,31 @@ export async function findUserInExcel(username: string): Promise<ExcelUser | nul
 
 /**
  * Cập nhật lớp học cho một người dùng
+ * mode = 'add': thêm lớp mới vào danh sách (mặc định)
+ * mode = 'remove': xóa lớp khỏi danh sách
+ * mode = 'set': ghi đè toàn bộ (dùng cho trường hợp đặc biệt)
  */
-export async function updateUserRoomInExcel(username: string, room: string): Promise<boolean> {
+export async function updateUserRoomInExcel(username: string, room: string, mode: 'add' | 'remove' | 'set' = 'add'): Promise<boolean> {
   const currentUsers = await readUsersFromExcel();
   const userIndex = currentUsers.findIndex(u => String(u.Username).toLowerCase() === username.toLowerCase());
   if (userIndex === -1) return false;
 
-  currentUsers[userIndex].Room = room;
+  const existingRoom = String(currentUsers[userIndex].Room || '');
+  const existingRooms = existingRoom.split(',').map(r => r.trim()).filter(Boolean);
+
+  if (mode === 'add') {
+    // Thêm lớp mới, tránh trùng lặp
+    if (!existingRooms.includes(room)) {
+      existingRooms.push(room);
+    }
+    currentUsers[userIndex].Room = existingRooms.join(',');
+  } else if (mode === 'remove') {
+    // Xóa lớp khỏi danh sách
+    currentUsers[userIndex].Room = existingRooms.filter(r => r !== room).join(',');
+  } else {
+    // Ghi đè toàn bộ
+    currentUsers[userIndex].Room = room;
+  }
 
   // 1. Ưu tiên lưu vào Vercel Blob
   const token = process.env.BLOB_READ_WRITE_TOKEN;

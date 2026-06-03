@@ -36,9 +36,12 @@ export async function GET(request: Request) {
     // Chỉ lấy học sinh
     let students = allUsers.filter(u => u.Role === 'student');
     
-    // Nếu truyền lên room, lọc theo room
+    // Nếu truyền lên room, lọc học sinh có chứa room đó
     if (room) {
-      students = students.filter(u => u.Room === room);
+      students = students.filter(u => {
+        const userRooms = String(u.Room || '').split(',').map(r => r.trim());
+        return userRooms.includes(room);
+      });
     }
     
     // Trả về dữ liệu an toàn, KHÔNG trả về password
@@ -78,14 +81,15 @@ export async function DELETE(request: Request) {
 
 export async function PUT(request: Request) {
   try {
-    const { username, room } = await request.json();
+    const { username, room, mode } = await request.json();
     if (!username || !username.trim()) {
       return NextResponse.json({ error: 'Thiếu tên đăng nhập.' }, { status: 400 });
     }
 
     const targetRoom = room ? room.trim().toUpperCase() : '';
+    const updateMode: 'add' | 'remove' | 'set' = mode || 'add';
 
-    if (targetRoom) {
+    if (targetRoom && updateMode !== 'remove') {
       // Xác thực mã lớp học có tồn tại trên hệ thống
       const classes = await readClasses();
       const classExists = classes.some((c: any) => c.code === targetRoom);
@@ -97,7 +101,7 @@ export async function PUT(request: Request) {
       }
     }
 
-    const success = await updateUserRoomInExcel(username.trim(), targetRoom);
+    const success = await updateUserRoomInExcel(username.trim(), targetRoom, updateMode);
     if (!success) {
       return NextResponse.json({ error: 'Không tìm thấy người dùng hoặc lỗi cập nhật.' }, { status: 400 });
     }
