@@ -17,6 +17,8 @@ interface ChatBoxProps {
   onError: (message: string) => void;
   chatHistory?: ChatMessage[];
   onSendMessage?: (updatedHistory: ChatMessage[]) => void;
+  className?: string;
+  language?: 'vi' | 'en';
 }
 
 export default function ChatBox({
@@ -24,7 +26,9 @@ export default function ChatBox({
   userRole,
   onError,
   chatHistory = [],
-  onSendMessage
+  onSendMessage,
+  className,
+  language = 'vi'
 }: ChatBoxProps) {
   const chatEndRef = useRef<HTMLDivElement>(null);
   const chatContainerRef = useRef<HTMLDivElement>(null);
@@ -85,10 +89,7 @@ export default function ChatBox({
     e?.preventDefault();
     if (!input.trim()) return;
 
-    if (userRole === 'teacher' && !pdfText) {
-      onError('Vui lòng upload PDF trước khi chat.');
-      return;
-    }
+    // Cho phép gửi câu hỏi trực tiếp mà không cần PDF nếu là chat box chung
 
     handleSubmit(e as React.FormEvent<HTMLFormElement>);
     
@@ -129,7 +130,7 @@ export default function ChatBox({
   };
 
   return (
-    <Card className="p-0 border-0 shadow-lg bg-white/85 dark:bg-gray-900/85 backdrop-blur-sm flex flex-col h-[520px] overflow-hidden relative">
+    <Card className={`p-0 border-0 shadow-lg bg-white/85 dark:bg-gray-900/85 backdrop-blur-sm flex flex-col overflow-hidden relative ${className || 'h-[520px]'}`}>
       {/* Vùng hiển thị lịch sử chat */}
       <div
         ref={chatContainerRef}
@@ -143,9 +144,17 @@ export default function ChatBox({
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
               </svg>
             </div>
-            <p className="font-medium text-gray-500 dark:text-gray-400">Hỏi bất kỳ điều gì về tài liệu</p>
+            <p className="font-bold text-gray-500 dark:text-gray-400">
+              {pdfText 
+                ? (language === 'vi' ? 'Hỏi bất kỳ điều gì về tài liệu' : 'Ask anything about the document')
+                : (language === 'vi' ? 'Trò chuyện với Trợ lý học tập AI' : 'Chat with AI Study Assistant')
+              }
+            </p>
             <p className="text-xs mt-1.5 text-center max-w-xs text-gray-400">
-              VD: &quot;Tóm tắt nội dung chính&quot;, &quot;Giải thích các luận điểm trọng tâm&quot;
+              {pdfText 
+                ? (language === 'vi' ? 'VD: "Tóm tắt nội dung chính", "Giải thích các luận điểm"' : 'E.g., "Summarize main points", "Explain key concepts"')
+                : (language === 'vi' ? 'VD: "Giải thích định luật Ohm", "Dàn ý phân tích bài thơ Sóng"' : 'E.g., "Explain Newton\'s laws", "Write a study guide"')
+              }
             </p>
           </div>
         ) : (
@@ -259,7 +268,11 @@ export default function ChatBox({
             value={input}
             onChange={handleInputChange}
             onKeyDown={handleKeyPress}
-            placeholder="Nhập câu hỏi về tài liệu..."
+            placeholder={
+              pdfText 
+                ? (language === 'vi' ? 'Nhập câu hỏi về tài liệu...' : 'Ask a question about the document...')
+                : (language === 'vi' ? 'Nhập câu hỏi học tập...' : 'Ask a study question...')
+            }
             disabled={isLoading}
             rows={1}
             className="flex-1 resize-none rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all disabled:opacity-50 placeholder:text-gray-400 dark:placeholder:text-gray-500"

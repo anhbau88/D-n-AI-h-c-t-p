@@ -12,8 +12,8 @@ export default function AccessibilitySettings() {
 
   return (
     <Popover>
-      <PopoverTrigger className="inline-flex items-center justify-center whitespace-nowrap w-10 h-10 rounded-full hover:bg-white/20 text-white border-0 backdrop-blur-sm transition-colors focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50">
-        <Type className="w-5 h-5" />
+      <PopoverTrigger className="inline-flex items-center justify-center whitespace-nowrap w-10 h-10 rounded-full hover:bg-gray-300/50 dark:hover:bg-white/20 text-indigo-600 dark:text-indigo-400 border-0 backdrop-blur-sm transition-colors focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50">
+        <Type className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
         <span className="sr-only">Cài đặt tiện dụng</span>
       </PopoverTrigger>
       <PopoverContent className="w-72" align="end">

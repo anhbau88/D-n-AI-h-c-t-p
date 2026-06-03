@@ -30,12 +30,16 @@ export async function POST(request: NextRequest) {
     const textToUse = pdfText || '';
     const truncatedText = textToUse.substring(0, 30000);
 
-    // Chọn prompt phù hợp theo vai trò:
-    // - Học sinh: Chỉ nhận gợi ý, không đưa đáp án trực tiếp
-    // - Giáo viên: Nhận đáp án đầy đủ
-    const prompt = userRole === 'student'
-      ? createHintChatPrompt(truncatedText, question)
-      : createChatPrompt(truncatedText, question);
+    let prompt = '';
+    if (!truncatedText) {
+      prompt = userRole === 'student'
+        ? `Bạn là AI Study Assistant - một gia sư định hướng thông minh dành cho học sinh. Khi giải đáp thắc mắc, hãy giải thích cặn kẽ các khái niệm, đưa ra các gợi ý tư duy và câu hỏi định hướng thay vì cho ngay kết quả cuối cùng để khuyến khích học sinh tự suy nghĩ và tự tìm ra câu trả lời.`
+        : `Bạn là AI Study Assistant - một trợ lý giảng dạy đắc lực dành cho giáo viên. Hãy cung cấp câu trả lời chi tiết, chính xác, khoa học, có cấu trúc rõ ràng và đề xuất các phương pháp hoặc tài liệu giảng dạy bổ ích khi được yêu cầu.`;
+    } else {
+      prompt = userRole === 'student'
+        ? createHintChatPrompt(truncatedText, question)
+        : createChatPrompt(truncatedText, question);
+    }
 
     // Xây dựng lại lịch sử tin nhắn cho mô hình AI
     const aiMessages = [...messages.slice(0, -1)] as CoreMessage[];

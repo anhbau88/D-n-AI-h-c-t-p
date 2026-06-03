@@ -14,7 +14,7 @@ interface AccessibilityContextType {
 const AccessibilityContext = createContext<AccessibilityContextType | undefined>(undefined);
 
 export function AccessibilityProvider({ children }: { children: React.ReactNode }) {
-  const [fontScale, setFontScale] = useState<number>(100);
+  const [fontScale, setFontScale] = useState<number>(110);
   const [fontFamily, setFontFamily] = useState<FontFamily>('geist-sans');
   const [isMounted, setIsMounted] = useState(false);
 

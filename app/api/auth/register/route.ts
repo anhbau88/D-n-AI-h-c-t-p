@@ -24,11 +24,6 @@ export async function POST(request: NextRequest) {
     if (!role || (role !== 'student' && role !== 'teacher')) {
       return NextResponse.json({ error: 'Vai trò không hợp lệ.' }, { status: 400 });
     }
-    if (!room || !room.trim()) {
-      const errorMsg = role === 'student' ? 'Học sinh phải chọn lớp học.' : 'Giáo viên phải chọn lớp học.';
-      return NextResponse.json({ error: errorMsg }, { status: 400 });
-    }
-
     // 2. Kiểm tra tài khoản đã tồn tại chưa
     const existingUser = await findUserInExcel(username.trim());
     if (existingUser) {
@@ -41,7 +36,7 @@ export async function POST(request: NextRequest) {
       fullName: fullName.trim(),
       password: password.trim(),
       role,
-      room: room.trim(),
+      room: room ? room.trim() : '',
     };
 
     const success = await saveUserToExcel(newUser);

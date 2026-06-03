@@ -15,6 +15,7 @@ interface FileUploadProps {
   isDisabled?: boolean;
   currentRole: UserRole;
   existingDocuments: DocumentItem[];
+  language?: 'vi' | 'en';
 }
 
 export default function FileUpload({
@@ -24,12 +25,13 @@ export default function FileUpload({
   isDisabled,
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   currentRole,
-  existingDocuments = []
+  existingDocuments = [],
+  language = 'vi'
 }: FileUploadProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [fileInfo, setFileInfo] = useState<FileInfo | null>(null);
-  const [forceOCR, setForceOCR] = useState(false);
+  const [lectureName, setLectureName] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Xử lý khi kéo file vào vùng upload
@@ -46,6 +48,17 @@ export default function FileUpload({
   const handleDrop = (e: DragEvent) => {
     e.preventDefault();
     setIsDragging(false);
+    
+    if (!lectureName.trim()) {
+      onError(
+        language === 'vi' 
+          ? 'Vui lòng nhập tên bài giảng trước khi tải file lên.' 
+          : 'Please enter a lecture name before uploading.'
+      );
+      document.getElementById('lectureNameInput')?.focus();
+      return;
+    }
+    
     const file = e.dataTransfer.files[0];
     if (file) uploadFile(file);
   };
@@ -63,44 +76,65 @@ export default function FileUpload({
     const isWord = file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || file.name.toLowerCase().endsWith('.docx');
     const isImage = file.type.startsWith('image/') || /\.(png|jpe?g|webp)$/i.test(file.name);
     if (!isPDF && !isWord && !isImage) {
-      onError('Vui lòng chọn file PDF, Word (.docx) hoặc Hình ảnh (.png, .jpg, .jpeg, .webp).');
+      onError(
+        language === 'vi'
+          ? 'Vui lòng chọn file PDF, Word (.docx) hoặc Hình ảnh (.png, .jpg, .jpeg, .webp).'
+          : 'Please select PDF, Word (.docx) or Image (.png, .jpg, .jpeg, .webp).'
+      );
       return;
     }
 
     // Validate dung lượng (50MB)
     if (file.size > 50 * 1024 * 1024) {
-      onError('File quá lớn. Vui lòng chọn file dưới 50MB.');
+      onError(
+        language === 'vi'
+          ? 'File quá lớn. Vui lòng chọn file dưới 50MB.'
+          : 'File too large. Please select a file under 50MB.'
+      );
       return;
     }
 
     setIsUploading(true);
 
     try {
-      // 1. Tạo mã hash SHA-256 từ file
-      const hash = await generateFileHash(file);
+      // Đổi tên file theo Tên bài giảng do người dùng nhập (giữ nguyên phần mở rộng)
+      const lastDotIndex = file.name.lastIndexOf('.');
+      const extension = lastDotIndex !== -1 ? file.name.substring(lastDotIndex) : '';
+      const cleanLectureName = lectureName.trim();
+      const renamedFile = new File([file], cleanLectureName + extension, { type: file.type });
+
+      // 1. Tạo mã hash SHA-256 từ file gốc
+      const hash = await generateFileHash(renamedFile);
 
       // 2. Kiểm tra tài liệu đã tồn tại trong thư viện công cộng chưa (dựa trên mã hash)
       const existingDoc = existingDocuments.find(d => d.hash === hash) || null;
       if (existingDoc) {
-        // Nếu đã tồn tại, hiển thị kết quả cũ
-        onExistingDocumentFound(existingDoc);
-        
-        // Cập nhật thông tin hiển thị tại local FileUpload
-        setFileInfo({
-          fileName: existingDoc.fileName,
+        // Nếu đã tồn tại, tạo mục tài liệu mới kế thừa nội dung nhưng dùng tên bài giảng mới
+        const info: FileInfo = {
+          fileName: renamedFile.name,
           fileSize: existingDoc.fileSize,
-          pages: Math.max(1, Math.ceil(existingDoc.textContent.length / 3000)), // Ước lượng hoặc từ dữ liệu cũ
+          pages: Math.max(1, Math.ceil(existingDoc.textContent.length / 3000)),
           textLength: existingDoc.textContent.length,
-        });
+          pdfUrl: existingDoc.pdfUrl,
+        };
 
+        setFileInfo(info);
+
+        // Đồng bộ tạm vào localStorage để tương thích cấu trúc cũ
+        localStorage.setItem('pdfText', existingDoc.textContent);
+        localStorage.setItem('fileInfo', JSON.stringify(info));
+
+        // Lưu bản ghi mới
+        onUploadSuccess(existingDoc.textContent, info, hash);
+        setLectureName('');
         setIsUploading(false);
         return;
       }
 
-      // 3. Nếu chưa có, tiến hành upload lên API để trích xuất text
+      // 3. Nếu chưa có, tiến hành upload lên API để trích xuất text (luôn bật OCR ngầm)
       const formData = new FormData();
-      formData.append('file', file);
-      formData.append('forceOCR', String(forceOCR));
+      formData.append('file', renamedFile);
+      formData.append('forceOCR', 'true');
 
       const res = await fetch('/api/upload', {
         method: 'POST',
@@ -110,7 +144,7 @@ export default function FileUpload({
       const data = await res.json();
 
       if (!res.ok) {
-        throw new Error(data.error || 'Upload thất bại');
+        throw new Error(data.error || (language === 'vi' ? 'Upload thất bại' : 'Upload failed'));
       }
 
       // Lưu thông tin file
@@ -130,8 +164,9 @@ export default function FileUpload({
 
       // Callback thành công kèm mã hash
       onUploadSuccess(data.text, info, hash);
+      setLectureName(''); // Làm trống ô nhập tên sau khi tải lên thành công
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Upload thất bại';
+      const message = error instanceof Error ? error.message : (language === 'vi' ? 'Upload thất bại' : 'Upload failed');
       onError(message);
     } finally {
       setIsUploading(false);
@@ -147,22 +182,24 @@ export default function FileUpload({
 
   return (
     <Card className="p-5 border-0 shadow-lg bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm">
-      <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3.5">
-        📄 Tải lên tài liệu
+      <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-4">
+        📄 {language === 'vi' ? 'Tải lên tài liệu giảng dạy' : 'Upload Teaching Materials'}
       </h3>
 
-      <div className="flex items-center gap-2 mb-3.5 px-0.5">
-        <input
-          type="checkbox"
-          id="forceOCRCheckbox"
-          checked={forceOCR}
-          onChange={(e) => setForceOCR(e.target.checked)}
-          disabled={isUploading || isDisabled}
-          className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-gray-700 bg-white/50 dark:bg-gray-900/50 cursor-pointer disabled:opacity-50"
-        />
-        <label htmlFor="forceOCRCheckbox" className="text-xs font-semibold text-gray-600 dark:text-gray-300 cursor-pointer select-none flex items-center gap-1.5 disabled:opacity-50">
-          ✨ Sử dụng AI đọc ảnh/PDF quét (OCR)
+      {/* Ô nhập Tên bài giảng bắt buộc */}
+      <div className="mb-4">
+        <label htmlFor="lectureNameInput" className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5 uppercase tracking-wider">
+          📝 {language === 'vi' ? 'Tên bài giảng (bắt buộc)' : 'Lecture Name (required)'}
         </label>
+        <input
+          type="text"
+          id="lectureNameInput"
+          value={lectureName}
+          onChange={(e) => setLectureName(e.target.value)}
+          placeholder={language === 'vi' ? 'Nhập tên bài giảng cho tài liệu này...' : 'Enter lecture name for this document...'}
+          disabled={isUploading || isDisabled}
+          className="w-full text-sm font-semibold px-4 py-2.5 rounded-xl border border-gray-300 dark:border-gray-800 bg-white/50 dark:bg-gray-950/50 text-foreground placeholder:text-gray-400 dark:placeholder:text-gray-600 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all disabled:opacity-50"
+        />
       </div>
 
       {/* Vùng kéo thả */}
@@ -179,12 +216,25 @@ export default function FileUpload({
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
-        onClick={() => inputRef.current?.click()}
+        onClick={() => {
+          if (!lectureName.trim()) {
+            onError(
+              language === 'vi' 
+                ? 'Vui lòng nhập tên bài giảng trước khi chọn file.' 
+                : 'Please enter a lecture name before selecting a file.'
+            );
+            document.getElementById('lectureNameInput')?.focus();
+            return;
+          }
+          inputRef.current?.click();
+        }}
       >
         {isUploading ? (
           <div className="py-2">
             <div className="w-8 h-8 border-3 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
-            <p className="text-gray-500 text-sm">Đang phân tích & tính mã hash tài liệu...</p>
+            <p className="text-gray-500 text-sm font-medium">
+              {language === 'vi' ? 'Đang phân tích tài liệu (OCR)...' : 'Analyzing document (OCR)...'}
+            </p>
           </div>
         ) : (
           <>
@@ -193,11 +243,11 @@ export default function FileUpload({
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
               </svg>
             </div>
-            <p className="text-gray-700 dark:text-gray-300 font-medium text-sm">
-              Kéo thả file PDF, Word hoặc Hình ảnh vào đây
+            <p className="text-gray-700 dark:text-gray-300 font-bold text-sm">
+              {language === 'vi' ? 'Kéo thả file PDF, Word hoặc Hình ảnh vào đây' : 'Drag & drop PDF, Word or Image file here'}
             </p>
-            <p className="text-gray-400 text-xs mt-1">
-              hoặc click để chọn file (tối đa 50MB)
+            <p className="text-gray-400 text-xs mt-1 font-semibold">
+              {language === 'vi' ? 'hoặc click để chọn file (tối đa 50MB)' : 'or click to browse file (max 50MB)'}
             </p>
           </>
         )}
@@ -215,15 +265,15 @@ export default function FileUpload({
       {/* Thông tin file đã upload */}
       {fileInfo && (
         <div className="mt-3 p-3 bg-emerald-50/80 dark:bg-emerald-950/30 rounded-lg border border-emerald-200/50 dark:border-emerald-800/50">
-          <p className="font-medium text-emerald-700 dark:text-emerald-300 text-sm flex items-center gap-1.5">
+          <p className="font-bold text-emerald-700 dark:text-emerald-300 text-sm flex items-center gap-1.5">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
             </svg>
-            Tài liệu đã được mở!
+            {language === 'vi' ? 'Tài liệu đã được mở!' : 'Document opened successfully!'}
           </p>
-          <div className="text-xs text-emerald-600 dark:text-emerald-400 mt-1.5 space-y-0.5">
+          <div className="text-xs text-emerald-600 dark:text-emerald-400 mt-1.5 space-y-0.5 font-semibold">
             <p className="truncate">📄 {fileInfo.fileName}</p>
-            <p>📊 {fileInfo.pages} trang · {formatSize(fileInfo.fileSize)} · {fileInfo.textLength.toLocaleString()} ký tự</p>
+            <p>📊 {fileInfo.pages} {language === 'vi' ? 'trang' : 'pages'} · {formatSize(fileInfo.fileSize)} · {fileInfo.textLength.toLocaleString()} {language === 'vi' ? 'ký tự' : 'characters'}</p>
           </div>
         </div>
       )}

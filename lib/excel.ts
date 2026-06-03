@@ -199,6 +199,36 @@ export async function findUserInExcel(username: string): Promise<ExcelUser | nul
 }
 
 /**
+ * Cập nhật lớp học cho một người dùng
+ */
+export async function updateUserRoomInExcel(username: string, room: string): Promise<boolean> {
+  const currentUsers = await readUsersFromExcel();
+  const userIndex = currentUsers.findIndex(u => String(u.Username).toLowerCase() === username.toLowerCase());
+  if (userIndex === -1) return false;
+
+  currentUsers[userIndex].Room = room;
+
+  // 1. Ưu tiên lưu vào Vercel Blob
+  const token = process.env.BLOB_READ_WRITE_TOKEN;
+  if (token) {
+    return await saveUsersToBlob(currentUsers);
+  }
+
+  // 2. Fallback sang ghi đè file Excel cục bộ
+  try {
+    const workbook = XLSX.utils.book_new();
+    const newWorksheet = XLSX.utils.json_to_sheet(currentUsers);
+    XLSX.utils.book_append_sheet(workbook, newWorksheet, 'Users');
+    XLSX.writeFile(workbook, filePath);
+    return true;
+  } catch (error) {
+    console.error('Lỗi khi ghi đè file Excel để cập nhật room:', error);
+    return false;
+  }
+}
+
+
+/**
  * Khởi tạo file Excel ban đầu với các tài khoản mẫu để chạy thử
  */
 function initExcelFile() {

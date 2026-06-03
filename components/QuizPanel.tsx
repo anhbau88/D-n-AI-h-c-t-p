@@ -21,9 +21,10 @@ interface QuizPanelProps {
   onScoreSubmit?: (score: number, scale10Score: string) => void;
   previousScoreInfo?: { score: number, scale10Score: string };
   onAssignQuiz?: (title: string, targetRoom: string, startTime: string, endTime: string) => Promise<void>;
+  availableRooms?: Array<{ code: string; name: string }>;
 }
 
-const CLASSES = ['64CTT1', '64CTT2', '64CTT3', '64CTT4', '64CTT5'];
+const DEFAULT_CLASSES = ['64CTT1', '64CTT2', '64CTT3', '64CTT4', '64CTT5'];
 
 export default function QuizPanel({
   questions,
@@ -33,7 +34,8 @@ export default function QuizPanel({
   hasSubmitted = false,
   onScoreSubmit,
   previousScoreInfo,
-  onAssignQuiz
+  onAssignQuiz,
+  availableRooms = []
 }: QuizPanelProps) {
   // State lưu câu hỏi nào đang hiện đáp án (Giáo viên có thể toggle từng câu, học sinh thì hiện tất cả khi nộp bài)
   const [revealedAnswers, setRevealedAnswers] = useState<Set<number>>(new Set());
@@ -44,7 +46,11 @@ export default function QuizPanel({
 
   // Form states cho giáo viên giao bài trắc nghiệm
   const [assignTitle, setAssignTitle] = useState('');
-  const [targetRoom, setTargetRoom] = useState((userRoom && CLASSES.includes(userRoom)) ? userRoom : CLASSES[0]);
+  const [targetRoom, setTargetRoom] = useState(() => {
+    if (availableRooms.length > 0) return availableRooms[0].code;
+    if (userRoom && DEFAULT_CLASSES.includes(userRoom)) return userRoom;
+    return DEFAULT_CLASSES[0];
+  });
   const [assignStart, setAssignStart] = useState('');
   const [assignEnd, setAssignEnd] = useState('');
   const [isAssigning, setIsAssigning] = useState(false);
@@ -329,11 +335,17 @@ export default function QuizPanel({
                   value={targetRoom}
                   onChange={(e) => setTargetRoom(e.target.value)}
                   disabled={isAssigning}
-                  className="flex h-9 w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all font-semibold"
+                  className="flex h-9 w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all font-semibold text-foreground"
                 >
-                  {CLASSES.map((cls) => (
-                    <option key={cls} value={cls}>Lớp {cls}</option>
-                  ))}
+                  {availableRooms.length > 0 ? (
+                    availableRooms.map((room) => (
+                      <option key={room.code} value={room.code}>{room.name} ({room.code})</option>
+                    ))
+                  ) : (
+                    DEFAULT_CLASSES.map((cls) => (
+                      <option key={cls} value={cls}>Lớp {cls}</option>
+                    ))
+                  )}
                 </select>
               </div>
             </div>

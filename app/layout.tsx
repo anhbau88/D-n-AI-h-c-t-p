@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Roboto, Lexend } from "next/font/google";
+import { Geist, Geist_Mono, Roboto, Lexend, Plus_Jakarta_Sans, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { AccessibilityProvider } from "@/components/AccessibilityContext";
 
@@ -24,6 +24,16 @@ const lexend = Lexend({
   variable: "--font-lexend",
 });
 
+const plusJakartaSans = Plus_Jakarta_Sans({
+  subsets: ["latin", "vietnamese"],
+  variable: "--font-plus-jakarta-sans",
+});
+
+const jetBrainsMono = JetBrains_Mono({
+  subsets: ["latin"],
+  variable: "--font-jetbrains-mono",
+});
+
 export const metadata: Metadata = {
   title: "AI Study Assistant - Trợ lý học tập thông minh",
   description: "Ứng dụng AI giúp sinh viên tóm tắt tài liệu PDF, chat hỏi đáp và tạo câu hỏi trắc nghiệm ôn tập. Powered by Google Gemini.",
@@ -38,10 +48,11 @@ export default function RootLayout({
   return (
     <html
       lang="vi"
-      className={`${geistSans.variable} ${geistMono.variable} ${roboto.variable} ${lexend.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${roboto.variable} ${lexend.variable} ${plusJakartaSans.variable} ${jetBrainsMono.variable} h-full antialiased`}
       suppressHydrationWarning
     >
       <head>
+        <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet" />
         <script
           dangerouslySetInnerHTML={{
             __html: `
@@ -70,8 +81,10 @@ export default function RootLayout({
                   } else if (savedFont === 'lexend') {
                     document.documentElement.style.setProperty('--font-sans', 'var(--font-lexend)');
                   } else {
-                    document.documentElement.style.setProperty('--font-sans', 'var(--font-geist-sans)');
+                    document.documentElement.style.setProperty('--font-sans', 'var(--font-plus-jakarta-sans)');
                   }
+                  
+                  document.documentElement.style.setProperty('--font-mono', 'var(--font-jetbrains-mono)');
                 } catch (_) {}
               })()
             `,

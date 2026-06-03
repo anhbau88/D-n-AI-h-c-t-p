@@ -40,19 +40,17 @@ export default function ThemeToggle() {
   };
 
   return (
-    <Button
-      variant="outline"
-      size="icon"
+    <button
       onClick={toggleTheme}
-      className="rounded-xl border-white/10 hover:bg-white/20 text-white bg-white/10 h-10 w-10 shrink-0 shadow-lg transition-all duration-300"
+      className="text-primary hover:scale-110 active:scale-95 transition-transform flex items-center justify-center h-6 w-6 focus:outline-none"
       title="Chuyển đổi giao diện Sáng/Tối"
     >
       {theme === 'light' ? (
-        <Sun className="h-[1.2rem] w-[1.2rem] text-yellow-300 transition-all rotate-0 scale-100" />
+        <Sun className="h-5 w-5" />
       ) : (
-        <Moon className="h-[1.2rem] w-[1.2rem] text-blue-200 transition-all rotate-0 scale-100" />
+        <Moon className="h-5 w-5" />
       )}
       <span className="sr-only">Toggle Theme</span>
-    </Button>
+    </button>
   );
 }

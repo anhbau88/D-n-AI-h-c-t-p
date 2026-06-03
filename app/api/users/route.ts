@@ -1,5 +1,30 @@
 import { NextResponse } from 'next/server';
-import { readUsersFromExcel, deleteUserInExcel } from '@/lib/excel';
+import { readUsersFromExcel, deleteUserInExcel, updateUserRoomInExcel } from '@/lib/excel';
+import * as fs from 'fs';
+import * as path from 'path';
+
+// Helper để đọc danh sách lớp học nhằm kiểm tra hợp lệ
+async function readClasses() {
+  const localFilePath = path.join(process.cwd(), 'classes.json');
+  const token = process.env.BLOB_READ_WRITE_TOKEN;
+  if (!token) {
+    if (!fs.existsSync(localFilePath)) return [];
+    try {
+      return JSON.parse(fs.readFileSync(localFilePath, 'utf-8'));
+    } catch {
+      return [];
+    }
+  }
+  const storeId = token.match(/^vercel_blob_rw_([a-zA-Z0-9]+)_/)?.[1]?.toLowerCase() || '8shvc32y7x3rg5st';
+  const BLOB_URL = `https://${storeId}.public.blob.vercel-storage.com/classes.json`;
+  try {
+    const res = await fetch(BLOB_URL, { cache: 'no-store' });
+    if (!res.ok) return [];
+    return await res.json();
+  } catch {
+    return [];
+  }
+}
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -47,6 +72,39 @@ export async function DELETE(request: Request) {
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Lỗi API xóa học sinh:', error);
+    return NextResponse.json({ error: 'Đã xảy ra lỗi trên server.' }, { status: 500 });
+  }
+}
+
+export async function PUT(request: Request) {
+  try {
+    const { username, room } = await request.json();
+    if (!username || !username.trim()) {
+      return NextResponse.json({ error: 'Thiếu tên đăng nhập.' }, { status: 400 });
+    }
+
+    const targetRoom = room ? room.trim().toUpperCase() : '';
+
+    if (targetRoom) {
+      // Xác thực mã lớp học có tồn tại trên hệ thống
+      const classes = await readClasses();
+      const classExists = classes.some((c: any) => c.code === targetRoom);
+      if (!classExists) {
+        return NextResponse.json(
+          { error: 'Mã lớp học không tồn tại. Vui lòng kiểm tra lại.' },
+          { status: 400 }
+        );
+      }
+    }
+
+    const success = await updateUserRoomInExcel(username.trim(), targetRoom);
+    if (!success) {
+      return NextResponse.json({ error: 'Không tìm thấy người dùng hoặc lỗi cập nhật.' }, { status: 400 });
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Lỗi API cập nhật lớp học:', error);
     return NextResponse.json({ error: 'Đã xảy ra lỗi trên server.' }, { status: 500 });
   }
 }
