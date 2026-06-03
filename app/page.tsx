@@ -310,6 +310,7 @@ export default function Home() {
   const [classList, setClassList] = useState<Array<{ code: string; name: string; teacherUsername: string }>>([]);
   const [joinClassCode, setJoinClassCode] = useState('');
   const [showCreateClassModal, setShowCreateClassModal] = useState(false);
+  const [showJoinClassModal, setShowJoinClassModal] = useState(false);
   const [newClassName, setNewClassName] = useState('');
   const [createdClassCode, setCreatedClassCode] = useState('');
 
@@ -1027,6 +1028,7 @@ export default function Home() {
       
       showMessage(language === 'vi' ? 'Đã tham gia lớp học thành công!' : 'Joined classroom successfully!', false);
       setJoinClassCode('');
+      setShowJoinClassModal(false);
     } catch (err: any) {
       showMessage(err.message || 'Lỗi khi tham gia lớp');
     }
@@ -1602,6 +1604,79 @@ export default function Home() {
             </div>
           </div>
         )}
+
+        {/* JOIN CLASS ROOM MODAL (STUDENT) */}
+        {showJoinClassModal && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+            <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-3xl p-6 w-full max-w-md shadow-2xl relative animate-in zoom-in-95 duration-200">
+              <button
+                onClick={() => {
+                  setShowJoinClassModal(false);
+                  setJoinClassCode('');
+                }}
+                className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+
+              <div className="space-y-4">
+                <h3 className="text-base font-black text-foreground">
+                  {user?.room 
+                    ? (language === 'vi' ? 'Đổi lớp học mới' : 'Change Class Room') 
+                    : (language === 'vi' ? 'Vào lớp học' : 'Join Class Room')
+                  }
+                </h3>
+                <p className="text-xs text-gray-500 font-semibold leading-relaxed">
+                  {language === 'vi'
+                    ? 'Nhập mã lớp học gồm 6 ký tự do giáo viên cung cấp để tham gia vào lớp học mới.'
+                    : 'Enter the 6-character class code provided by your teacher to join a new classroom.'}
+                </p>
+
+                {user?.room && (
+                  <div className="text-xs p-3 bg-amber-50 dark:bg-amber-950/20 text-amber-600 dark:text-amber-400 border border-amber-200/50 dark:border-amber-900/30 rounded-xl font-bold">
+                    ⚠️ {language === 'vi' 
+                      ? `Bạn đang ở lớp: ${user.room}. Khi đổi lớp mới, bạn sẽ chuyển sang làm bài tập của lớp mới.` 
+                      : `Current class: ${user.room}. Changing class will redirect you to the new class's exams.`}
+                  </div>
+                )}
+
+                <div className="space-y-1.5 font-semibold text-left">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase">
+                    {language === 'vi' ? 'Mã lớp học' : 'Class Code'}
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder={language === 'vi' ? 'Ví dụ: C8X9W2' : 'E.g., C8X9W2'}
+                    value={joinClassCode}
+                    onChange={(e) => setJoinClassCode(e.target.value.toUpperCase())}
+                    className="w-full text-sm font-semibold px-4 py-2.5 rounded-xl border border-gray-300 dark:border-gray-800 bg-white/50 dark:bg-gray-950/50 text-foreground placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all font-mono tracking-widest text-center"
+                    maxLength={6}
+                  />
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <button
+                    onClick={() => {
+                      setShowJoinClassModal(false);
+                      setJoinClassCode('');
+                    }}
+                    className="flex-1 py-2.5 rounded-xl border border-gray-300 dark:border-gray-800 hover:bg-gray-55 dark:hover:bg-gray-800 text-foreground font-bold text-xs transition-all"
+                  >
+                    {language === 'vi' ? 'Hủy' : 'Cancel'}
+                  </button>
+                  <button
+                    onClick={handleJoinClass}
+                    className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-primary to-violet hover:brightness-110 active:scale-95 text-white font-bold text-xs shadow-md transition-all"
+                  >
+                    {language === 'vi' ? 'Xác nhận' : 'Confirm'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* ===== ALERTS (TOAST) ===== */}
         {error && (
           <div className="fixed top-4 right-4 z-50 animate-in fade-in slide-in-from-top-3 duration-300">
@@ -2109,6 +2184,24 @@ export default function Home() {
                               <span>{language === 'vi' ? 'Tạo lớp' : 'Create Class'}</span>
                             </button>
                           </div>
+                        )}
+
+                        {!isTeacher && (
+                          <button
+                            onClick={() => {
+                              setJoinClassCode('');
+                              setShowJoinClassModal(true);
+                            }}
+                            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-primary to-violet hover:brightness-110 active:scale-95 text-white transition-all text-xs font-bold shadow-sm"
+                          >
+                            <Plus className="w-4 h-4" />
+                            <span>
+                              {user.room 
+                                ? (language === 'vi' ? 'Đổi lớp học' : 'Change Class') 
+                                : (language === 'vi' ? 'Vào lớp bằng mã' : 'Join Class')
+                              }
+                            </span>
+                          </button>
                         )}
                         
                         <button 
