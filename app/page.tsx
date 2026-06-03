@@ -28,7 +28,8 @@ import {
   TrendingUp,
   Search,
   Plus,
-  MessageSquare
+  MessageSquare,
+  Lock
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { useCompletion } from 'ai/react';
@@ -313,6 +314,15 @@ export default function Home() {
   const [showJoinClassModal, setShowJoinClassModal] = useState(false);
   const [newClassName, setNewClassName] = useState('');
   const [createdClassCode, setCreatedClassCode] = useState('');
+
+  // Password Change States
+  const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [changePasswordError, setChangePasswordError] = useState('');
+  const [changePasswordSuccess, setChangePasswordSuccess] = useState('');
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
 
   // Language State (VI/EN)
   const [language, setLanguage] = useState<'vi' | 'en'>('vi');
@@ -604,6 +614,57 @@ export default function Home() {
     setActiveDoc(null);
     setActiveAssignment(null);
     setLibraryDocs([]);
+  };
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) return;
+
+    if (!currentPassword.trim() || !newPassword.trim() || !confirmNewPassword.trim()) {
+      setChangePasswordError(language === 'vi' ? 'Vui lòng điền đầy đủ thông tin.' : 'Please fill out all fields.');
+      return;
+    }
+
+    if (newPassword !== confirmNewPassword) {
+      setChangePasswordError(language === 'vi' ? 'Mật khẩu mới nhập lại không trùng khớp.' : 'Confirm password does not match.');
+      return;
+    }
+
+    setIsChangingPassword(true);
+    setChangePasswordError('');
+    setChangePasswordSuccess('');
+
+    try {
+      const res = await fetch('/api/auth/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: user.username,
+          currentPassword: currentPassword,
+          newPassword: newPassword,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || (language === 'vi' ? 'Có lỗi xảy ra khi đổi mật khẩu.' : 'Failed to change password.'));
+      }
+
+      setChangePasswordSuccess(language === 'vi' ? 'Đổi mật khẩu thành công!' : 'Password changed successfully!');
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmNewPassword('');
+      
+      setTimeout(() => {
+        setShowChangePasswordModal(false);
+        setChangePasswordSuccess('');
+      }, 1500);
+
+    } catch (err: any) {
+      setChangePasswordError(err.message || 'Lỗi kết nối.');
+    } finally {
+      setIsChangingPassword(false);
+    }
   };
 
   const showMessage = (msg: string, isError = true) => {
@@ -1707,6 +1768,119 @@ export default function Home() {
           </div>
         )}
 
+        {/* CHANGE PASSWORD MODAL */}
+        {showChangePasswordModal && (
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
+            <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-3xl p-6 w-full max-w-md shadow-2xl relative animate-in zoom-in-95 duration-200">
+              <button
+                onClick={() => {
+                  setShowChangePasswordModal(false);
+                  setCurrentPassword('');
+                  setNewPassword('');
+                  setConfirmNewPassword('');
+                  setChangePasswordError('');
+                  setChangePasswordSuccess('');
+                }}
+                className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+
+              <form onSubmit={handleChangePassword} className="space-y-4">
+                <h3 className="text-base font-black text-foreground flex items-center gap-2">
+                  <Lock className="w-5 h-5 text-primary" />
+                  {language === 'vi' ? 'Đổi mật khẩu tài khoản' : 'Change Password'}
+                </h3>
+                <p className="text-xs text-gray-500 font-semibold leading-relaxed">
+                  {language === 'vi'
+                    ? 'Nhập mật khẩu hiện tại của bạn và thiết lập mật khẩu mới.'
+                    : 'Enter your current password and set a new one.'}
+                </p>
+
+                {changePasswordError && (
+                  <div className="p-3 text-xs bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/30 text-red-500 rounded-xl font-semibold flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    <span>{changePasswordError}</span>
+                  </div>
+                )}
+
+                {changePasswordSuccess && (
+                  <div className="p-3 text-xs bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900/30 text-emerald-500 rounded-xl font-semibold flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 shrink-0" />
+                    <span>{changePasswordSuccess}</span>
+                  </div>
+                )}
+
+                <div className="space-y-1.5 font-semibold text-left">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase">
+                    {language === 'vi' ? 'Mật khẩu hiện tại' : 'Current Password'}
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    value={currentPassword}
+                    onChange={(e) => setCurrentPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full text-sm font-semibold px-4 py-2.5 rounded-xl border border-gray-300 dark:border-gray-800 bg-white/50 dark:bg-gray-950/50 text-foreground placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                  />
+                </div>
+
+                <div className="space-y-1.5 font-semibold text-left">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase">
+                    {language === 'vi' ? 'Mật khẩu mới' : 'New Password'}
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full text-sm font-semibold px-4 py-2.5 rounded-xl border border-gray-300 dark:border-gray-800 bg-white/50 dark:bg-gray-950/50 text-foreground placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                  />
+                </div>
+
+                <div className="space-y-1.5 font-semibold text-left">
+                  <label className="text-[10px] font-bold text-gray-400 uppercase">
+                    {language === 'vi' ? 'Nhập lại mật khẩu mới' : 'Confirm New Password'}
+                  </label>
+                  <input
+                    type="password"
+                    required
+                    value={confirmNewPassword}
+                    onChange={(e) => setConfirmNewPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full text-sm font-semibold px-4 py-2.5 rounded-xl border border-gray-300 dark:border-gray-800 bg-white/50 dark:bg-gray-950/50 text-foreground placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+                  />
+                </div>
+
+                <div className="flex gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowChangePasswordModal(false);
+                      setCurrentPassword('');
+                      setNewPassword('');
+                      setConfirmNewPassword('');
+                      setChangePasswordError('');
+                      setChangePasswordSuccess('');
+                    }}
+                    className="flex-1 py-2.5 rounded-xl border border-gray-300 dark:border-gray-800 hover:bg-gray-55 dark:hover:bg-gray-800 text-foreground font-bold text-xs transition-all"
+                  >
+                    {language === 'vi' ? 'Hủy' : 'Cancel'}
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isChangingPassword}
+                    className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-primary to-violet hover:brightness-110 active:scale-95 text-white font-bold text-xs shadow-md transition-all flex items-center justify-center gap-1.5"
+                  >
+                    {isChangingPassword ? (language === 'vi' ? 'Đang cập nhật...' : 'Updating...') : (language === 'vi' ? 'Cập nhật' : 'Update')}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
         {/* ===== ALERTS (TOAST) ===== */}
         {error && (
           <div className="fixed top-4 right-4 z-50 animate-in fade-in slide-in-from-top-3 duration-300">
@@ -2107,23 +2281,21 @@ export default function Home() {
                           </span>
                         </div>
 
-                        <div className="flex justify-between items-center border-t border-gray-300 dark:border-gray-800 pt-3">
-                          <div>
-                            <p className="font-bold text-foreground">{t.room}</p>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">Assigned classroom group</p>
-                          </div>
-                          <div className="flex flex-wrap gap-1.5">
-                            {userRooms.length > 0 ? userRooms.map(code => {
-                              const cls = classList.find(c => c.code === code);
-                              return (
-                                <span key={code} className="bg-primary/10 text-primary px-2.5 py-1 rounded-lg text-xs font-bold">
-                                  {cls?.name || code}
-                                </span>
-                              );
-                            }) : (
-                              <span className="bg-gray-200/50 dark:bg-gray-800 px-3 py-1.5 rounded-lg text-foreground">{t.unassigned}</span>
-                            )}
-                          </div>
+                        <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-gray-300 dark:border-gray-800">
+                          <button
+                            onClick={() => setShowChangePasswordModal(true)}
+                            className="flex-1 px-4 py-2.5 bg-primary text-white font-bold rounded-xl shadow hover:brightness-110 active:scale-98 transition-all flex items-center justify-center gap-2 text-sm"
+                          >
+                            <Lock className="w-4 h-4" />
+                            {language === 'vi' ? 'Đổi mật khẩu' : 'Change Password'}
+                          </button>
+                          <button
+                            onClick={handleLogout}
+                            className="flex-1 px-4 py-2.5 bg-red-500 text-white font-bold rounded-xl shadow hover:bg-red-600 active:scale-98 transition-all flex items-center justify-center gap-2 text-sm"
+                          >
+                            <LogOut className="w-4 h-4" />
+                            {language === 'vi' ? 'Đăng xuất' : 'Log Out'}
+                          </button>
                         </div>
                       </div>
                     </div>
