@@ -341,6 +341,7 @@ export default function Home() {
 
   // Selected essay details (Teacher only)
   const [selectedEssaySubmission, setSelectedEssaySubmission] = useState<QuizHistoryItem | null>(null);
+  const [selectedQuizSubmission, setSelectedQuizSubmission] = useState<QuizHistoryItem | null>(null);
 
   // Class selected by teacher on dashboard
   const [dashboardClass, setDashboardClass] = useState<string>('64CTT1');
@@ -682,7 +683,7 @@ export default function Home() {
     }
   };
 
-  const handleScoreSubmit = async (score: number, scale10Score: string) => {
+  const handleScoreSubmit = async (score: number, scale10Score: string, studentAnswers?: Record<number, string>, takenQuestions?: QuizQuestion[]) => {
     if (!user || !activeAssignment) return;
 
     const newItem: QuizHistoryItem = {
@@ -694,7 +695,10 @@ export default function Home() {
       score,
       totalQuestions: activeAssignment.questions?.length || 0,
       scale10Score,
-      submittedAt: new Date().toISOString()
+      submittedAt: new Date().toISOString(),
+      type: 'quiz',
+      studentAnswer: studentAnswers ? JSON.stringify(studentAnswers) : undefined,
+      questions: takenQuestions
     };
 
     try {
@@ -2174,7 +2178,7 @@ export default function Home() {
 
                                 {(questions.length > 0 || isLoading) && (
                                   <QuizPanel
-                                    questions={questions}
+                                    questions={activeSubmission?.questions || questions}
                                     isLoading={loadingType === 'quiz'}
                                     userRole={user.role}
                                     userRoom={user?.room}
@@ -2183,6 +2187,13 @@ export default function Home() {
                                     previousScoreInfo={activeSubmission ? { score: activeSubmission.score, scale10Score: activeSubmission.scale10Score } : undefined}
                                     onAssignQuiz={handleAssignQuiz}
                                     availableRooms={teacherClasses}
+                                    previousAnswers={activeSubmission?.studentAnswer ? (() => {
+                                      try {
+                                        return JSON.parse(activeSubmission.studentAnswer) as Record<number, string>;
+                                      } catch (e) {
+                                        return undefined;
+                                      }
+                                    })() : undefined}
                                   />
                                 )}
                               </div>
@@ -2782,8 +2793,15 @@ export default function Home() {
                                                       </span>
                                                     </td>
                                                     {isQuiz ? (
-                                                      <td className="py-2.5 px-4 text-gray-600 dark:text-gray-300 font-semibold">
-                                                        {h.score}/{h.totalQuestions} {language === 'vi' ? 'câu' : 'questions'}
+                                                      <td className="py-2.5 px-4">
+                                                        <Button
+                                                          onClick={() => setSelectedQuizSubmission(h)}
+                                                          variant="outline"
+                                                          size="sm"
+                                                          className="h-7 text-xs px-2.5 rounded-xl border-primary/30 text-primary hover:bg-primary/5 font-bold"
+                                                        >
+                                                           {language === 'vi' ? `Xem bài làm (${h.score}/${h.totalQuestions})` : `View Work (${h.score}/${h.totalQuestions})`}
+                                                        </Button>
                                                       </td>
                                                     ) : (
                                                       <td className="py-2.5 px-4">
@@ -3138,6 +3156,136 @@ export default function Home() {
                 className="bg-primary hover:brightness-110 text-white rounded-xl text-sm h-10 px-6 font-bold shadow-md shadow-primary/20"
               >
                 {t.closeFeedback}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===== OVERLAY MODAL: REVIEW STUDENT QUIZ SUBMISSION (Teacher only) ===== */}
+      {selectedQuizSubmission && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="bg-white dark:bg-gray-900 rounded-3xl shadow-2xl border border-gray-200 dark:border-gray-800 w-full max-w-4xl max-h-[85vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+            
+            {/* Modal Header */}
+            <div className="px-6 py-4.5 bg-gradient-to-r from-emerald-500 to-teal-600 text-white flex justify-between items-center shrink-0">
+              <div>
+                <h3 className="font-bold text-base flex items-center gap-2">
+                  <CheckCircle2 className="w-5 h-5 text-yellow-300" />
+                  {language === 'vi' ? 'Chi tiết bài trắc nghiệm của học sinh' : 'Student Quiz Submission Review'}
+                </h3>
+                <p className="text-primary-foreground text-xs mt-0.5 font-medium opacity-90">
+                  {t.historyTableHeadName}: <span className="font-bold">{selectedQuizSubmission.fullName || selectedQuizSubmission.username}</span> |
+                  {language === 'vi' ? 'Điểm số' : 'Grade'}: <span className="font-bold">{selectedQuizSubmission.scale10Score}/10 ({selectedQuizSubmission.score}/{selectedQuizSubmission.totalQuestions} câu)</span> |
+                  {t.submittedAt}: {new Date(selectedQuizSubmission.submittedAt).toLocaleString('vi-VN')}
+                </p>
+              </div>
+              <button
+                onClick={() => setSelectedQuizSubmission(null)}
+                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors text-white font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6 overflow-y-auto flex-1 space-y-6">
+              {(() => {
+                // Parse student answers from JSON
+                let studentAnswers: Record<number, string> = {};
+                try {
+                  if (selectedQuizSubmission.studentAnswer) {
+                    studentAnswers = JSON.parse(selectedQuizSubmission.studentAnswer);
+                  }
+                } catch (e) {
+                  console.error('Error parsing student quiz answers:', e);
+                }
+
+                // Get questions list to display. If saved questions are in history, use them. Otherwise, fall back to assignment questions.
+                let quizQuestions: QuizQuestion[] = selectedQuizSubmission.questions || [];
+                if (quizQuestions.length === 0) {
+                  const matchingAsm = assignments.find(a => a.id === selectedQuizSubmission.assignmentId);
+                  quizQuestions = matchingAsm?.questions || [];
+                }
+
+                if (quizQuestions.length === 0) {
+                  return (
+                    <div className="p-12 text-center text-gray-500 dark:text-gray-400">
+                      {language === 'vi' ? 'Không tìm thấy dữ liệu câu hỏi cho bài thi này.' : 'No question data found for this quiz.'}
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="space-y-4">
+                    {quizQuestions.map((q, index) => {
+                      const studentAnswerLetter = studentAnswers[index];
+                      const isCorrect = studentAnswerLetter === q.answer;
+
+                      return (
+                        <div key={index} className="p-5 bg-gray-50/50 dark:bg-gray-950/20 border border-gray-200 dark:border-gray-800/80 rounded-2xl space-y-3">
+                          <div className="flex items-start gap-2.5">
+                            <span className="shrink-0 w-7 h-7 bg-primary/10 text-primary rounded-lg flex items-center justify-center text-xs font-bold font-mono">
+                              {index + 1}
+                            </span>
+                            <h4 className="font-bold text-sm text-foreground pt-0.5 leading-relaxed">
+                              {q.question}
+                            </h4>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 ml-9">
+                            {q.options.map((option, optIdx) => {
+                              // Extract option letter (A, B, C, D)
+                              const match = option.trim().match(/^([A-D])\s*\.?\s*/i);
+                              const letter = match ? match[1].toUpperCase() : ['A', 'B', 'C', 'D'][optIdx];
+                              
+                              const isCorrectOption = letter === q.answer;
+                              const isStudentSelected = studentAnswerLetter === letter;
+
+                              let optionClass = 'border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-300';
+                              if (isCorrectOption) {
+                                optionClass = 'border-emerald-300 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-800 dark:text-emerald-350';
+                              } else if (isStudentSelected && !isCorrectOption) {
+                                optionClass = 'border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-950/30 text-red-800 dark:text-red-350';
+                              }
+
+                              return (
+                                <div key={optIdx} className={`p-2.5 rounded-xl border text-xs font-semibold flex items-center justify-between ${optionClass}`}>
+                                  <span>{option}</span>
+                                  {isCorrectOption && (
+                                    <span className="text-[10px] bg-emerald-500/10 text-emerald-500 px-1.5 py-0.5 rounded font-black">Correct</span>
+                                  )}
+                                  {isStudentSelected && !isCorrectOption && (
+                                    <span className="text-[10px] bg-red-500/10 text-red-500 px-1.5 py-0.5 rounded font-black">Student Answer</span>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+
+                          <div className="ml-9 p-3 bg-blue-50/50 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/40 rounded-xl text-xs space-y-1">
+                            <p className="font-bold text-blue-700 dark:text-blue-400">
+                              {language === 'vi' ? 'Đáp án đúng: ' : 'Correct Answer: '} {q.answer}
+                            </p>
+                            <p className="text-gray-600 dark:text-gray-350 leading-relaxed">
+                              {q.explanation}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-950/20 flex justify-end shrink-0">
+              <Button
+                onClick={() => setSelectedQuizSubmission(null)}
+                className="bg-primary hover:brightness-110 text-white rounded-xl text-sm h-10 px-6 font-bold shadow-md shadow-primary/20"
+              >
+                {language === 'vi' ? 'Đóng' : 'Close'}
               </Button>
             </div>
           </div>

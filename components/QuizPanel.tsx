@@ -18,10 +18,11 @@ interface QuizPanelProps {
   userRole?: 'teacher' | 'student';
   userRoom?: string;
   hasSubmitted?: boolean;
-  onScoreSubmit?: (score: number, scale10Score: string) => void;
+  onScoreSubmit?: (score: number, scale10Score: string, studentAnswers?: Record<number, string>, takenQuestions?: QuizQuestion[]) => void;
   previousScoreInfo?: { score: number, scale10Score: string };
   onAssignQuiz?: (title: string, targetRoom: string, startTime: string, endTime: string) => Promise<void>;
   availableRooms?: Array<{ code: string; name: string }>;
+  previousAnswers?: Record<number, string>;
 }
 
 const DEFAULT_CLASSES = ['64CTT1', '64CTT2', '64CTT3', '64CTT4', '64CTT5'];
@@ -35,7 +36,8 @@ export default function QuizPanel({
   onScoreSubmit,
   previousScoreInfo,
   onAssignQuiz,
-  availableRooms = []
+  availableRooms = [],
+  previousAnswers
 }: QuizPanelProps) {
   // State lưu câu hỏi nào đang hiện đáp án (Giáo viên có thể toggle từng câu, học sinh thì hiện tất cả khi nộp bài)
   const [revealedAnswers, setRevealedAnswers] = useState<Set<number>>(new Set());
@@ -58,18 +60,67 @@ export default function QuizPanel({
 
   const isTeacher = userRole === 'teacher';
 
-  // Khi component mount hoặc hasSubmitted/questions thay đổi
+  const [shuffledQuestions, setShuffledQuestions] = useState<QuizQuestion[]>([]);
+
+  // Khi component mount hoặc hasSubmitted/questions/previousAnswers thay đổi
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsSubmitted(hasSubmitted);
     if (hasSubmitted) {
       const all = new Set(questions.map((_, i) => i));
       setRevealedAnswers(all);
+      if (previousAnswers) {
+        const answersMap = new Map<number, string>();
+        Object.entries(previousAnswers).forEach(([k, v]) => {
+          answersMap.set(Number(k), v);
+        });
+        setSelectedAnswers(answersMap);
+      } else {
+        setSelectedAnswers(new Map());
+      }
     } else {
       setRevealedAnswers(new Set());
       setSelectedAnswers(new Map());
     }
-  }, [hasSubmitted, questions]);
+  }, [hasSubmitted, questions, previousAnswers]);
+
+  // Đảo ngẫu nhiên câu hỏi & đáp án cho học sinh làm bài
+  useEffect(() => {
+    if (questions.length === 0) {
+      setShuffledQuestions([]);
+      return;
+    }
+
+    if (isTeacher || hasSubmitted) {
+      setShuffledQuestions(questions);
+    } else {
+      function shuffleArray<T>(array: T[]): T[] {
+        const arr = [...array];
+        for (let i = arr.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [arr[i], arr[j]] = [arr[j], arr[i]];
+        }
+        return arr;
+      }
+
+      const shuffled = shuffleArray(questions).map(q => {
+        const letters = ['A', 'B', 'C', 'D'];
+        const correctLetter = q.answer.trim().toUpperCase();
+        const correctIdx = letters.indexOf(correctLetter);
+        const correctOptionText = correctIdx !== -1 ? q.options[correctIdx] : '';
+
+        const shuffledOptions = shuffleArray(q.options);
+        let newCorrectIdx = shuffledOptions.indexOf(correctOptionText);
+        if (newCorrectIdx === -1) newCorrectIdx = 0;
+
+        return {
+          ...q,
+          options: shuffledOptions,
+          answer: letters[newCorrectIdx]
+        };
+      });
+      setShuffledQuestions(shuffled);
+    }
+  }, [questions, isTeacher, hasSubmitted]);
 
   const handleSubmitQuizRef = useRef<() => void>(undefined);
   useEffect(() => {
@@ -115,17 +166,23 @@ export default function QuizPanel({
   const handleSubmitQuiz = () => {
     setIsSubmitted(true);
     // Hiện toàn bộ đáp án
-    const all = new Set(questions.map((_, i) => i));
+    const all = new Set(shuffledQuestions.map((_, i) => i));
     setRevealedAnswers(all);
     
     // Gọi callback để lưu điểm
     if (onScoreSubmit) {
-      const scoreCount = questions.reduce((acc, q, idx) => {
+      const scoreCount = shuffledQuestions.reduce((acc, q, idx) => {
         if (selectedAnswers.get(idx) === q.answer) return acc + 1;
         return acc;
       }, 0);
-      const scale10 = questions.length > 0 ? ((scoreCount / questions.length) * 10).toFixed(1) : "0.0";
-      onScoreSubmit(scoreCount, scale10);
+      const scale10 = shuffledQuestions.length > 0 ? ((scoreCount / shuffledQuestions.length) * 10).toFixed(1) : "0.0";
+
+      const answersObj: Record<number, string> = {};
+      selectedAnswers.forEach((val, key) => {
+        answersObj[key] = val;
+      });
+
+      onScoreSubmit(scoreCount, scale10, answersObj, shuffledQuestions);
     }
   };
 
@@ -180,12 +237,12 @@ export default function QuizPanel({
   };
 
   // Tính điểm
-  const currentScore = questions.reduce((acc, q, idx) => {
+  const currentScore = shuffledQuestions.reduce((acc, q, idx) => {
     if (selectedAnswers.get(idx) === q.answer) return acc + 1;
     return acc;
   }, 0);
 
-  const currentScale10Score = questions.length > 0 ? ((currentScore / questions.length) * 10).toFixed(1) : "0.0";
+  const currentScale10Score = shuffledQuestions.length > 0 ? ((currentScore / shuffledQuestions.length) * 10).toFixed(1) : "0.0";
 
   // Hiển thị điểm (dùng previousScoreInfo nếu có sẵn (đã nộp từ trước), hoặc tính toán mới)
   const displayScore = hasSubmitted && previousScoreInfo ? previousScoreInfo.score : currentScore;
@@ -197,7 +254,7 @@ export default function QuizPanel({
   }
 
   // Trạng thái trống
-  if (questions.length === 0) {
+  if (shuffledQuestions.length === 0) {
     return (
       <Card className="p-6 border-0 shadow-lg bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm">
         <div className="flex flex-col items-center justify-center py-16 text-gray-400">
@@ -218,12 +275,12 @@ export default function QuizPanel({
       {/* Header trạng thái */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300">
-          📝 {questions.length} câu hỏi trắc nghiệm
+          📝 {shuffledQuestions.length} câu hỏi trắc nghiệm
         </Badge>
         
         {isSubmitted && (
           <Badge variant="default" className="bg-blue-500 hover:bg-blue-600 text-white shadow-md px-3 py-1">
-            Điểm số: {displayScale10}/10 ({displayScore}/{questions.length} câu)
+            Điểm số: {displayScale10}/10 ({displayScore}/{shuffledQuestions.length} câu)
           </Badge>
         )}
       </div>
@@ -239,7 +296,7 @@ export default function QuizPanel({
           }
         }}
       >
-        {questions.map((q, index) => {
+        {shuffledQuestions.map((q, index) => {
           const isRevealed = revealedAnswers.has(index);
           const userAnswer = selectedAnswers.get(index);
 
@@ -333,7 +390,7 @@ export default function QuizPanel({
       </div>
 
       {/* Nút Nộp Bài (Dành cho Học Sinh) */}
-      {!isTeacher && !isSubmitted && questions.length > 0 && (
+      {!isTeacher && !isSubmitted && shuffledQuestions.length > 0 && (
         <div className="pt-4 flex justify-end">
           <Button 
             onClick={handleSubmitQuiz}

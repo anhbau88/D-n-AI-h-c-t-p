@@ -50,11 +50,12 @@ export interface QuizHistoryItem {
   scale10Score: string;  // Điểm số hệ 10
   submittedAt: string;
 
-  // Trường mở rộng cho bài thi tự luận
+  // Trường mở rộng cho bài thi tự luận & trắc nghiệm
   type?: 'quiz' | 'essay';
-  studentAnswer?: string; // Bài làm tự luận của học sinh
+  studentAnswer?: string; // Bài làm tự luận của học sinh (hoặc JSON đáp án trắc nghiệm đã chọn)
   aiFeedback?: string;     // Nhận xét chi tiết của AI
   teacherComment?: string; // Nhận xét thủ công của giáo viên (tùy chọn)
   status?: 'pending' | 'graded'; // Trạng thái chấm bài
+  questions?: QuizQuestion[]; // Lưu bộ câu hỏi đã làm (để giáo viên xem lại đúng thứ tự đã đảo)
 }
 
