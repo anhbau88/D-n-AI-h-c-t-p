@@ -351,6 +351,10 @@ export default function EssayPanel({
                         placeholder="Nhập câu trả lời tự luận chi tiết của bạn tại đây (sử dụng kiến thức trong tài liệu tham khảo để lập luận)..."
                         value={studentAnswerText}
                         onChange={(e) => setStudentAnswerText(e.target.value)}
+                        onPaste={(e) => {
+                          e.preventDefault();
+                          alert('Không cho phép dán (paste) câu trả lời! Vui lòng tự gõ bài làm.');
+                        }}
                       />
                     </div>
                     

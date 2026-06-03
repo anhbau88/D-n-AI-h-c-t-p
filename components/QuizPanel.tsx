@@ -3,7 +3,7 @@
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -70,6 +70,32 @@ export default function QuizPanel({
       setSelectedAnswers(new Map());
     }
   }, [hasSubmitted, questions]);
+
+  const handleSubmitQuizRef = useRef<() => void>(undefined);
+  useEffect(() => {
+    handleSubmitQuizRef.current = handleSubmitQuiz;
+  });
+
+  // Tự động nộp bài trắc nghiệm khi học sinh rời khỏi tab thi
+  useEffect(() => {
+    if (isTeacher || isSubmitted || questions.length === 0) return;
+
+    let autoSubmitted = false;
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden' && !autoSubmitted) {
+        autoSubmitted = true;
+        handleSubmitQuizRef.current?.();
+        alert('Phát hiện hành động rời khỏi tab làm bài! Bài thi trắc nghiệm của bạn đã được nộp tự động.');
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [isTeacher, isSubmitted, questions]);
 
 
   // Toggle hiện/ẩn đáp án cho câu hỏi thứ index (Dành cho GV)
@@ -203,7 +229,16 @@ export default function QuizPanel({
       </div>
 
       {/* Danh sách câu hỏi */}
-      <div className="space-y-4">
+      <div 
+        className="space-y-4"
+        style={!isTeacher && !isSubmitted ? { userSelect: 'none', WebkitUserSelect: 'none', MozUserSelect: 'none', msUserSelect: 'none' } as React.CSSProperties : undefined}
+        onCopy={(e) => {
+          if (!isTeacher && !isSubmitted) {
+            e.preventDefault();
+            alert('Không được phép sao chép câu hỏi trong khi đang làm bài!');
+          }
+        }}
+      >
         {questions.map((q, index) => {
           const isRevealed = revealedAnswers.has(index);
           const userAnswer = selectedAnswers.get(index);
