@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Terminal, Code, Wrench, Clock } from 'lucide-react';
+import { Code, Wrench, Clock } from 'lucide-react';
 
 const codeSnippet = `// Khởi tạo quy trình nâng cấp hệ thống
 async function upgradeSystem() {
@@ -28,7 +28,6 @@ async function upgradeSystem() {
 
 export default function MaintenancePage() {
   const [displayedCode, setDisplayedCode] = useState("");
-  const [isTyping, setIsTyping] = useState(true);
   
   // Hiệu ứng gõ code
   useEffect(() => {
@@ -45,12 +44,10 @@ export default function MaintenancePage() {
         const nextDelay = Math.random() * 50 + 30; 
         typingInterval = setTimeout(typeCode, nextDelay);
       } else {
-        setIsTyping(false);
         // Chờ 5s rồi lặp lại
         setTimeout(() => {
           i = 0;
           setDisplayedCode("");
-          setIsTyping(true);
           typeCode();
         }, 5000);
       }

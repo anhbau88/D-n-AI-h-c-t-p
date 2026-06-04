@@ -92,7 +92,7 @@ export async function PUT(request: Request) {
     if (targetRoom && updateMode !== 'remove') {
       // Xác thực mã lớp học có tồn tại trên hệ thống
       const classes = await readClasses();
-      const classExists = classes.some((c: any) => c.code === targetRoom);
+      const classExists = classes.some((c: { code: string }) => c.code === targetRoom);
       if (!classExists) {
         return NextResponse.json(
           { error: 'Mã lớp học không tồn tại. Vui lòng kiểm tra lại.' },

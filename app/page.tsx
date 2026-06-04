@@ -52,9 +52,6 @@ const TeacherClassManagement = dynamic(() => import('@/components/TeacherClassMa
 
 import { FileInfo, QuizQuestion, User, Assignment, QuizHistoryItem, DocumentItem, ChatMessage } from '@/types';
 
-// List of official classes
-const CLASSES = ['64CTT1', '64CTT2', '64CTT3', '64CTT4', '64CTT5'];
-
 // Bilingual Dictionary
 const TRANSLATIONS = {
   vi: {
@@ -302,6 +299,7 @@ export default function Home() {
   // General Chat History State & Reset Counter
   const [generalChatHistory, setGeneralChatHistory] = useState<ChatMessage[]>([]);
   const [chatResetCount, setChatResetCount] = useState(0);
+  const [docChatResetCount, setDocChatResetCount] = useState(0);
 
   // Class Management States
   const [classList, setClassList] = useState<Array<{ code: string; name: string; teacherUsername: string }>>([]);
@@ -388,44 +386,65 @@ export default function Home() {
     return () => window.removeEventListener('mousemove', handleMouseMove);
   }, []);
 
-  // 1. Sync activeDoc to workspace states when doc changes
-  useEffect(() => {
-    if (activeDoc) {
-      setActiveAssignment(null); // Deselect assignment
-      setPdfText(activeDoc.textContent);
+  const syncWorkspaceWithDoc = (doc: DocumentItem | null) => {
+    setActiveDoc(doc);
+    setActiveAssignment(null); // Deselect assignment
+    if (doc) {
+      setPdfText(doc.textContent);
       setFileInfo({
-        fileName: activeDoc.fileName,
-        fileSize: activeDoc.fileSize,
-        pages: Math.max(1, Math.ceil(activeDoc.textContent.length / 3000)),
-        textLength: activeDoc.textContent.length
+        fileName: doc.fileName,
+        fileSize: doc.fileSize,
+        pages: Math.max(1, Math.ceil(doc.textContent.length / 3000)),
+        textLength: doc.textContent.length
       });
-      setSummary(activeDoc.summary || '');
-      setQuestions(activeDoc.quiz || []);
-      setEssay(activeDoc.essay || '');
-      setChatHistory(activeDoc.chatHistory || []);
+      setSummary(doc.summary || '');
+      setQuestions(doc.quiz || []);
+      setEssay(doc.essay || '');
+      
+      // Load user isolated document chat history instead of public doc chat history
+      const savedDocChat = localStorage.getItem(`docChatHistory_${user?.username}_${doc.id}`);
+      const chatHist = savedDocChat ? JSON.parse(savedDocChat) : [];
+      setChatHistory(chatHist);
+      
+      // Đặt tab mặc định hiển thị tài liệu
+      setActiveTab('document');
+    } else {
+      setPdfText('');
+      setFileInfo(null);
+      setSummary('');
+      setQuestions([]);
+      setEssay('');
+      setChatHistory([]);
     }
-  }, [activeDoc]);
+  };
 
-  // 2. Sync activeAssignment to workspace states when assignment selected
-  useEffect(() => {
-    if (activeAssignment) {
-      setActiveDoc(null); // Deselect document
-      setPdfText(activeAssignment.pdfText);
+  const syncWorkspaceWithAssignment = (asm: Assignment | null) => {
+    setActiveAssignment(asm);
+    setActiveDoc(null); // Deselect document
+    if (asm) {
+      setPdfText(asm.pdfText);
       setFileInfo({
-        fileName: activeAssignment.fileName,
+        fileName: asm.fileName,
         fileSize: 0,
-        pages: Math.max(1, Math.ceil(activeAssignment.pdfText.length / 3000)),
-        textLength: activeAssignment.pdfText.length
+        pages: Math.max(1, Math.ceil(asm.pdfText.length / 3000)),
+        textLength: asm.pdfText.length
       });
-      setQuestions(activeAssignment.questions || []);
-      setEssay(activeAssignment.essay || '');
+      setQuestions(asm.questions || []);
+      setEssay(asm.essay || '');
       setSummary('');
       setChatHistory([]);
       
       // Navigate to correct tab
-      setActiveTab(activeAssignment.type === 'quiz' ? 'quiz' : 'essay');
+      setActiveTab(asm.type === 'quiz' ? 'quiz' : 'essay');
+    } else {
+      setPdfText('');
+      setFileInfo(null);
+      setQuestions([]);
+      setEssay('');
+      setSummary('');
+      setChatHistory([]);
     }
-  }, [activeAssignment]);
+  };
 
   // Load public documents
   const loadLibraryDocuments = async () => {
@@ -443,6 +462,7 @@ export default function Home() {
 
   // Restore session & settings
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsMounted(true);
     const savedUser = localStorage.getItem('user');
     const savedAssignments = localStorage.getItem('assignments');
@@ -493,6 +513,7 @@ export default function Home() {
     if (user && user.role === 'teacher' && classList.length > 0) {
       const myClasses = classList.filter(c => c.teacherUsername === user.username);
       if (myClasses.length > 0 && (!dashboardClass || !myClasses.some(c => c.code === dashboardClass))) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setDashboardClass(myClasses[0].code);
       }
     } else if (user && user.role === 'student' && user.room) {
@@ -533,6 +554,7 @@ export default function Home() {
 
   useEffect(() => {
     if (!user) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchAssignments();
     fetchHistory();
     loadLibraryDocuments();
@@ -542,6 +564,7 @@ export default function Home() {
   useEffect(() => {
     if (user) {
       const savedChat = localStorage.getItem(`generalChatHistory_${user.username}`);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setGeneralChatHistory(savedChat ? JSON.parse(savedChat) : []);
     } else {
       setGeneralChatHistory([]);
@@ -610,16 +633,14 @@ export default function Home() {
     }
     localStorage.setItem('user', JSON.stringify(newUser));
     loadLibraryDocuments();
-    setActiveDoc(null);
-    setActiveAssignment(null);
+    syncWorkspaceWithDoc(null);
     setSidebarTab('dashboard');
   };
 
   const handleLogout = () => {
     setUser(null);
     localStorage.removeItem('user');
-    setActiveDoc(null);
-    setActiveAssignment(null);
+    syncWorkspaceWithDoc(null);
     setLibraryDocs([]);
   };
 
@@ -667,8 +688,9 @@ export default function Home() {
         setChangePasswordSuccess('');
       }, 1500);
 
-    } catch (err: any) {
-      setChangePasswordError(err.message || 'Lỗi kết nối.');
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : 'Lỗi kết nối.';
+      setChangePasswordError(errMsg);
     } finally {
       setIsChangingPassword(false);
     }
@@ -724,8 +746,7 @@ export default function Home() {
       localStorage.setItem('quizHistory', JSON.stringify(newHistory));
     }
 
-    setActiveDoc(null);
-    setActiveAssignment(null);
+    syncWorkspaceWithDoc(null);
     setSidebarTab('dashboard');
     showMessage(language === 'vi' ? `Đã nộp bài! Điểm của bạn là ${scale10Score}/10` : `Exam submitted! Your score is ${scale10Score}/10`, false);
   };
@@ -780,8 +801,7 @@ export default function Home() {
         setQuizHistory(newHistory);
         localStorage.setItem('quizHistory', JSON.stringify(newHistory));
       }
-      setActiveDoc(null);
-      setActiveAssignment(null);
+      syncWorkspaceWithDoc(null);
       setSidebarTab('dashboard');
       showMessage(language === 'vi' ? `Đã nộp bài tự luận! AI chấm bài làm của bạn là ${score.toFixed(1)}/10` : `Essay submitted! AI graded your response: ${score.toFixed(1)}/10`, false);
     } catch (err) {
@@ -838,9 +858,10 @@ export default function Home() {
         throw new Error(data.error || 'Lỗi khi xóa học sinh khỏi lớp.');
       }
       return true;
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : 'Lỗi khi xóa học sinh khỏi lớp.';
       console.error('Lỗi khi xóa học sinh khỏi lớp:', err);
-      showMessage(err.message || 'Lỗi khi xóa học sinh khỏi lớp.');
+      showMessage(errMsg);
       throw err;
     }
   };
@@ -862,7 +883,7 @@ export default function Home() {
 
     if (updatedDoc) {
       if (forceSetActive) {
-        setActiveDoc(updatedDoc);
+        syncWorkspaceWithDoc(updatedDoc);
       } else {
         setActiveDoc(prevActiveDoc => {
           if (prevActiveDoc && prevActiveDoc.id === docId) {
@@ -894,6 +915,7 @@ export default function Home() {
   const handleUploadSuccess = async (text: string, info: FileInfo, hash: string) => {
     if (!user) return;
 
+    // eslint-disable-next-line react-hooks/purity
     const newDocId = Date.now().toString();
     const newDoc: DocumentItem = {
       id: newDocId,
@@ -920,7 +942,7 @@ export default function Home() {
       if (res.ok) {
         setLibraryDocs(updatedDocs);
         localStorage.setItem('libraryDocs', JSON.stringify(updatedDocs));
-        setActiveDoc(newDoc);
+        syncWorkspaceWithDoc(newDoc);
         showMessage(language === 'vi' ? 'Tài liệu mới đã được chia sẻ lên thư viện công cộng thành công!' : 'New material uploaded and shared to public library!', false);
       } else {
         throw new Error('Lỗi server');
@@ -931,10 +953,16 @@ export default function Home() {
     }
   };
 
-  const handleExistingDocumentFound = async (doc: DocumentItem) => {
+  const handleExistingDocumentFound = async (doc: DocumentItem, newName?: string) => {
     if (!user) return;
-    await updateDocumentOnServer(doc.id, { lastOpenedAt: new Date().toISOString() }, true);
-    showMessage(language === 'vi' ? 'Tài liệu này đã tồn tại trong thư viện công cộng. Trình duyệt đã khôi phục dữ liệu đã lưu.' : 'This document already exists. Recovered saved data.', false);
+    const updates: Partial<DocumentItem> = { lastOpenedAt: new Date().toISOString() };
+    if (newName) {
+      updates.fileName = newName;
+    }
+    await updateDocumentOnServer(doc.id, updates, true);
+    showMessage(language === 'vi' 
+      ? 'Tài liệu này đã tồn tại. Trình duyệt đã khôi phục dữ liệu và cập nhật tên mới.' 
+      : 'This document already exists. Recovered saved data and updated the name.', false);
   };
 
   const handleSelectDocument = async (doc: DocumentItem) => {
@@ -942,7 +970,7 @@ export default function Home() {
   };
 
   const handleSelectAssignment = (asm: Assignment) => {
-    setActiveAssignment(asm);
+    syncWorkspaceWithAssignment(asm);
   };
 
   const handleDeleteDocument = async (docId: string) => {
@@ -974,8 +1002,12 @@ export default function Home() {
         }
         setLibraryDocs(updatedDocs);
         localStorage.setItem('libraryDocs', JSON.stringify(updatedDocs));
+        
+        // Dọn sạch lịch sử chat của tài liệu bị xóa
+        localStorage.removeItem(`docChatHistory_${user.username}_${docId}`);
+        
         if (activeDoc?.id === docId) {
-          setActiveDoc(null);
+          syncWorkspaceWithDoc(null);
         }
         showMessage(language === 'vi' ? 'Đã xóa tài liệu khỏi thư viện công cộng.' : 'Deleted document from library.', false);
       } else {
@@ -1086,13 +1118,13 @@ export default function Home() {
     }
   };
 
-  const handleSendMessage = async (updatedHistory: ChatMessage[]) => {
-    if (!activeDoc) return;
+  const handleSendMessage = (updatedHistory: ChatMessage[]) => {
+    if (!activeDoc || !user) return;
     try {
-      await updateDocumentOnServer(activeDoc.id, { chatHistory: updatedHistory });
+      localStorage.setItem(`docChatHistory_${user.username}_${activeDoc.id}`, JSON.stringify(updatedHistory));
       setChatHistory(updatedHistory);
     } catch (err) {
-      console.error('Lỗi lưu lịch sử chat vào DB:', err);
+      console.error('Lỗi lưu lịch sử chat vào LocalStorage:', err);
     }
   };
 
@@ -1145,8 +1177,9 @@ export default function Home() {
       showMessage(language === 'vi' ? 'Đã tham gia lớp học thành công!' : 'Joined classroom successfully!', false);
       setJoinClassCode('');
       setShowJoinClassModal(false);
-    } catch (err: any) {
-      showMessage(err.message || 'Lỗi khi tham gia lớp');
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : 'Lỗi khi tham gia lớp';
+      showMessage(errMsg);
     }
   };
 
@@ -1174,8 +1207,9 @@ export default function Home() {
       
       // Đồng bộ lại danh sách lớp
       handleRefreshData();
-    } catch (err: any) {
-      showMessage(err.message || 'Lỗi khi tạo lớp');
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : 'Lỗi khi tạo lớp';
+      showMessage(errMsg);
     }
   };
 
@@ -1183,6 +1217,7 @@ export default function Home() {
     if (!user || !activeDoc || !questions.length) return;
 
     const newAssignment: Assignment = {
+      // eslint-disable-next-line react-hooks/purity
       id: Date.now().toString(),
       title,
       type: 'quiz',
@@ -1211,7 +1246,7 @@ export default function Home() {
       localStorage.setItem('assignments', JSON.stringify(updatedAssignments));
       showMessage(language === 'vi' ? `Đã giao bài trắc nghiệm "${title}" thành công cho lớp ${targetRoom}!` : `Quiz "${title}" assigned to class ${targetRoom} successfully!`, false);
       setDashboardClass(targetRoom);
-      setActiveDoc(null);
+      syncWorkspaceWithDoc(null);
       setSidebarTab('dashboard');
     } catch (err) {
       console.error('Lỗi giao bài trắc nghiệm:', err);
@@ -1223,6 +1258,7 @@ export default function Home() {
     if (!user || !activeDoc || !essay) return;
 
     const newAssignment: Assignment = {
+      // eslint-disable-next-line react-hooks/purity
       id: Date.now().toString(),
       title,
       type: 'essay',
@@ -1251,7 +1287,7 @@ export default function Home() {
       localStorage.setItem('assignments', JSON.stringify(updatedAssignments));
       showMessage(language === 'vi' ? `Đã giao bài tự luận "${title}" thành công cho lớp ${targetRoom}!` : `Essay "${title}" assigned to class ${targetRoom} successfully!`, false);
       setDashboardClass(targetRoom);
-      setActiveDoc(null);
+      syncWorkspaceWithDoc(null);
       setSidebarTab('dashboard');
     } catch (err) {
       console.error('Lỗi giao bài tự luận:', err);
@@ -1388,8 +1424,7 @@ export default function Home() {
         <div className="space-y-2">
           <button 
             onClick={() => {
-              setActiveDoc(null);
-              setActiveAssignment(null);
+              syncWorkspaceWithDoc(null);
               setSidebarTab('upload');
               setMobileMenuOpen(false);
             }}
@@ -1406,8 +1441,19 @@ export default function Home() {
           
           <button 
             onClick={() => {
-              setActiveDoc(null);
-              setActiveAssignment(null);
+              syncWorkspaceWithDoc(null);
+              setSidebarTab('dashboard');
+              setMobileMenuOpen(false);
+            }}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-205 ${sidebarTab === 'dashboard' && !activeDoc && !activeAssignment ? 'bg-primary-container/20 text-primary font-bold border-r-4 border-primary' : 'text-foreground hover:bg-gray-200/50 dark:hover:bg-sidebar-accent'}`}
+          >
+            <TrendingUp className="w-5.5 h-5.5 text-primary" />
+            <span className="text-sm font-bold">{t.dashboard}</span>
+          </button>
+
+          <button 
+            onClick={() => {
+              syncWorkspaceWithDoc(null);
               setSidebarTab('upload');
               setMobileMenuOpen(false);
             }}
@@ -1419,8 +1465,7 @@ export default function Home() {
 
           <button 
             onClick={() => {
-              setActiveDoc(null);
-              setActiveAssignment(null);
+              syncWorkspaceWithDoc(null);
               setSidebarTab('library');
               setMobileMenuOpen(false);
             }}
@@ -1432,8 +1477,7 @@ export default function Home() {
 
           <button 
             onClick={() => {
-              setActiveDoc(null);
-              setActiveAssignment(null);
+              syncWorkspaceWithDoc(null);
               setSidebarTab('chat');
               setMobileMenuOpen(false);
             }}
@@ -1443,24 +1487,10 @@ export default function Home() {
             <span className="text-sm font-bold">{t.aiChatSidebar}</span>
           </button>
 
-          <button 
-            onClick={() => {
-              setActiveDoc(null);
-              setActiveAssignment(null);
-              setSidebarTab('dashboard');
-              setMobileMenuOpen(false);
-            }}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-205 ${sidebarTab === 'dashboard' && !activeDoc && !activeAssignment ? 'bg-primary-container/20 text-primary font-bold border-r-4 border-primary' : 'text-foreground hover:bg-gray-200/50 dark:hover:bg-sidebar-accent'}`}
-          >
-            <TrendingUp className="w-5.5 h-5.5 text-primary" />
-            <span className="text-sm font-bold">{t.dashboard}</span>
-          </button>
-
           {isTeacher && (
             <button 
               onClick={() => {
-                setActiveDoc(null);
-                setActiveAssignment(null);
+                syncWorkspaceWithDoc(null);
                 setSidebarTab('class-management');
                 setMobileMenuOpen(false);
               }}
@@ -1473,8 +1503,7 @@ export default function Home() {
 
           <button 
             onClick={() => {
-              setActiveDoc(null);
-              setActiveAssignment(null);
+              syncWorkspaceWithDoc(null);
               setSidebarTab('settings');
               setMobileMenuOpen(false);
             }}
@@ -1571,8 +1600,7 @@ export default function Home() {
             {/* Logo and App Title - Navigation Trigger */}
             <div 
               onClick={() => {
-                setActiveDoc(null);
-                setActiveAssignment(null);
+                syncWorkspaceWithDoc(null);
                 setSidebarTab('dashboard');
                 setMobileMenuOpen(false);
               }}
@@ -1987,7 +2015,7 @@ export default function Home() {
                         variant="outline"
                         size="sm"
                         onClick={() => {
-                          setActiveDoc(null);
+                          syncWorkspaceWithDoc(null);
                         }}
                         className="h-8 rounded-xl text-xs border border-gray-200 dark:border-gray-800 hover:bg-gray-100 dark:hover:bg-gray-800 text-foreground font-bold px-3 transition-all"
                       >
@@ -2002,7 +2030,7 @@ export default function Home() {
                   <div className="p-4 bg-primary/10 dark:bg-primary/5 border border-primary/20 rounded-2xl shadow-sm flex justify-between items-center flex-wrap gap-3 animate-fade-in-up">
                     <div className="flex items-center gap-2.5 min-w-0">
                       <Button
-                        onClick={() => setActiveAssignment(null)}
+                        onClick={() => syncWorkspaceWithDoc(null)}
                         variant="ghost"
                         size="icon"
                         className="h-8 w-8 text-primary hover:bg-primary/10 rounded-lg"
@@ -2145,14 +2173,33 @@ export default function Home() {
                           </TabsContent>
 
                           {/* Tab: Chat */}
-                          <TabsContent value="chat" className="mt-0 outline-none">
+                          <TabsContent value="chat" className="mt-0 outline-none space-y-4">
+                            {activeDoc && chatHistory.length > 0 && (
+                              <div className="flex justify-end">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    if (confirm(language === 'vi' ? 'Bạn có muốn xóa toàn bộ lịch sử trò chuyện trên tài liệu này?' : 'Do you want to clear the chat history on this document?')) {
+                                      localStorage.removeItem(`docChatHistory_${user?.username}_${activeDoc.id}`);
+                                      setChatHistory([]);
+                                      setDocChatResetCount(prev => prev + 1);
+                                    }
+                                  }}
+                                  className="h-8 rounded-xl text-xs border border-red-200 dark:border-red-900/30 hover:bg-red-50 dark:hover:bg-red-950/20 text-red-500 font-bold px-3 transition-all"
+                                >
+                                  {language === 'vi' ? 'Xóa lịch sử chat tài liệu' : 'Clear Document Chat History'}
+                                </Button>
+                              </div>
+                            )}
                             <ChatBox
-                              key={activeDoc?.id || 'chat'}
+                              key={(activeDoc?.id || 'chat') + `_${docChatResetCount}`}
                               pdfText={pdfText}
                               userRole={user.role}
                               onError={showMessage}
                               chatHistory={chatHistory}
                               onSendMessage={handleSendMessage}
+                              language={language}
                             />
                           </TabsContent>
 
@@ -2217,6 +2264,7 @@ export default function Home() {
 
                                 {(questions.length > 0 || isLoading) && (
                                   <QuizPanel
+                                    key={activeAssignment ? `assignment-${activeAssignment.id}` : (activeDoc ? `doc-${activeDoc.id}` : 'quiz')}
                                     questions={activeSubmission?.questions || questions}
                                     isLoading={loadingType === 'quiz'}
                                     userRole={user.role}
@@ -2229,7 +2277,7 @@ export default function Home() {
                                     previousAnswers={activeSubmission?.studentAnswer ? (() => {
                                       try {
                                         return JSON.parse(activeSubmission.studentAnswer) as Record<number, string>;
-                                      } catch (e) {
+                                      } catch {
                                         return undefined;
                                       }
                                     })() : undefined}
@@ -3127,8 +3175,7 @@ export default function Home() {
       {sidebarTab !== 'upload' && !activeDoc && !activeAssignment && (
         <button 
           onClick={() => {
-            setActiveDoc(null);
-            setActiveAssignment(null);
+            syncWorkspaceWithDoc(null);
             setSidebarTab('upload');
           }}
           className="fixed bottom-8 right-8 w-14 h-14 rounded-full primary-pill text-white shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all z-50 lg:hidden border border-white/10"
@@ -3272,7 +3319,6 @@ export default function Home() {
                   <div className="space-y-4">
                     {quizQuestions.map((q, index) => {
                       const studentAnswerLetter = studentAnswers[index];
-                      const isCorrect = studentAnswerLetter === q.answer;
 
                       return (
                         <div key={index} className="p-5 bg-gray-50/50 dark:bg-gray-950/20 border border-gray-200 dark:border-gray-800/80 rounded-2xl space-y-3">

@@ -145,11 +145,22 @@ export async function DELETE(request: NextRequest) {
   try {
     const { pdfUrl } = await request.json();
     if (pdfUrl) {
-      await del(pdfUrl);
+      if (pdfUrl.startsWith('/uploads/')) {
+        // Xóa file local cục bộ
+        const filename = decodeURIComponent(pdfUrl.replace('/uploads/', ''));
+        const filePath = path.join(process.cwd(), 'public', 'uploads', filename);
+        if (fs.existsSync(filePath)) {
+          fs.unlinkSync(filePath);
+          console.log('Đã xóa file local:', filePath);
+        }
+      } else {
+        // Xóa Vercel Blob
+        await del(pdfUrl);
+      }
     }
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('Error deleting blob:', error);
-    return NextResponse.json({ error: 'Failed to delete blob' }, { status: 500 });
+    console.error('Error deleting document file:', error);
+    return NextResponse.json({ error: 'Failed to delete file' }, { status: 500 });
   }
 }

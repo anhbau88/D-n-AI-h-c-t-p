@@ -40,9 +40,22 @@ export default function QuizPanel({
   previousAnswers
 }: QuizPanelProps) {
   // State lưu câu hỏi nào đang hiện đáp án (Giáo viên có thể toggle từng câu, học sinh thì hiện tất cả khi nộp bài)
-  const [revealedAnswers, setRevealedAnswers] = useState<Set<number>>(new Set());
+  const [revealedAnswers, setRevealedAnswers] = useState<Set<number>>(() => {
+    if (hasSubmitted) {
+      return new Set(questions.map((_, i) => i));
+    }
+    return new Set();
+  });
   // State lưu đáp án người dùng đã chọn
-  const [selectedAnswers, setSelectedAnswers] = useState<Map<number, string>>(new Map());
+  const [selectedAnswers, setSelectedAnswers] = useState<Map<number, string>>(() => {
+    const answersMap = new Map<number, string>();
+    if (hasSubmitted && previousAnswers) {
+      Object.entries(previousAnswers).forEach(([k, v]) => {
+        answersMap.set(Number(k), v);
+      });
+    }
+    return answersMap;
+  });
   // Học sinh đã nộp bài chưa? (Local state, or initial from props)
   const [isSubmitted, setIsSubmitted] = useState(hasSubmitted);
 
@@ -60,11 +73,46 @@ export default function QuizPanel({
 
   const isTeacher = userRole === 'teacher';
 
-  const [shuffledQuestions, setShuffledQuestions] = useState<QuizQuestion[]>([]);
+  const [shuffledQuestions, setShuffledQuestions] = useState<QuizQuestion[]>(() => {
+    if (questions.length === 0) return [];
+    if (isTeacher || hasSubmitted) {
+      return questions;
+    }
+    function shuffleArray<T>(array: T[]): T[] {
+      const arr = [...array];
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      return arr;
+    }
+    const letters = ['A', 'B', 'C', 'D'];
+    return shuffleArray(questions).map(q => {
+      const correctLetter = q.answer.trim().toUpperCase();
+      const correctIdx = letters.indexOf(correctLetter);
+      const correctOptionText = correctIdx !== -1 ? q.options[correctIdx] : '';
+      const shuffledOptions = shuffleArray(q.options);
+      let newCorrectIdx = shuffledOptions.indexOf(correctOptionText);
+      if (newCorrectIdx === -1) newCorrectIdx = 0;
+      return {
+        ...q,
+        options: shuffledOptions,
+        answer: letters[newCorrectIdx]
+      };
+    });
+  });
 
-  // Khi component mount hoặc hasSubmitted/questions/previousAnswers thay đổi
-  useEffect(() => {
+  // Track props for rendering-time updates to avoid useEffect setState cascading renders
+  const [prevQuestions, setPrevQuestions] = useState(questions);
+  const [prevHasSubmitted, setPrevHasSubmitted] = useState(hasSubmitted);
+  const [prevPreviousAnswers, setPrevPreviousAnswers] = useState(previousAnswers);
+
+  if (questions !== prevQuestions || hasSubmitted !== prevHasSubmitted || previousAnswers !== prevPreviousAnswers) {
+    setPrevQuestions(questions);
+    setPrevHasSubmitted(hasSubmitted);
+    setPrevPreviousAnswers(previousAnswers);
     setIsSubmitted(hasSubmitted);
+
     if (hasSubmitted) {
       const all = new Set(questions.map((_, i) => i));
       setRevealedAnswers(all);
@@ -81,37 +129,29 @@ export default function QuizPanel({
       setRevealedAnswers(new Set());
       setSelectedAnswers(new Map());
     }
-  }, [hasSubmitted, questions, previousAnswers]);
 
-  // Đảo ngẫu nhiên câu hỏi & đáp án cho học sinh làm bài
-  useEffect(() => {
     if (questions.length === 0) {
       setShuffledQuestions([]);
-      return;
-    }
-
-    if (isTeacher || hasSubmitted) {
+    } else if (isTeacher || hasSubmitted) {
       setShuffledQuestions(questions);
     } else {
-      function shuffleArray<T>(array: T[]): T[] {
+      const shuffleArray = <T,>(array: T[]): T[] => {
         const arr = [...array];
         for (let i = arr.length - 1; i > 0; i--) {
           const j = Math.floor(Math.random() * (i + 1));
           [arr[i], arr[j]] = [arr[j], arr[i]];
         }
         return arr;
-      }
+      };
 
+      const letters = ['A', 'B', 'C', 'D'];
       const shuffled = shuffleArray(questions).map(q => {
-        const letters = ['A', 'B', 'C', 'D'];
         const correctLetter = q.answer.trim().toUpperCase();
         const correctIdx = letters.indexOf(correctLetter);
         const correctOptionText = correctIdx !== -1 ? q.options[correctIdx] : '';
-
         const shuffledOptions = shuffleArray(q.options);
         let newCorrectIdx = shuffledOptions.indexOf(correctOptionText);
         if (newCorrectIdx === -1) newCorrectIdx = 0;
-
         return {
           ...q,
           options: shuffledOptions,
@@ -120,7 +160,7 @@ export default function QuizPanel({
       });
       setShuffledQuestions(shuffled);
     }
-  }, [questions, isTeacher, hasSubmitted]);
+  }
 
   const handleSubmitQuizRef = useRef<() => void>(undefined);
   useEffect(() => {
@@ -163,7 +203,7 @@ export default function QuizPanel({
   };
 
   // Nộp bài (Dành cho HS)
-  const handleSubmitQuiz = () => {
+  function handleSubmitQuiz() {
     setIsSubmitted(true);
     // Hiện toàn bộ đáp án
     const all = new Set(shuffledQuestions.map((_, i) => i));
@@ -184,7 +224,7 @@ export default function QuizPanel({
 
       onScoreSubmit(scoreCount, scale10, answersObj, shuffledQuestions);
     }
-  };
+  }
 
   // Chọn đáp án
   const selectAnswer = (questionIndex: number, answer: string) => {

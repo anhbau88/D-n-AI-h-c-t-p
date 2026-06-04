@@ -31,25 +31,30 @@ export default function TeacherClassManagement({
   onRemoveStudent,
   onError
 }: TeacherClassManagementProps) {
-  const [myClasses, setMyClasses] = useState<Array<{ code: string; name: string }>>([]);
-  const [selectedClassCode, setSelectedClassCode] = useState<string>('');
+  const myClasses = classList.filter(c => c.teacherUsername === user.username);
+  const classCodesStr = myClasses.map(c => c.code).join(',');
+  
+  const [prevClassCodesStr, setPrevClassCodesStr] = useState(classCodesStr);
+  const [selectedClassCode, setSelectedClassCode] = useState<string>(() => {
+    return myClasses.length > 0 ? myClasses[0].code : '';
+  });
+
+  if (classCodesStr !== prevClassCodesStr) {
+    setPrevClassCodesStr(classCodesStr);
+    if (myClasses.length > 0 && (!selectedClassCode || !myClasses.some(c => c.code === selectedClassCode))) {
+      setSelectedClassCode(myClasses[0].code);
+    }
+  }
+
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [classError, setClassError] = useState<string>('');
 
-  // Lọc danh sách lớp học do giáo viên này quản lý
-  useEffect(() => {
-    const filtered = classList.filter(c => c.teacherUsername === user.username);
-    setMyClasses(filtered);
-    if (filtered.length > 0 && !selectedClassCode) {
-      setSelectedClassCode(filtered[0].code);
-    }
-  }, [classList, user.username, selectedClassCode]);
-
   // Tải danh sách học sinh tham gia lớp
   const fetchStudents = useCallback(async (classCode: string) => {
     if (!classCode) return;
+    await Promise.resolve();
     setLoading(true);
     setClassError('');
     try {
@@ -59,9 +64,10 @@ export default function TeacherClassManagement({
         throw new Error(data.error || (language === 'vi' ? 'Không thể tải danh sách học sinh.' : 'Failed to fetch students.'));
       }
       setStudents(data);
-    } catch (err: any) {
-      setClassError(err.message);
-      onError(err.message, true);
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : (language === 'vi' ? 'Không thể tải danh sách học sinh.' : 'Failed to fetch students.');
+      setClassError(errMsg);
+      onError(errMsg, true);
     } finally {
       setLoading(false);
     }
@@ -70,6 +76,7 @@ export default function TeacherClassManagement({
   // Tải lại khi thay đổi lớp học được chọn
   useEffect(() => {
     if (selectedClassCode) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       fetchStudents(selectedClassCode);
     } else {
       setStudents([]);
@@ -94,8 +101,9 @@ export default function TeacherClassManagement({
           : `Removed student ${student.username} from class successfully.`;
         onError(successMsg, false);
       }
-    } catch (err: any) {
-      onError(err.message || 'Lỗi khi xóa học sinh khỏi lớp.', true);
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : 'Lỗi khi xóa học sinh khỏi lớp.';
+      onError(errMsg, true);
     }
   };
 

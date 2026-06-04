@@ -8,7 +8,7 @@ import { Card } from '@/components/ui/card';
 
 export default function SummarySkeleton() {
   return (
-    <Card className="p-6 border-0 shadow-lg bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm">
+    <Card className="p-6 border-0 shadow-lg bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm h-[500px] lg:h-[640px] xl:h-[740px] overflow-hidden">
       <div className="space-y-5 animate-pulse">
         {/* Tiêu đề chính */}
         <div className="h-6 bg-gray-200 dark:bg-gray-700 rounded w-2/3" />

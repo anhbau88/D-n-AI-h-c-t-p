@@ -25,22 +25,7 @@ export interface ExcelUser {
   CreatedAt: string;
 }
 
-const SEED_USERS: ExcelUser[] = [
-  {
-    Username: 'giao-vien-1',
-    Password: '123',
-    Role: 'teacher',
-    Room: '64CTT1',
-    CreatedAt: new Date().toISOString(),
-  },
-  {
-    Username: 'hoc-sinh-1',
-    Password: '123',
-    Role: 'student',
-    Room: '64CTT1',
-    CreatedAt: new Date().toISOString(),
-  }
-];
+const SEED_USERS: ExcelUser[] = [];
 
 /**
  * Ghi danh sách người dùng vào Vercel Blob
@@ -280,7 +265,7 @@ export async function updateUserPasswordInExcel(username: string, newPassword: s
  */
 function initExcelFile() {
   const workbook = XLSX.utils.book_new();
-  const worksheet = XLSX.utils.json_to_sheet(SEED_USERS);
+  const worksheet = XLSX.utils.json_to_sheet([], { header: ['Username', 'FullName', 'Password', 'Role', 'Room', 'CreatedAt'] });
   XLSX.utils.book_append_sheet(workbook, worksheet, 'Users');
   XLSX.writeFile(workbook, filePath);
   console.log('Đã tạo file Excel seed tài khoản tại:', filePath);

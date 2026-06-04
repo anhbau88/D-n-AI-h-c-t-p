@@ -10,7 +10,7 @@ import { generateFileHash } from '@/lib/file-hash';
 
 interface FileUploadProps {
   onUploadSuccess: (text: string, fileInfo: FileInfo, hash: string) => void;
-  onExistingDocumentFound: (doc: DocumentItem) => void;
+  onExistingDocumentFound: (doc: DocumentItem, newName?: string) => void;
   onError: (message: string) => void;
   isDisabled?: boolean;
   currentRole: UserRole;
@@ -23,7 +23,6 @@ export default function FileUpload({
   onExistingDocumentFound,
   onError,
   isDisabled,
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   currentRole,
   existingDocuments = [],
   language = 'vi'
@@ -49,11 +48,12 @@ export default function FileUpload({
     e.preventDefault();
     setIsDragging(false);
     
+    const isStudent = currentRole === 'student';
     if (!lectureName.trim()) {
       onError(
         language === 'vi' 
-          ? 'Vui lòng nhập tên bài giảng trước khi tải file lên.' 
-          : 'Please enter a lecture name before uploading.'
+          ? (isStudent ? 'Vui lòng nhập tên tài liệu trước khi tải file lên.' : 'Vui lòng nhập tên bài giảng trước khi tải file lên.') 
+          : (isStudent ? 'Please enter a document name before uploading.' : 'Please enter a lecture name before uploading.')
       );
       document.getElementById('lectureNameInput')?.focus();
       return;
@@ -109,23 +109,7 @@ export default function FileUpload({
       // 2. Kiểm tra tài liệu đã tồn tại trong thư viện công cộng chưa (dựa trên mã hash)
       const existingDoc = existingDocuments.find(d => d.hash === hash) || null;
       if (existingDoc) {
-        // Nếu đã tồn tại, tạo mục tài liệu mới kế thừa nội dung nhưng dùng tên bài giảng mới
-        const info: FileInfo = {
-          fileName: renamedFile.name,
-          fileSize: existingDoc.fileSize,
-          pages: Math.max(1, Math.ceil(existingDoc.textContent.length / 3000)),
-          textLength: existingDoc.textContent.length,
-          pdfUrl: existingDoc.pdfUrl,
-        };
-
-        setFileInfo(info);
-
-        // Đồng bộ tạm vào localStorage để tương thích cấu trúc cũ
-        localStorage.setItem('pdfText', existingDoc.textContent);
-        localStorage.setItem('fileInfo', JSON.stringify(info));
-
-        // Lưu bản ghi mới
-        onUploadSuccess(existingDoc.textContent, info, hash);
+        onExistingDocumentFound(existingDoc, renamedFile.name);
         setLectureName('');
         setIsUploading(false);
         return;
@@ -183,20 +167,26 @@ export default function FileUpload({
   return (
     <Card className="p-5 border-0 shadow-lg bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm">
       <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-4">
-        📄 {language === 'vi' ? 'Tải lên tài liệu giảng dạy' : 'Upload Teaching Materials'}
+        📄 {language === 'vi' 
+          ? (currentRole === 'student' ? 'Tải lên tài liệu học tập' : 'Tải lên tài liệu giảng dạy') 
+          : (currentRole === 'student' ? 'Upload Study Materials' : 'Upload Teaching Materials')}
       </h3>
 
-      {/* Ô nhập Tên bài giảng bắt buộc */}
+      {/* Ô nhập Tên tài liệu / bài giảng bắt buộc */}
       <div className="mb-4">
         <label htmlFor="lectureNameInput" className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5 uppercase tracking-wider">
-          📝 {language === 'vi' ? 'Tên bài giảng (bắt buộc)' : 'Lecture Name (required)'}
+          📝 {language === 'vi' 
+            ? (currentRole === 'student' ? 'Tên tài liệu (bắt buộc)' : 'Tên bài giảng (bắt buộc)') 
+            : (currentRole === 'student' ? 'Document Name (required)' : 'Lecture Name (required)')}
         </label>
         <input
           type="text"
           id="lectureNameInput"
           value={lectureName}
           onChange={(e) => setLectureName(e.target.value)}
-          placeholder={language === 'vi' ? 'Nhập tên bài giảng cho tài liệu này...' : 'Enter lecture name for this document...'}
+          placeholder={language === 'vi' 
+            ? (currentRole === 'student' ? 'Nhập tên tài liệu cho tệp này...' : 'Nhập tên bài giảng cho tài liệu này...') 
+            : (currentRole === 'student' ? 'Enter document name for this file...' : 'Enter lecture name for this document...')}
           disabled={isUploading || isDisabled}
           className="w-full text-sm font-semibold px-4 py-2.5 rounded-xl border border-gray-300 dark:border-gray-800 bg-white/50 dark:bg-gray-950/50 text-foreground placeholder:text-gray-400 dark:placeholder:text-gray-600 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all disabled:opacity-50"
         />
@@ -218,10 +208,11 @@ export default function FileUpload({
         onDrop={handleDrop}
         onClick={() => {
           if (!lectureName.trim()) {
+            const isStudent = currentRole === 'student';
             onError(
               language === 'vi' 
-                ? 'Vui lòng nhập tên bài giảng trước khi chọn file.' 
-                : 'Please enter a lecture name before selecting a file.'
+                ? (isStudent ? 'Vui lòng nhập tên tài liệu trước khi chọn file.' : 'Vui lòng nhập tên bài giảng trước khi chọn file.') 
+                : (isStudent ? 'Please enter a document name before selecting a file.' : 'Please enter a lecture name before selecting a file.')
             );
             document.getElementById('lectureNameInput')?.focus();
             return;

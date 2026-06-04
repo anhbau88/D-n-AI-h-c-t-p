@@ -45,3 +45,13 @@ next-env.d.ts
 
 # Technical Report
 Bao_cao_ky_thuat_AI_Study_Assistant.md
+
+# local databases
+users.xlsx
+classes.json
+documents.json
+assignments.json
+history.json
+
+# local uploads folder
+/public/uploads/

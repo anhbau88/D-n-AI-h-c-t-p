@@ -102,9 +102,6 @@ export default function AuthScreen({ onLogin, language, setLanguage }: AuthScree
   // States dành riêng cho Đăng ký
   const [confirmPassword, setConfirmPassword] = useState('');
   const [registerRole, setRegisterRole] = useState<'teacher' | 'student'>('student');
-  const [registerRoom, setRegisterRoom] = useState('');
-
-  const CLASSES = ['64CTT1', '64CTT2', '64CTT3', '64CTT4', '64CTT5'];
   
   const t = AUTH_TRANSLATIONS[language];
 

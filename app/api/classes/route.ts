@@ -18,14 +18,7 @@ const getBlobUrls = () => {
   };
 };
 
-const SEED_CLASSES = [
-  {
-    code: '64CTT1',
-    name: 'Lớp Công nghệ thông tin K64',
-    teacherUsername: 'giao-vien-1',
-    createdAt: new Date().toISOString()
-  }
-];
+const SEED_CLASSES: any[] = [];
 
 export async function GET() {
   const token = process.env.BLOB_READ_WRITE_TOKEN;
@@ -116,7 +109,7 @@ export async function POST(request: NextRequest) {
       for (let i = 0; i < 5; i++) {
         code += chars.charAt(Math.floor(Math.random() * chars.length));
       }
-      isUnique = !currentClasses.some((c: any) => c.code === code);
+      isUnique = !currentClasses.some((c: { code: string }) => c.code === code);
     }
 
     const newClass = {

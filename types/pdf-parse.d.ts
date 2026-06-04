@@ -24,3 +24,15 @@ declare module 'pdf-parse' {
     loadPDF(buffer: Buffer): Promise<PDFDocument>;
   }
 }
+
+declare module 'pdf-parse/lib/pdf-parse.js' {
+  const pdf: (dataBuffer: Buffer, options?: unknown) => Promise<{
+    numpages: number;
+    numrender: number;
+    info: unknown;
+    metadata: unknown;
+    text: string;
+    version: string;
+  }>;
+  export default pdf;
+}

@@ -1,7 +1,6 @@
 // lib/pdf.ts
 // Hàm đọc text từ file PDF sử dụng pdf-parse
-
-// @ts-expect-error - Thiếu type definition cho module nội bộ
+// @ts-ignore - Thiếu type definition cho module nội bộ
 import pdf from 'pdf-parse/lib/pdf-parse.js';
 
 /**
@@ -12,7 +11,7 @@ import pdf from 'pdf-parse/lib/pdf-parse.js';
 export async function extractTextFromPDF(buffer: Buffer) {
   try {
     const data = await pdf(buffer);
-    
+
     return {
       text: data.text.trim(),
       pages: data.numpages,

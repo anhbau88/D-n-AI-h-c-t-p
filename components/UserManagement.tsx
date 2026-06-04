@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { X, Trash2, Search, Users, AlertCircle } from 'lucide-react';
 
 interface Student {
@@ -21,13 +21,8 @@ export default function UserManagement({ isOpen, onClose, room }: UserManagement
   const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
 
-  useEffect(() => {
-    if (isOpen && room) {
-      fetchStudents();
-    }
-  }, [isOpen, room]);
-
-  const fetchStudents = async () => {
+  const fetchStudents = useCallback(async () => {
+    await Promise.resolve();
     setLoading(true);
     setError('');
     try {
@@ -35,12 +30,20 @@ export default function UserManagement({ isOpen, onClose, room }: UserManagement
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Lỗi tải danh sách học sinh');
       setStudents(data);
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : 'Lỗi tải danh sách học sinh';
+      setError(errMsg);
     } finally {
       setLoading(false);
     }
-  };
+  }, [room]);
+
+  useEffect(() => {
+    if (isOpen && room) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      fetchStudents();
+    }
+  }, [isOpen, room, fetchStudents]);
 
   const handleDelete = async (username: string) => {
     if (!confirm(`Bạn có chắc chắn muốn xóa học sinh "${username}" khỏi hệ thống? Toàn bộ điểm số sẽ bị mồ côi. Dữ liệu không thể khôi phục.`)) {
@@ -58,8 +61,9 @@ export default function UserManagement({ isOpen, onClose, room }: UserManagement
       
       // Xóa thành công, cập nhật state
       setStudents(prev => prev.filter(s => s.username !== username));
-    } catch (err: any) {
-      alert(err.message);
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : 'Lỗi khi xóa học sinh';
+      alert(errMsg);
     }
   };
 

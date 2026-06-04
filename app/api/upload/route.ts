@@ -6,6 +6,8 @@ import { extractTextFromPDF } from '@/lib/pdf';
 import mammoth from 'mammoth';
 import { callGeminiMultimodal } from '@/lib/gemini';
 import { put } from '@vercel/blob';
+import * as fs from 'fs';
+import * as path from 'path';
 
 export async function POST(request: NextRequest) {
   try {
@@ -111,14 +113,30 @@ Chỉ trả về phần nội dung văn bản đã được trích xuất hoàn 
       );
     }
 
-    // Upload file gốc lên Vercel Blob (Hỗ trợ PDF, Word, Image) để preview
+    // Upload file gốc lên Vercel Blob (Hỗ trợ PDF, Word, Image) để preview (hoặc local fallback)
     let pdfUrl = undefined;
-    try {
-      const blob = await put(file.name, file, { access: 'public' });
-      pdfUrl = blob.url;
-    } catch (err) {
-      console.error('Lỗi khi upload file lên Vercel Blob:', err);
-      // Không return error để không làm gián đoạn quá trình nếu chỉ lỗi upload blob
+    const token = process.env.BLOB_READ_WRITE_TOKEN;
+    if (token) {
+      try {
+        const blob = await put(file.name, file, { access: 'public' });
+        pdfUrl = blob.url;
+      } catch (err) {
+        console.error('Lỗi khi upload file lên Vercel Blob:', err);
+      }
+    } else {
+      // Local fallback: Lưu vào public/uploads
+      try {
+        const uploadDir = path.join(process.cwd(), 'public', 'uploads');
+        if (!fs.existsSync(uploadDir)) {
+          fs.mkdirSync(uploadDir, { recursive: true });
+        }
+        const filePath = path.join(uploadDir, file.name);
+        fs.writeFileSync(filePath, buffer);
+        pdfUrl = `/uploads/${encodeURIComponent(file.name)}`;
+        console.log('Saved file locally to:', filePath);
+      } catch (err) {
+        console.error('Lỗi khi lưu file upload local:', err);
+      }
     }
 
     // Trả kết quả thành công

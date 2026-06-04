@@ -4,7 +4,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
 import { Sun, Moon } from 'lucide-react';
 
 export default function ThemeToggle() {
