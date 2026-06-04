@@ -296,8 +296,8 @@ export default function QuizPanel({
   // Trạng thái trống
   if (shuffledQuestions.length === 0) {
     return (
-      <Card className="p-6 border-0 shadow-lg bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm">
-        <div className="flex flex-col items-center justify-center py-16 text-gray-400">
+      <Card className="p-6 border-0 shadow-lg bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm h-[500px] lg:h-[640px] xl:h-[740px] flex flex-col items-center justify-center">
+        <div className="flex flex-col items-center justify-center text-gray-400">
           <div className="w-16 h-16 bg-gradient-to-br from-emerald-100 to-teal-100 dark:from-emerald-900/30 dark:to-teal-900/30 rounded-2xl flex items-center justify-center mb-4">
             <svg className="w-8 h-8 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
@@ -311,7 +311,7 @@ export default function QuizPanel({
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 h-[500px] lg:h-[640px] xl:h-[740px] overflow-y-auto pr-2">
       {/* Header trạng thái */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300">

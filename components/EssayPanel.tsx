@@ -143,7 +143,7 @@ export default function EssayPanel({
   // Trạng thái đang tải câu hỏi tự luận từ AI (Dành cho Giáo viên khi click tạo đề)
   if (isLoading) {
     return (
-      <Card className="p-6 border-0 shadow-lg bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm">
+      <Card className="p-6 border-0 shadow-lg bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm h-[500px] lg:h-[640px] xl:h-[740px] flex flex-col items-center justify-center overflow-hidden">
         <TextStreamLoader 
           messages={[
             "AI đang đọc tài liệu...",
@@ -162,7 +162,7 @@ export default function EssayPanel({
   // Trạng thái chưa có đề tự luận
   if (!essay) {
     return (
-      <Card className="p-6 border-0 shadow-lg bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm">
+      <Card className="p-6 border-0 shadow-lg bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm h-[500px] lg:h-[640px] xl:h-[740px] overflow-y-auto">
         <div className="flex flex-col items-center justify-center py-6 text-gray-400">
           <div className="w-16 h-16 bg-gradient-to-br from-purple-100 to-indigo-100 dark:from-purple-900/30 dark:to-indigo-900/30 rounded-2xl flex items-center justify-center mb-4">
             <svg className="w-8 h-8 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -244,7 +244,7 @@ export default function EssayPanel({
     const finalSubmission = previousSubmission;
 
     return (
-      <div className="space-y-6">
+      <div className="space-y-6 h-[500px] lg:h-[640px] xl:h-[740px] overflow-y-auto pr-2">
         {/* 1. Đề bài tự luận */}
         <Card className="p-6 border-0 shadow-lg bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 border-b border-gray-100 dark:border-gray-800 pb-3">
@@ -394,7 +394,7 @@ export default function EssayPanel({
 
   // Giao diện cho Giáo viên
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 h-[500px] lg:h-[640px] xl:h-[740px] overflow-y-auto pr-2">
       {/* 1. Nội dung đề tự luận */}
       <Card className="p-6 border-0 shadow-lg bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 border-b border-gray-100 dark:border-gray-800 pb-3">

@@ -8,7 +8,7 @@ import { Card } from '@/components/ui/card';
 
 export default function QuizSkeleton() {
   return (
-    <Card className="p-6 border-0 shadow-lg bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm">
+    <Card className="p-6 border-0 shadow-lg bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm h-[500px] lg:h-[640px] xl:h-[740px] overflow-hidden">
       <div className="space-y-6 animate-pulse">
         {/* Mô phỏng badge header */}
         <div className="flex items-center justify-between">
