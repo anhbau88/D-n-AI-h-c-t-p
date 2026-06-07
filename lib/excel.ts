@@ -1,11 +1,12 @@
 // lib/excel.ts
 // Quản lý việc đọc/ghi tài khoản người dùng vào file Excel hoặc Vercel Blob
 
+import { get } from '@vercel/blob';
 import * as XLSX from 'xlsx';
 import * as fs from 'fs';
 import * as path from 'path';
 
-const filePath = path.join(process.cwd(), 'users.xlsx');
+const filePath = process.env.LOCAL_DB_DIR ? path.join(process.env.LOCAL_DB_DIR, 'users.xlsx') : 'users.xlsx';
 
 const getBlobUrls = () => {
   const token = process.env.BLOB_READ_WRITE_TOKEN || '';
@@ -58,23 +59,18 @@ async function saveUsersToBlob(users: ExcelUser[]): Promise<boolean> {
 async function readUsersFromBlob(): Promise<ExcelUser[] | null> {
   const token = process.env.BLOB_READ_WRITE_TOKEN;
   if (!token) return null;
-  const { BLOB_URL } = getBlobUrls();
   try {
-    const res = await fetch(BLOB_URL, {
-      cache: 'no-store',
-      headers: {
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
-      },
-    });
-    if (!res.ok) {
-      if (res.status === 404) {
-        // Tự động khởi tạo nếu chưa có file
-        await saveUsersToBlob(SEED_USERS);
-        return SEED_USERS;
-      }
-      return null;
+    const res = await get('users.json', { token, access: 'public' });
+    if (!res || !res.stream) {
+      // Tự động khởi tạo nếu chưa có file
+      await saveUsersToBlob(SEED_USERS);
+      return SEED_USERS;
     }
-    const data = await res.json() as ExcelUser[];
+    const chunks = [];
+    for await (const chunk of res.stream as any) {
+      chunks.push(chunk);
+    }
+    const data = JSON.parse(Buffer.concat(chunks).toString('utf-8')) as ExcelUser[];
     if (!data) {
       return SEED_USERS;
     }
@@ -89,19 +85,29 @@ async function readUsersFromBlob(): Promise<ExcelUser[] | null> {
  * Đọc toàn bộ danh sách người dùng (ưu tiên Vercel Blob, fallback sang Excel cục bộ)
  */
 export async function readUsersFromExcel(): Promise<ExcelUser[]> {
-  // 1. Ưu tiên đọc từ Vercel Blob
-  const blobUsers = await readUsersFromBlob();
-  if (blobUsers !== null) {
-    return blobUsers;
+  const isLocal = !process.env.VERCEL || process.env.NODE_ENV === 'development';
+  if (!isLocal) {
+    const blobUsers = await readUsersFromBlob();
+    if (blobUsers !== null) {
+      return blobUsers;
+    }
   }
 
-  // 2. Fallback sang đọc Excel cục bộ
+  try {
+    const rawData = fs.readFileSync(filePath);
+    console.log('Direct fs.readFileSync succeeded at path:', filePath, 'Size:', rawData.length);
+  } catch (err: any) {
+    console.error('Direct fs.readFileSync failed at path:', filePath, 'Error:', err.message, 'Code:', err.code);
+  }
+
+  // 2. Fallback hoặc chạy local: Đọc Excel cục bộ
   try {
     if (!fs.existsSync(filePath)) {
       initExcelFile();
     }
 
-    const workbook = XLSX.readFile(filePath);
+    const fileBuffer = fs.readFileSync(filePath);
+    const workbook = XLSX.read(fileBuffer, { type: 'buffer' });
     const sheetName = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[sheetName];
     const data = XLSX.utils.sheet_to_json(worksheet) as ExcelUser[];
@@ -116,8 +122,63 @@ export async function readUsersFromExcel(): Promise<ExcelUser[]> {
  * Lưu một người dùng mới (ưu tiên Vercel Blob, fallback sang Excel cục bộ)
  */
 export async function saveUserToExcel(user: { username: string; fullName?: string; password: string; role: string; room?: string }): Promise<boolean> {
-  // 1. Ưu tiên lưu vào Vercel Blob
+  const isLocal = !process.env.VERCEL || process.env.NODE_ENV === 'development';
   const token = process.env.BLOB_READ_WRITE_TOKEN;
+
+  if (isLocal) {
+    try {
+      fs.writeFileSync(filePath + '.test', 'test');
+      fs.unlinkSync(filePath + '.test');
+      console.log('Direct fs write test succeeded at path:', filePath);
+    } catch (err: any) {
+      console.error('Direct fs write test failed at path:', filePath, 'Error:', err.message, 'Code:', err.code);
+    }
+    let localSuccess = false;
+    let data: ExcelUser[] = [];
+    try {
+      if (fs.existsSync(filePath)) {
+        const fileBuffer = fs.readFileSync(filePath);
+        const workbook = XLSX.read(fileBuffer, { type: 'buffer' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        data = XLSX.utils.sheet_to_json(worksheet) as ExcelUser[];
+      } else {
+        const workbook = XLSX.utils.book_new();
+        const newWorksheet = XLSX.utils.json_to_sheet([]);
+        XLSX.utils.book_append_sheet(workbook, newWorksheet, 'Users');
+        const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+        fs.writeFileSync(filePath, buffer);
+      }
+
+      const exists = data.some(u => String(u.Username).toLowerCase() === user.username.toLowerCase());
+      if (exists) return false;
+
+      data.push({
+        Username: user.username,
+        FullName: user.fullName || '',
+        Password: user.password,
+        Role: user.role,
+        Room: user.room || '',
+        CreatedAt: new Date().toISOString(),
+      });
+
+      const workbook = XLSX.utils.book_new();
+      const newWorksheet = XLSX.utils.json_to_sheet(data);
+      XLSX.utils.book_append_sheet(workbook, newWorksheet, 'Users');
+      const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+      fs.writeFileSync(filePath, buffer);
+      localSuccess = true;
+    } catch (error) {
+      console.error('Lỗi khi ghi đè file Excel cục bộ:', error);
+    }
+
+    if (token && localSuccess) {
+      saveUsersToBlob(data).catch(err => console.error('Lỗi sync cloud:', err));
+    }
+    return localSuccess;
+  }
+
+  // 1. Ưu tiên lưu vào Vercel Blob (Chạy trên Vercel production)
   if (token) {
     const currentUsers = await readUsersFromBlob() || [];
     const exists = currentUsers.some(u => String(u.Username).toLowerCase() === user.username.toLowerCase());
@@ -134,44 +195,7 @@ export async function saveUserToExcel(user: { username: string; fullName?: strin
     return await saveUsersToBlob(currentUsers);
   }
 
-  // 2. Fallback sang ghi đè file Excel cục bộ
-  try {
-    let workbook;
-    let data: ExcelUser[] = [];
-
-    if (fs.existsSync(filePath)) {
-      workbook = XLSX.readFile(filePath);
-      const sheetName = workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[sheetName];
-      data = XLSX.utils.sheet_to_json(worksheet) as ExcelUser[];
-    } else {
-      workbook = XLSX.utils.book_new();
-    }
-
-    // Đẩy thông tin người dùng mới vào mảng
-    data.push({
-      Username: user.username,
-      FullName: user.fullName || '',
-      Password: user.password,
-      Role: user.role,
-      Room: user.room || '',
-      CreatedAt: new Date().toISOString(),
-    });
-
-    const newWorksheet = XLSX.utils.json_to_sheet(data);
-    
-    if (workbook.SheetNames.length > 0) {
-      workbook.Sheets[workbook.SheetNames[0]] = newWorksheet;
-    } else {
-      XLSX.utils.book_append_sheet(workbook, newWorksheet, 'Users');
-    }
-
-    XLSX.writeFile(workbook, filePath);
-    return true;
-  } catch (error) {
-    console.error('Lỗi khi ghi đè file Excel:', error);
-    return false;
-  }
+  return false;
 }
 
 /**
@@ -211,23 +235,33 @@ export async function updateUserRoomInExcel(username: string, room: string, mode
     currentUsers[userIndex].Room = room;
   }
 
-  // 1. Ưu tiên lưu vào Vercel Blob
+  const isLocal = !process.env.VERCEL || process.env.NODE_ENV === 'development';
   const token = process.env.BLOB_READ_WRITE_TOKEN;
+
+  if (isLocal) {
+    try {
+      const workbook = XLSX.utils.book_new();
+      const newWorksheet = XLSX.utils.json_to_sheet(currentUsers);
+      XLSX.utils.book_append_sheet(workbook, newWorksheet, 'Users');
+      const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+      fs.writeFileSync(filePath, buffer);
+      
+      if (token) {
+        saveUsersToBlob(currentUsers).catch(err => console.error('Lỗi sync cloud room:', err));
+      }
+      return true;
+    } catch (error) {
+      console.error('Lỗi khi ghi đè file Excel để cập nhật room cục bộ:', error);
+      return false;
+    }
+  }
+
+  // 1. Ưu tiên lưu vào Vercel Blob (Chạy trên Vercel production)
   if (token) {
     return await saveUsersToBlob(currentUsers);
   }
 
-  // 2. Fallback sang ghi đè file Excel cục bộ
-  try {
-    const workbook = XLSX.utils.book_new();
-    const newWorksheet = XLSX.utils.json_to_sheet(currentUsers);
-    XLSX.utils.book_append_sheet(workbook, newWorksheet, 'Users');
-    XLSX.writeFile(workbook, filePath);
-    return true;
-  } catch (error) {
-    console.error('Lỗi khi ghi đè file Excel để cập nhật room:', error);
-    return false;
-  }
+  return false;
 }
 
 /**
@@ -240,23 +274,33 @@ export async function updateUserPasswordInExcel(username: string, newPassword: s
 
   currentUsers[userIndex].Password = newPassword;
 
-  // 1. Ưu tiên lưu vào Vercel Blob
+  const isLocal = !process.env.VERCEL || process.env.NODE_ENV === 'development';
   const token = process.env.BLOB_READ_WRITE_TOKEN;
+
+  if (isLocal) {
+    try {
+      const workbook = XLSX.utils.book_new();
+      const newWorksheet = XLSX.utils.json_to_sheet(currentUsers);
+      XLSX.utils.book_append_sheet(workbook, newWorksheet, 'Users');
+      const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+      fs.writeFileSync(filePath, buffer);
+      
+      if (token) {
+        saveUsersToBlob(currentUsers).catch(err => console.error('Lỗi sync cloud password:', err));
+      }
+      return true;
+    } catch (error) {
+      console.error('Lỗi khi ghi đè file Excel để cập nhật mật khẩu cục bộ:', error);
+      return false;
+    }
+  }
+
+  // 1. Ưu tiên lưu vào Vercel Blob (Chạy trên Vercel production)
   if (token) {
     return await saveUsersToBlob(currentUsers);
   }
 
-  // 2. Fallback sang ghi đè file Excel cục bộ
-  try {
-    const workbook = XLSX.utils.book_new();
-    const newWorksheet = XLSX.utils.json_to_sheet(currentUsers);
-    XLSX.utils.book_append_sheet(workbook, newWorksheet, 'Users');
-    XLSX.writeFile(workbook, filePath);
-    return true;
-  } catch (error) {
-    console.error('Lỗi khi ghi đè file Excel để cập nhật mật khẩu:', error);
-    return false;
-  }
+  return false;
 }
 
 
@@ -267,7 +311,15 @@ function initExcelFile() {
   const workbook = XLSX.utils.book_new();
   const worksheet = XLSX.utils.json_to_sheet([], { header: ['Username', 'FullName', 'Password', 'Role', 'Room', 'CreatedAt'] });
   XLSX.utils.book_append_sheet(workbook, worksheet, 'Users');
-  XLSX.writeFile(workbook, filePath);
+  try {
+    fs.writeFileSync(filePath + '.test', 'test');
+    fs.unlinkSync(filePath + '.test');
+    console.log('Direct fs write test succeeded in initExcelFile at path:', filePath);
+  } catch (err: any) {
+    console.error('Direct fs write test failed in initExcelFile at path:', filePath, 'Error:', err.message, 'Code:', err.code);
+  }
+  const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+  fs.writeFileSync(filePath, buffer);
   console.log('Đã tạo file Excel seed tài khoản tại:', filePath);
 }
 
@@ -282,21 +334,31 @@ export async function deleteUserInExcel(username: string): Promise<boolean> {
   // Nếu độ dài không đổi => User không tồn tại
   if (filteredUsers.length === initialLength) return false;
 
-  // 1. Ưu tiên lưu vào Vercel Blob
+  const isLocal = !process.env.VERCEL || process.env.NODE_ENV === 'development';
   const token = process.env.BLOB_READ_WRITE_TOKEN;
+
+  if (isLocal) {
+    try {
+      const workbook = XLSX.utils.book_new();
+      const newWorksheet = XLSX.utils.json_to_sheet(filteredUsers);
+      XLSX.utils.book_append_sheet(workbook, newWorksheet, 'Users');
+      const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+      fs.writeFileSync(filePath, buffer);
+      
+      if (token) {
+        saveUsersToBlob(filteredUsers).catch(err => console.error('Lỗi sync cloud delete:', err));
+      }
+      return true;
+    } catch (error) {
+      console.error('Lỗi khi ghi đè file Excel để xóa user cục bộ:', error);
+      return false;
+    }
+  }
+
+  // 1. Ưu tiên lưu vào Vercel Blob (Chạy trên Vercel production)
   if (token) {
     return await saveUsersToBlob(filteredUsers);
   }
 
-  // 2. Fallback sang ghi đè file Excel cục bộ
-  try {
-    const workbook = XLSX.utils.book_new();
-    const newWorksheet = XLSX.utils.json_to_sheet(filteredUsers);
-    XLSX.utils.book_append_sheet(workbook, newWorksheet, 'Users');
-    XLSX.writeFile(workbook, filePath);
-    return true;
-  } catch (error) {
-    console.error('Lỗi khi ghi đè file Excel để xóa user:', error);
-    return false;
-  }
+  return false;
 }

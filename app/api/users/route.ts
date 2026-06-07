@@ -1,26 +1,51 @@
 import { NextResponse } from 'next/server';
+import { get } from '@vercel/blob';
 import { readUsersFromExcel, deleteUserInExcel, updateUserRoomInExcel } from '@/lib/excel';
 import * as fs from 'fs';
 import * as path from 'path';
 
+export const dynamic = 'force-dynamic';
+
 // Helper để đọc danh sách lớp học nhằm kiểm tra hợp lệ
 async function readClasses() {
-  const localFilePath = path.join(process.cwd(), 'classes.json');
-  const token = process.env.BLOB_READ_WRITE_TOKEN;
-  if (!token) {
-    if (!fs.existsSync(localFilePath)) return [];
+  const localFilePath = process.env.LOCAL_DB_DIR ? path.join(process.env.LOCAL_DB_DIR, 'classes.json') : 'classes.json';
+  
+  // Ưu tiên đọc file local trước để tránh trễ đồng bộ CDN / cache của Vercel Blob trong môi trường chạy thử nghiệm local
+  if (fs.existsSync(localFilePath)) {
     try {
-      return JSON.parse(fs.readFileSync(localFilePath, 'utf-8'));
-    } catch {
-      return [];
+      const localData = fs.readFileSync(localFilePath, 'utf-8');
+      const classes = JSON.parse(localData);
+      if (Array.isArray(classes) && classes.length > 0) {
+        return classes;
+      }
+    } catch (err) {
+      console.error('Lỗi đọc file classes.json local:', err);
     }
   }
-  const storeId = token.match(/^vercel_blob_rw_([a-zA-Z0-9]+)_/)?.[1]?.toLowerCase() || '8shvc32y7x3rg5st';
-  const BLOB_URL = `https://${storeId}.public.blob.vercel-storage.com/classes.json`;
+
+  const token = process.env.BLOB_READ_WRITE_TOKEN;
+  if (!token) return [];
+
+  // Thử fetch trực tiếp với timestamp để tránh CDN cache
   try {
-    const res = await fetch(BLOB_URL, { cache: 'no-store' });
-    if (!res.ok) return [];
-    return await res.json();
+    const storeId = token.match(/^vercel_blob_rw_([a-zA-Z0-9]+)_/)?.[1]?.toLowerCase() || '8shvc32y7x3rg5st';
+    const blobUrl = `https://${storeId}.public.blob.vercel-storage.com/classes.json?t=${Date.now()}`;
+    const res = await fetch(blobUrl, { cache: 'no-store' });
+    if (res.ok) {
+      return await res.json();
+    }
+  } catch (err) {
+    console.error('Lỗi khi fetch classes.json trực tiếp:', err);
+  }
+  // Fallback sử dụng SDK @vercel/blob
+  try {
+    const res = await get('classes.json', { token, access: 'public' });
+    if (!res || !res.stream) return [];
+    const chunks = [];
+    for await (const chunk of res.stream as any) {
+      chunks.push(chunk);
+    }
+    return JSON.parse(Buffer.concat(chunks).toString('utf-8'));
   } catch {
     return [];
   }

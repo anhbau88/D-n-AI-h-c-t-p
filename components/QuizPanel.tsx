@@ -16,7 +16,6 @@ interface QuizPanelProps {
   questions: QuizQuestion[];
   isLoading: boolean;
   userRole?: 'teacher' | 'student';
-  userRoom?: string;
   hasSubmitted?: boolean;
   onScoreSubmit?: (score: number, scale10Score: string, studentAnswers?: Record<number, string>, takenQuestions?: QuizQuestion[]) => void;
   previousScoreInfo?: { score: number, scale10Score: string };
@@ -25,13 +24,10 @@ interface QuizPanelProps {
   previousAnswers?: Record<number, string>;
 }
 
-const DEFAULT_CLASSES = ['64CTT1', '64CTT2', '64CTT3', '64CTT4', '64CTT5'];
-
 export default function QuizPanel({
   questions,
   isLoading,
   userRole = 'student',
-  userRoom,
   hasSubmitted = false,
   onScoreSubmit,
   previousScoreInfo,
@@ -63,8 +59,7 @@ export default function QuizPanel({
   const [assignTitle, setAssignTitle] = useState('');
   const [targetRoom, setTargetRoom] = useState(() => {
     if (availableRooms.length > 0) return availableRooms[0].code;
-    if (userRoom && DEFAULT_CLASSES.includes(userRoom)) return userRoom;
-    return DEFAULT_CLASSES[0];
+    return '';
   });
   const [assignStart, setAssignStart] = useState('');
   const [assignEnd, setAssignEnd] = useState('');
@@ -443,83 +438,88 @@ export default function QuizPanel({
 
       {/* Form Giao bài trắc nghiệm (Chỉ cho Giáo viên khi có câu hỏi đã tạo xong) */}
       {isTeacher && onAssignQuiz && (
-        <Card className="p-6 border border-emerald-200 dark:border-emerald-900 shadow-lg bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm animate-fade-in-up">
-          <h3 className="text-sm font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider mb-4 flex items-center gap-2">
-            <BookOpen className="w-4 h-4" /> Giao bài kiểm tra trắc nghiệm cho học sinh
-          </h3>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-3">
-              <div>
-                <label className="text-[10px] font-bold text-gray-400 mb-1 block uppercase">Tên bài trắc nghiệm</label>
-                <Input
-                  placeholder="Ví dụ: Kiểm tra 15p chương 1, Ôn tập giữa kỳ..."
-                  value={assignTitle}
-                  onChange={(e) => setAssignTitle(e.target.value)}
-                  disabled={isAssigning}
-                  className="h-9 text-xs rounded-xl"
-                />
-              </div>
+        availableRooms.length > 0 ? (
+          <Card className="p-6 border border-emerald-200 dark:border-emerald-900 shadow-lg bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm animate-fade-in-up">
+            <h3 className="text-sm font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider mb-4 flex items-center gap-2">
+              <BookOpen className="w-4 h-4" /> Giao bài kiểm tra trắc nghiệm cho học sinh
+            </h3>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-3">
+                <div>
+                  <label className="text-[10px] font-bold text-gray-400 mb-1 block uppercase">Tên bài trắc nghiệm</label>
+                  <Input
+                    placeholder="Ví dụ: Kiểm tra 15p chương 1, Ôn tập giữa kỳ..."
+                    value={assignTitle}
+                    onChange={(e) => setAssignTitle(e.target.value)}
+                    disabled={isAssigning}
+                    className="h-9 text-xs rounded-xl"
+                  />
+                </div>
 
-              <div>
-                <label className="text-[10px] font-bold text-gray-400 mb-1 block uppercase">Lớp nhận bài trắc nghiệm</label>
-                <select
-                  value={targetRoom}
-                  onChange={(e) => setTargetRoom(e.target.value)}
-                  disabled={isAssigning}
-                  className="flex h-9 w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all font-semibold text-foreground"
-                >
-                  {availableRooms.length > 0 ? (
-                    availableRooms.map((room) => (
+                <div>
+                  <label className="text-[10px] font-bold text-gray-400 mb-1 block uppercase">Lớp nhận bài trắc nghiệm</label>
+                  <select
+                    value={targetRoom}
+                    onChange={(e) => setTargetRoom(e.target.value)}
+                    disabled={isAssigning}
+                    className="flex h-9 w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-all font-semibold text-foreground"
+                  >
+                    {availableRooms.map((room) => (
                       <option key={room.code} value={room.code}>{room.name} ({room.code})</option>
-                    ))
-                  ) : (
-                    DEFAULT_CLASSES.map((cls) => (
-                      <option key={cls} value={cls}>Lớp {cls}</option>
-                    ))
-                  )}
-                </select>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <div>
+                  <label className="text-[10px] font-bold text-gray-400 mb-1 block uppercase">Thời gian bắt đầu</label>
+                  <Input 
+                    type="datetime-local" 
+                    value={assignStart} 
+                    onChange={(e) => setAssignStart(e.target.value)} 
+                    disabled={isAssigning}
+                    className="h-9 text-xs rounded-xl" 
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-gray-400 mb-1 block uppercase">Thời gian kết thúc</label>
+                  <Input 
+                    type="datetime-local" 
+                    value={assignEnd} 
+                    onChange={(e) => setAssignEnd(e.target.value)} 
+                    disabled={isAssigning}
+                    className="h-9 text-xs rounded-xl" 
+                  />
+                </div>
               </div>
             </div>
 
-            <div className="space-y-3">
-              <div>
-                <label className="text-[10px] font-bold text-gray-400 mb-1 block uppercase">Thời gian bắt đầu</label>
-                <Input 
-                  type="datetime-local" 
-                  value={assignStart} 
-                  onChange={(e) => setAssignStart(e.target.value)} 
-                  disabled={isAssigning}
-                  className="h-9 text-xs rounded-xl" 
-                />
-              </div>
-              <div>
-                <label className="text-[10px] font-bold text-gray-400 mb-1 block uppercase">Thời gian kết thúc</label>
-                <Input 
-                  type="datetime-local" 
-                  value={assignEnd} 
-                  onChange={(e) => setAssignEnd(e.target.value)} 
-                  disabled={isAssigning}
-                  className="h-9 text-xs rounded-xl" 
-                />
-              </div>
+            {formError && (
+              <p className="text-red-500 text-xs mt-3 font-semibold">⚠️ {formError}</p>
+            )}
+
+            <div className="mt-4 flex justify-end">
+              <Button
+                onClick={handleAssignClick}
+                disabled={isAssigning}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs h-9 px-6 font-semibold shadow-md shadow-emerald-500/20"
+              >
+                {isAssigning ? 'Đang giao bài...' : `Giao Đề Lớp ${targetRoom}`}
+              </Button>
             </div>
-          </div>
-
-          {formError && (
-            <p className="text-red-500 text-xs mt-3 font-semibold">⚠️ {formError}</p>
-          )}
-
-          <div className="mt-4 flex justify-end">
-            <Button
-              onClick={handleAssignClick}
-              disabled={isAssigning}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs h-9 px-6 font-semibold shadow-md shadow-emerald-500/20"
-            >
-              {isAssigning ? 'Đang giao bài...' : `Giao Đề Lớp ${targetRoom}`}
-            </Button>
-          </div>
-        </Card>
+          </Card>
+        ) : (
+          <Card className="p-6 border border-amber-200 dark:border-amber-900/50 shadow-lg bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm animate-fade-in-up">
+            <h3 className="text-sm font-bold text-amber-700 dark:text-amber-500 uppercase tracking-wider mb-2 flex items-center gap-2">
+              ⚠️ Chưa thể giao bài kiểm tra
+            </h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
+              Bạn chưa tạo hoặc đăng ký lớp học nào. Vui lòng tạo lớp học mới ở trang chủ để có thể giao bài trắc nghiệm cho học sinh.
+            </p>
+          </Card>
+        )
       )}
     </div>
   );

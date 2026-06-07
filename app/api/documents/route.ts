@@ -4,11 +4,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import * as fs from 'fs';
 import * as path from 'path';
-import { del } from '@vercel/blob';
+import { del, get } from '@vercel/blob';
 
 export const dynamic = 'force-dynamic';
 
-const localFilePath = path.join(process.cwd(), 'documents.json');
+const localFilePath = process.env.LOCAL_DB_DIR ? path.join(process.env.LOCAL_DB_DIR, 'documents.json') : 'documents.json';
 
 const getBlobUrls = () => {
   const token = process.env.BLOB_READ_WRITE_TOKEN || '';
@@ -22,54 +22,46 @@ const getBlobUrls = () => {
 export async function GET() {
   const token = process.env.BLOB_READ_WRITE_TOKEN;
   
-  if (!token) {
-    // Fallback: Đọc dữ liệu từ file local documents.json khi chạy offline/local
+  // Ưu tiên đọc file local trước để tránh trễ đồng bộ CDN / cache của Vercel Blob
+  if (fs.existsSync(localFilePath)) {
     try {
-      if (!fs.existsSync(localFilePath)) {
-        return NextResponse.json([], {
+      const data = fs.readFileSync(localFilePath, 'utf-8');
+      const documents = JSON.parse(data);
+      if (Array.isArray(documents)) {
+        return NextResponse.json(documents, {
           headers: {
             'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
           },
         });
       }
-      const data = fs.readFileSync(localFilePath, 'utf-8');
-      return NextResponse.json(JSON.parse(data), {
-        headers: {
-          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
-        },
-      });
     } catch (error) {
-      console.error('Error reading local documents:', error);
+      console.error('Error reading local documents cache:', error);
+    }
+  }
+
+  if (!token) {
+    return NextResponse.json([], {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+      },
+    });
+  }
+
+  // Chạy chính thức: Lấy từ Vercel Blob
+  try {
+    const res = await get('documents.json', { token, access: 'public' });
+    if (!res || !res.stream) {
       return NextResponse.json([], {
         headers: {
           'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
         },
       });
     }
-  }
-
-  // Chạy chính thức: Lấy từ Vercel Blob
-  const { BLOB_URL } = getBlobUrls();
-  try {
-    const res = await fetch(BLOB_URL, {
-      cache: 'no-store',
-      headers: {
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
-      },
-    });
-
-    if (!res.ok) {
-      if (res.status === 404) {
-        return NextResponse.json([], {
-          headers: {
-            'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
-          },
-        });
-      }
-      throw new Error(`Failed to fetch from Vercel Blob: ${res.statusText}`);
+    const chunks = [];
+    for await (const chunk of res.stream as any) {
+      chunks.push(chunk);
     }
-
-    const documents = await res.json();
+    const documents = JSON.parse(Buffer.concat(chunks).toString('utf-8'));
     return NextResponse.json(documents, {
       headers: {
         'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
@@ -124,6 +116,13 @@ export async function POST(request: NextRequest) {
     if (!res.ok) {
       const errorText = await res.text();
       throw new Error(`Vercel Blob write error: ${errorText}`);
+    }
+
+    // Write locally as well for fast local caching
+    try {
+      fs.writeFileSync(localFilePath, JSON.stringify(documents, null, 2), 'utf-8');
+    } catch (err) {
+      console.error('Error writing local documents cache:', err);
     }
 
     return NextResponse.json({ success: true }, {

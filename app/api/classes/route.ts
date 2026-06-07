@@ -2,12 +2,13 @@
 // API quản lý danh sách lớp học hỗ trợ Vercel Blob (hoặc local fallback)
 
 import { NextRequest, NextResponse } from 'next/server';
+import { get } from '@vercel/blob';
 import * as fs from 'fs';
 import * as path from 'path';
 
 export const dynamic = 'force-dynamic';
 
-const localFilePath = path.join(process.cwd(), 'classes.json');
+const localFilePath = process.env.LOCAL_DB_DIR ? path.join(process.env.LOCAL_DB_DIR, 'classes.json') : 'classes.json';
 
 const getBlobUrls = () => {
   const token = process.env.BLOB_READ_WRITE_TOKEN || '';
@@ -18,57 +19,81 @@ const getBlobUrls = () => {
   };
 };
 
-const SEED_CLASSES: any[] = [];
+interface ClassItem {
+  code: string;
+  name: string;
+  teacherUsername: string;
+  createdAt: string;
+}
+
+const SEED_CLASSES: ClassItem[] = [];
 
 export async function GET() {
   const token = process.env.BLOB_READ_WRITE_TOKEN;
   
+  // Ưu tiên đọc file local trước để tránh trễ đồng bộ CDN / cache của Vercel Blob
+  if (fs.existsSync(localFilePath)) {
+    try {
+      const data = fs.readFileSync(localFilePath, 'utf-8');
+      const classes = JSON.parse(data);
+      if (Array.isArray(classes)) {
+        return NextResponse.json(classes);
+      }
+    } catch (error) {
+      console.error('Error reading local classes cache:', error);
+    }
+  }
+
   if (!token) {
     try {
-      if (!fs.existsSync(localFilePath)) {
-        fs.writeFileSync(localFilePath, JSON.stringify(SEED_CLASSES, null, 2), 'utf-8');
-        return NextResponse.json(SEED_CLASSES);
-      }
-      const data = fs.readFileSync(localFilePath, 'utf-8');
-      return NextResponse.json(JSON.parse(data));
+      fs.writeFileSync(localFilePath, JSON.stringify(SEED_CLASSES, null, 2), 'utf-8');
+      return NextResponse.json(SEED_CLASSES);
     } catch (error) {
-      console.error('Error reading local classes:', error);
+      console.error('Error seeding local classes:', error);
       return NextResponse.json(SEED_CLASSES);
     }
   }
 
-  const { BLOB_URL } = getBlobUrls();
+  // Chạy chính thức: Lấy từ Vercel Blob
   try {
-    const res = await fetch(BLOB_URL, {
-      cache: 'no-store',
-      headers: {
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
-      },
-    });
-
-    if (!res.ok) {
-      if (res.status === 404) {
-        // Seed Vercel Blob
-        const { API_URL } = getBlobUrls();
-        await fetch(API_URL, {
-          method: 'PUT',
-          headers: {
-            authorization: `Bearer ${token}`,
-            'x-api-version': '1',
-            'x-add-random-suffix': 'false',
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(SEED_CLASSES),
-        });
-        return NextResponse.json(SEED_CLASSES);
-      }
-      throw new Error(`Failed to fetch from Vercel Blob`);
+    const { BLOB_URL } = getBlobUrls();
+    const fetchRes = await fetch(`${BLOB_URL}?t=${Date.now()}`, { cache: 'no-store' });
+    if (fetchRes.ok) {
+      const classes = await fetchRes.json();
+      return NextResponse.json(classes);
+    } else if (fetchRes.status === 404) {
+      return NextResponse.json(SEED_CLASSES);
     }
+  } catch (error) {
+    console.error('Error fetching classes via HTTP fetch:', error);
+  }
 
-    const classes = await res.json();
+  // Fallback: Lấy từ Vercel Blob SDK
+  try {
+    const res = await get('classes.json', { token, access: 'public' });
+    if (!res || !res.stream) {
+      // Seed Vercel Blob
+      const { API_URL } = getBlobUrls();
+      await fetch(API_URL, {
+        method: 'PUT',
+        headers: {
+          authorization: `Bearer ${token}`,
+          'x-api-version': '1',
+          'x-add-random-suffix': 'false',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(SEED_CLASSES),
+      });
+      return NextResponse.json(SEED_CLASSES);
+    }
+    const chunks = [];
+    for await (const chunk of res.stream as any) {
+      chunks.push(chunk);
+    }
+    const classes = JSON.parse(Buffer.concat(chunks).toString('utf-8'));
     return NextResponse.json(classes);
   } catch (error) {
-    console.error('Error fetching classes:', error);
+    console.error('Error fetching classes via SDK:', error);
     return NextResponse.json(SEED_CLASSES);
   }
 }
@@ -91,11 +116,14 @@ export async function POST(request: NextRequest) {
         currentClasses = [...SEED_CLASSES];
       }
     } else {
-      const { BLOB_URL } = getBlobUrls();
       try {
-        const res = await fetch(BLOB_URL, { cache: 'no-store' });
-        if (res.ok) {
-          currentClasses = await res.json();
+        const res = await get('classes.json', { token, access: 'public' });
+        if (res && res.stream) {
+          const chunks = [];
+          for await (const chunk of res.stream as any) {
+            chunks.push(chunk);
+          }
+          currentClasses = JSON.parse(Buffer.concat(chunks).toString('utf-8'));
         }
       } catch {}
     }
@@ -135,6 +163,12 @@ export async function POST(request: NextRequest) {
         },
         body: JSON.stringify(currentClasses),
       });
+      // Write locally as well for fast local caching
+      try {
+        fs.writeFileSync(localFilePath, JSON.stringify(currentClasses, null, 2), 'utf-8');
+      } catch (err) {
+        console.error('Error writing local classes cache:', err);
+      }
     }
 
     return NextResponse.json(newClass);

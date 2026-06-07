@@ -1,3 +1,4 @@
+/* eslint-disable */
 // scripts/clean-data.js
 // Script làm sạch dữ liệu: Đưa cơ sở dữ liệu về trạng thái trống hoàn toàn
 
@@ -57,14 +58,17 @@ async function run() {
   console.log('--- BẮT ĐẦU LÀM SẠCH DỮ LIỆU DỰ ÁN ---');
 
   // 1. Reset file Excel users.xlsx cục bộ
-  const usersPath = path.join(rootDir, 'users.xlsx');
+  const usersPath = process.env.LOCAL_DB_DIR ? path.join(process.env.LOCAL_DB_DIR, 'users.xlsx') : path.join(rootDir, 'users.xlsx');
   const workbook = XLSX.utils.book_new();
   const worksheet = XLSX.utils.json_to_sheet([], { 
     header: ['Username', 'FullName', 'Password', 'Role', 'Room', 'CreatedAt'] 
   });
   XLSX.utils.book_append_sheet(workbook, worksheet, 'Users');
-  XLSX.writeFile(workbook, usersPath);
-  console.log('[Local] Đã reset users.xlsx về trạng thái trống (chỉ có header).');
+  
+  // Use buffer to avoid Turbopack path issues
+  const excelBuffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
+  fs.writeFileSync(usersPath, excelBuffer);
+  console.log(`[Local] Đã reset users.xlsx tại ${usersPath} về trạng thái trống (chỉ có header).`);
 
   // 2. Reset các file JSON cơ sở dữ liệu cục bộ
   const dbFiles = {
@@ -75,9 +79,14 @@ async function run() {
   };
 
   for (const [filename, emptyData] of Object.entries(dbFiles)) {
-    const filePath = path.join(rootDir, filename);
+    const filePath = process.env.LOCAL_DB_DIR ? path.join(process.env.LOCAL_DB_DIR, filename) : path.join(rootDir, filename);
+    // Ensure parent directory exists
+    const dir = path.dirname(filePath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
     fs.writeFileSync(filePath, JSON.stringify(emptyData, null, 2), 'utf-8');
-    console.log(`[Local] Đã reset ${filename} về trạng thái trống.`);
+    console.log(`[Local] Đã reset ${filename} tại ${filePath} về trạng thái trống.`);
   }
 
   // 3. Xóa toàn bộ file tải lên cục bộ trong thư mục public/uploads

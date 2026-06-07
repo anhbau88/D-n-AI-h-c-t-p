@@ -1,0 +1,309 @@
+﻿
+> ai-study-assistant@0.1.0 lint
+> eslint
+
+
+C:\Users\Admin\OneDrive\Desktop\Dß╗▒ ├ín AI ß╗⌐ng dß╗Ñng hß╗ìc tß║¡p\ai-study-assistant\app\api\classes\route.ts
+  119:43  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\Admin\OneDrive\Desktop\Dß╗▒ ├ín AI ß╗⌐ng dß╗Ñng hß╗ìc tß║¡p\ai-study-assistant\app\api\users\route.ts
+  95:44  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\Admin\OneDrive\Desktop\Dß╗▒ ├ín AI ß╗⌐ng dß╗Ñng hß╗ìc tß║¡p\ai-study-assistant\app\layout.tsx
+  55:9  warning  A font-display parameter is missing (adding `&display=optional` is recommended). See: https://nextjs.org/docs/messages/google-font-display                       @next/next/google-font-display
+  55:9  warning  Custom fonts not added in `pages/_document.js` will only load for a single page. This is discouraged. See: https://nextjs.org/docs/messages/no-page-custom-font  @next/next/no-page-custom-font
+
+C:\Users\Admin\OneDrive\Desktop\Dß╗▒ ├ín AI ß╗⌐ng dß╗Ñng hß╗ìc tß║¡p\ai-study-assistant\app\maintenance\page.tsx
+   3:38  warning  'useRef' is defined but never used             @typescript-eslint/no-unused-vars
+   5:10  warning  'Terminal' is defined but never used           @typescript-eslint/no-unused-vars
+  31:10  warning  'isTyping' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Admin\OneDrive\Desktop\Dß╗▒ ├ín AI ß╗⌐ng dß╗Ñng hß╗ìc tß║¡p\ai-study-assistant\app\page.tsx
+    56:7   warning  'CLASSES' is assigned a value but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             @typescript-eslint/no-unused-vars
+   394:7   error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\Admin\OneDrive\Desktop\Dß╗▒ ├ín AI ß╗⌐ng dß╗Ñng hß╗ìc tß║¡p\ai-study-assistant\app\page.tsx:394:7
+  392 |   useEffect(() => {
+  393 |     if (activeDoc) {
+> 394 |       setActiveAssignment(null); // Deselect assignment
+      |       ^^^^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  395 |       setPdfText(activeDoc.textContent);
+  396 |       setFileInfo({
+  397 |         fileName: activeDoc.fileName,                                                                                                                                                                                              react-hooks/set-state-in-effect
+   412:7   error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\Admin\OneDrive\Desktop\Dß╗▒ ├ín AI ß╗⌐ng dß╗Ñng hß╗ìc tß║¡p\ai-study-assistant\app\page.tsx:412:7
+  410 |   useEffect(() => {
+  411 |     if (activeAssignment) {
+> 412 |       setActiveDoc(null); // Deselect document
+      |       ^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  413 |       setPdfText(activeAssignment.pdfText);
+  414 |       setFileInfo({
+  415 |         fileName: activeAssignment.fileName,                                                                                                                                                                                             react-hooks/set-state-in-effect
+   446:5   error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\Admin\OneDrive\Desktop\Dß╗▒ ├ín AI ß╗⌐ng dß╗Ñng hß╗ìc tß║¡p\ai-study-assistant\app\page.tsx:446:5
+  444 |   // Restore session & settings
+  445 |   useEffect(() => {
+> 446 |     setIsMounted(true);
+      |     ^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  447 |     const savedUser = localStorage.getItem('user');
+  448 |     const savedAssignments = localStorage.getItem('assignments');
+  449 |     const savedHistory = localStorage.getItem('quizHistory');                                                                                                                                           react-hooks/set-state-in-effect
+   496:9   error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\Admin\OneDrive\Desktop\Dß╗▒ ├ín AI ß╗⌐ng dß╗Ñng hß╗ìc tß║¡p\ai-study-assistant\app\page.tsx:496:9
+  494 |       const myClasses = classList.filter(c => c.teacherUsername === user.username);
+  495 |       if (myClasses.length > 0 && (!dashboardClass || !myClasses.some(c => c.code === dashboardClass))) {
+> 496 |         setDashboardClass(myClasses[0].code);
+      |         ^^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  497 |       }
+  498 |     } else if (user && user.role === 'student' && user.room) {
+  499 |       const rooms = user.room.split(',').map(r => r.trim()).filter(Boolean);  react-hooks/set-state-in-effect
+   536:5   error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\Admin\OneDrive\Desktop\Dß╗▒ ├ín AI ß╗⌐ng dß╗Ñng hß╗ìc tß║¡p\ai-study-assistant\app\page.tsx:536:5
+  534 |   useEffect(() => {
+  535 |     if (!user) return;
+> 536 |     fetchAssignments();
+      |     ^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  537 |     fetchHistory();
+  538 |     loadLibraryDocuments();
+  539 |   }, [user]);                                                                                                                                                                                                                                                                      react-hooks/set-state-in-effect
+   545:7   error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\Admin\OneDrive\Desktop\Dß╗▒ ├ín AI ß╗⌐ng dß╗Ñng hß╗ìc tß║¡p\ai-study-assistant\app\page.tsx:545:7
+  543 |     if (user) {
+  544 |       const savedChat = localStorage.getItem(`generalChatHistory_${user.username}`);
+> 545 |       setGeneralChatHistory(savedChat ? JSON.parse(savedChat) : []);
+      |       ^^^^^^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  546 |     } else {
+  547 |       setGeneralChatHistory([]);
+  548 |     }                                                                                                                                                                  react-hooks/set-state-in-effect
+   670:19  error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 @typescript-eslint/no-explicit-any
+   841:19  error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 @typescript-eslint/no-explicit-any
+   897:22  error    Error: Cannot call impure function during render
+
+`Date.now` is an impure function. Calling an impure function can produce unstable results that update unpredictably when the component happens to re-render. (https://react.dev/reference/rules/components-and-hooks-must-be-pure#components-and-hooks-must-be-idempotent).
+
+C:\Users\Admin\OneDrive\Desktop\Dß╗▒ ├ín AI ß╗⌐ng dß╗Ñng hß╗ìc tß║¡p\ai-study-assistant\app\page.tsx:897:22
+  895 |     if (!user) return;
+  896 |
+> 897 |     const newDocId = Date.now().toString();
+      |                      ^^^^^^^^^^ Cannot call impure function
+  898 |     const newDoc: DocumentItem = {
+  899 |       id: newDocId,
+  900 |       role: user.role,                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     react-hooks/purity
+  1148:19  error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 @typescript-eslint/no-explicit-any
+  1177:19  error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 @typescript-eslint/no-explicit-any
+  1186:11  error    Error: Cannot call impure function during render
+
+`Date.now` is an impure function. Calling an impure function can produce unstable results that update unpredictably when the component happens to re-render. (https://react.dev/reference/rules/components-and-hooks-must-be-pure#components-and-hooks-must-be-idempotent).
+
+C:\Users\Admin\OneDrive\Desktop\Dß╗▒ ├ín AI ß╗⌐ng dß╗Ñng hß╗ìc tß║¡p\ai-study-assistant\app\page.tsx:1186:11
+  1184 |
+  1185 |     const newAssignment: Assignment = {
+> 1186 |       id: Date.now().toString(),
+       |           ^^^^^^^^^^ Cannot call impure function
+  1187 |       title,
+  1188 |       type: 'quiz',
+  1189 |       roomId: targetRoom,                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     react-hooks/purity
+  1226:11  error    Error: Cannot call impure function during render
+
+`Date.now` is an impure function. Calling an impure function can produce unstable results that update unpredictably when the component happens to re-render. (https://react.dev/reference/rules/components-and-hooks-must-be-pure#components-and-hooks-must-be-idempotent).
+
+C:\Users\Admin\OneDrive\Desktop\Dß╗▒ ├ín AI ß╗⌐ng dß╗Ñng hß╗ìc tß║¡p\ai-study-assistant\app\page.tsx:1226:11
+  1224 |
+  1225 |     const newAssignment: Assignment = {
+> 1226 |       id: Date.now().toString(),
+       |           ^^^^^^^^^^ Cannot call impure function
+  1227 |       title,
+  1228 |       type: 'essay',
+  1229 |       roomId: targetRoom,                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    react-hooks/purity
+  2232:48  warning  'e' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            @typescript-eslint/no-unused-vars
+  3275:29  warning  'isCorrect' is assigned a value but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           @typescript-eslint/no-unused-vars
+
+C:\Users\Admin\OneDrive\Desktop\Dß╗▒ ├ín AI ß╗⌐ng dß╗Ñng hß╗ìc tß║¡p\ai-study-assistant\components\AuthScreen.tsx
+  105:10  warning  'registerRoom' is assigned a value but never used     @typescript-eslint/no-unused-vars
+  105:24  warning  'setRegisterRoom' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  107:9   warning  'CLASSES' is assigned a value but never used          @typescript-eslint/no-unused-vars
+
+C:\Users\Admin\OneDrive\Desktop\Dß╗▒ ├ín AI ß╗⌐ng dß╗Ñng hß╗ìc tß║¡p\ai-study-assistant\components\FileUpload.tsx
+  23:3  warning  'onExistingDocumentFound' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Admin\OneDrive\Desktop\Dß╗▒ ├ín AI ß╗⌐ng dß╗Ñng hß╗ìc tß║¡p\ai-study-assistant\components\QuizPanel.tsx
+   67:5   error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\Admin\OneDrive\Desktop\Dß╗▒ ├ín AI ß╗⌐ng dß╗Ñng hß╗ìc tß║¡p\ai-study-assistant\components\QuizPanel.tsx:67:5
+  65 |   // Khi component mount hoß║╖c hasSubmitted/questions/previousAnswers thay ─æß╗òi
+  66 |   useEffect(() => {
+> 67 |     setIsSubmitted(hasSubmitted);
+     |     ^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  68 |     if (hasSubmitted) {
+  69 |       const all = new Set(questions.map((_, i) => i));
+  70 |       setRevealedAnswers(all);                                                                                                         react-hooks/set-state-in-effect
+   89:7   error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\Admin\OneDrive\Desktop\Dß╗▒ ├ín AI ß╗⌐ng dß╗Ñng hß╗ìc tß║¡p\ai-study-assistant\components\QuizPanel.tsx:89:7
+  87 |   useEffect(() => {
+  88 |     if (questions.length === 0) {
+> 89 |       setShuffledQuestions([]);
+     |       ^^^^^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  90 |       return;
+  91 |     }
+  92 |                                                                                                                                                                                                                                         react-hooks/set-state-in-effect
+  127:35  error  Error: Cannot access variable before it is declared
+
+`handleSubmitQuiz` is accessed before it is declared, which prevents the earlier access from updating when this value changes over time.
+
+C:\Users\Admin\OneDrive\Desktop\Dß╗▒ ├ín AI ß╗⌐ng dß╗Ñng hß╗ìc tß║¡p\ai-study-assistant\components\QuizPanel.tsx:127:35
+  125 |   const handleSubmitQuizRef = useRef<() => void>(undefined);
+  126 |   useEffect(() => {
+> 127 |     handleSubmitQuizRef.current = handleSubmitQuiz;
+      |                                   ^^^^^^^^^^^^^^^^ `handleSubmitQuiz` accessed before it is declared
+  128 |   });
+  129 |
+  130 |   // Tß╗▒ ─æß╗Öng nß╗Öp b├ái trß║»c nghiß╗çm khi hß╗ìc sinh rß╗¥i khß╗Åi tab thi
+
+C:\Users\Admin\OneDrive\Desktop\Dß╗▒ ├ín AI ß╗⌐ng dß╗Ñng hß╗ìc tß║¡p\ai-study-assistant\components\QuizPanel.tsx:166:3
+  164 |
+  165 |   // Nß╗Öp b├ái (D├ánh cho HS)
+> 166 |   const handleSubmitQuiz = () => {
+      |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 167 |     setIsSubmitted(true);
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^
+> 168 |     // Hiß╗çn to├án bß╗Ö ─æ├íp ├ín
+      ΓÇª
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^
+> 186 |     }
+      | ^^^^^^^^^^^^^^^^^^^^^^^^^
+> 187 |   };
+      | ^^^^^ `handleSubmitQuiz` is declared here
+  188 |
+  189 |   // Chß╗ìn ─æ├íp ├ín
+  190 |   const selectAnswer = (questionIndex: number, answer: string) => {  react-hooks/immutability
+
+C:\Users\Admin\OneDrive\Desktop\Dß╗▒ ├ín AI ß╗⌐ng dß╗Ñng hß╗ìc tß║¡p\ai-study-assistant\components\TeacherClassManagement.tsx
+  44:5   error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\Admin\OneDrive\Desktop\Dß╗▒ ├ín AI ß╗⌐ng dß╗Ñng hß╗ìc tß║¡p\ai-study-assistant\components\TeacherClassManagement.tsx:44:5
+  42 |   useEffect(() => {
+  43 |     const filtered = classList.filter(c => c.teacherUsername === user.username);
+> 44 |     setMyClasses(filtered);
+     |     ^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  45 |     if (filtered.length > 0 && !selectedClassCode) {
+  46 |       setSelectedClassCode(filtered[0].code);
+  47 |     }  react-hooks/set-state-in-effect
+  62:19  error  Unexpected any. Specify a different type                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   @typescript-eslint/no-explicit-any
+  73:7   error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\Admin\OneDrive\Desktop\Dß╗▒ ├ín AI ß╗⌐ng dß╗Ñng hß╗ìc tß║¡p\ai-study-assistant\components\TeacherClassManagement.tsx:73:7
+  71 |   useEffect(() => {
+  72 |     if (selectedClassCode) {
+> 73 |       fetchStudents(selectedClassCode);
+     |       ^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  74 |     } else {
+  75 |       setStudents([]);
+  76 |     }                                                                                                      react-hooks/set-state-in-effect
+  97:19  error  Unexpected any. Specify a different type                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   @typescript-eslint/no-explicit-any
+
+C:\Users\Admin\OneDrive\Desktop\Dß╗▒ ├ín AI ß╗⌐ng dß╗Ñng hß╗ìc tß║¡p\ai-study-assistant\components\ThemeToggle.tsx
+  7:10  warning  'Button' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\Admin\OneDrive\Desktop\Dß╗▒ ├ín AI ß╗⌐ng dß╗Ñng hß╗ìc tß║¡p\ai-study-assistant\components\UserManagement.tsx
+  26:7   error    Error: Cannot access variable before it is declared
+
+`fetchStudents` is accessed before it is declared, which prevents the earlier access from updating when this value changes over time.
+
+C:\Users\Admin\OneDrive\Desktop\Dß╗▒ ├ín AI ß╗⌐ng dß╗Ñng hß╗ìc tß║¡p\ai-study-assistant\components\UserManagement.tsx:26:7
+  24 |   useEffect(() => {
+  25 |     if (isOpen && room) {
+> 26 |       fetchStudents();
+     |       ^^^^^^^^^^^^^ `fetchStudents` accessed before it is declared
+  27 |     }
+  28 |   }, [isOpen, room]);
+  29 |
+
+C:\Users\Admin\OneDrive\Desktop\Dß╗▒ ├ín AI ß╗⌐ng dß╗Ñng hß╗ìc tß║¡p\ai-study-assistant\components\UserManagement.tsx:30:3
+  28 |   }, [isOpen, room]);
+  29 |
+> 30 |   const fetchStudents = async () => {
+     |   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+> 31 |     setLoading(true);
+     | ^^^^^^^^^^^^^^^^^^^^^
+> 32 |     setError('');
+     ΓÇª
+     | ^^^^^^^^^^^^^^^^^^^^^
+> 42 |     }
+     | ^^^^^^^^^^^^^^^^^^^^^
+> 43 |   };
+     | ^^^^^ `fetchStudents` is declared here
+  44 |
+  45 |   const handleDelete = async (username: string) => {
+  46 |     if (!confirm(`Bß║ín c├│ chß║»c chß║»n muß╗æn x├│a hß╗ìc sinh "${username}" khß╗Åi hß╗ç thß╗æng? To├án bß╗Ö ─æiß╗âm sß╗æ sß║╜ bß╗ï mß╗ô c├┤i. Dß╗» liß╗çu kh├┤ng thß╗â kh├┤i phß╗Ñc.`)) {  react-hooks/immutability
+  28:6   warning  React Hook useEffect has a missing dependency: 'fetchStudents'. Either include it or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        react-hooks/exhaustive-deps
+  38:19  error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                @typescript-eslint/no-explicit-any
+  61:19  error    Unexpected any. Specify a different type                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                @typescript-eslint/no-explicit-any
+
+Γ£û 39 problems (25 errors, 14 warnings)
+

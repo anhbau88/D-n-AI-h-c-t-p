@@ -2,13 +2,14 @@
 // API đồng bộ lịch sử bài thi của học sinh qua Vercel Blob (hoặc local fallback)
 
 import { NextRequest, NextResponse } from 'next/server';
+import { get } from '@vercel/blob';
 import * as fs from 'fs';
 import * as path from 'path';
 import { QuizHistoryItem } from '@/types';
 
 export const dynamic = 'force-dynamic';
 
-const localFilePath = path.join(process.cwd(), 'history.json');
+const localFilePath = process.env.LOCAL_DB_DIR ? path.join(process.env.LOCAL_DB_DIR, 'history.json') : 'history.json';
 
 const getBlobUrls = () => {
   const token = process.env.BLOB_READ_WRITE_TOKEN || '';
@@ -21,36 +22,30 @@ const getBlobUrls = () => {
 
 // Hàm đọc lịch sử từ file local hoặc Vercel Blob
 async function getHistoryList(token?: string): Promise<QuizHistoryItem[]> {
-  if (!token) {
+  // Ưu tiên đọc file local trước để tránh trễ đồng bộ CDN / cache của Vercel Blob
+  if (fs.existsSync(localFilePath)) {
     try {
-      if (!fs.existsSync(localFilePath)) {
-        return [];
-      }
       const data = fs.readFileSync(localFilePath, 'utf-8');
       return JSON.parse(data);
     } catch (error) {
-      console.error('Error reading local history:', error);
-      return [];
+      console.error('Lỗi đọc local history cache:', error);
     }
   }
 
-  const { BLOB_URL } = getBlobUrls();
+  if (!token) {
+    return [];
+  }
+
   try {
-    const res = await fetch(BLOB_URL, {
-      cache: 'no-store',
-      headers: {
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
-      },
-    });
-
-    if (!res.ok) {
-      if (res.status === 404) {
-        return [];
-      }
-      throw new Error(`Failed to fetch from Vercel Blob: ${res.statusText}`);
+    const res = await get('history.json', { token, access: 'public' });
+    if (!res || !res.stream) {
+      return [];
     }
-
-    return await res.json();
+    const chunks = [];
+    for await (const chunk of res.stream as any) {
+      chunks.push(chunk);
+    }
+    return JSON.parse(Buffer.concat(chunks).toString('utf-8'));
   } catch (error) {
     console.error('Error fetching history from Vercel Blob:', error);
     return [];
@@ -59,14 +54,19 @@ async function getHistoryList(token?: string): Promise<QuizHistoryItem[]> {
 
 // Hàm ghi lịch sử xuống file local hoặc Vercel Blob
 async function saveHistoryList(history: QuizHistoryItem[], token?: string): Promise<boolean> {
-  if (!token) {
-    try {
-      fs.writeFileSync(localFilePath, JSON.stringify(history, null, 2), 'utf-8');
-      return true;
-    } catch (error) {
-      console.error('Error writing local history:', error);
-      return false;
+  // Ghi xuống local làm cache trước
+  try {
+    const dir = path.dirname(localFilePath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
     }
+    fs.writeFileSync(localFilePath, JSON.stringify(history, null, 2), 'utf-8');
+  } catch (error) {
+    console.error('Error writing local history cache:', error);
+  }
+
+  if (!token) {
+    return true;
   }
 
   const { API_URL } = getBlobUrls();

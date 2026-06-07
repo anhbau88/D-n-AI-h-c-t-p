@@ -343,7 +343,7 @@ export default function Home() {
   const [selectedQuizSubmission, setSelectedQuizSubmission] = useState<QuizHistoryItem | null>(null);
 
   // Class selected by teacher on dashboard
-  const [dashboardClass, setDashboardClass] = useState<string>('64CTT1');
+  const [dashboardClass, setDashboardClass] = useState<string>('');
 
   // UI States
   const [activeTab, setActiveTab] = useState('summary');
@@ -449,7 +449,7 @@ export default function Home() {
   // Load public documents
   const loadLibraryDocuments = async () => {
     try {
-      const res = await fetch('/api/documents');
+      const res = await fetch('/api/documents', { cache: 'no-store' });
       if (res.ok) {
         const docs = (await res.json()) as DocumentItem[];
         setLibraryDocs(docs.sort((a, b) => new Date(b.lastOpenedAt).getTime() - new Date(a.lastOpenedAt).getTime()));
@@ -484,7 +484,7 @@ export default function Home() {
     }
     const fetchClasses = async () => {
       try {
-        const res = await fetch('/api/classes');
+        const res = await fetch('/api/classes', { cache: 'no-store' });
         if (res.ok) {
           const data = await res.json();
           setClassList(data);
@@ -510,11 +510,15 @@ export default function Home() {
 
   // Cập nhật lớp học mặc định khi danh sách lớp thay đổi hoặc giáo viên đăng nhập
   useEffect(() => {
-    if (user && user.role === 'teacher' && classList.length > 0) {
+    if (user && user.role === 'teacher') {
       const myClasses = classList.filter(c => c.teacherUsername === user.username);
-      if (myClasses.length > 0 && (!dashboardClass || !myClasses.some(c => c.code === dashboardClass))) {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        setDashboardClass(myClasses[0].code);
+      if (myClasses.length > 0) {
+        if (!dashboardClass || !myClasses.some(c => c.code === dashboardClass)) {
+          // eslint-disable-next-line react-hooks/set-state-in-effect
+          setDashboardClass(myClasses[0].code);
+        }
+      } else if (dashboardClass !== '') {
+        setDashboardClass('');
       }
     } else if (user && user.role === 'student' && user.room) {
       const rooms = user.room.split(',').map(r => r.trim()).filter(Boolean);
@@ -527,7 +531,7 @@ export default function Home() {
   // Fetch score history
   const fetchHistory = async () => {
     try {
-      const res = await fetch('/api/history');
+      const res = await fetch('/api/history', { cache: 'no-store' });
       if (res.ok) {
         const data = await res.json();
         setQuizHistory(data);
@@ -541,7 +545,7 @@ export default function Home() {
   // Fetch assignments
   const fetchAssignments = async () => {
     try {
-      const res = await fetch('/api/db');
+      const res = await fetch('/api/db', { cache: 'no-store' });
       if (res.ok) {
         const data = await res.json();
         setAssignments(data);
@@ -1168,7 +1172,7 @@ export default function Home() {
       setDashboardClass(newCode);
       
       // Load lại danh sách lớp học
-      const classesRes = await fetch('/api/classes');
+      const classesRes = await fetch('/api/classes', { cache: 'no-store' });
       if (classesRes.ok) {
         const classesData = await classesRes.json();
         setClassList(classesData);
@@ -1342,8 +1346,8 @@ export default function Home() {
     .filter(Boolean) as Array<{ code: string; name: string; teacherUsername: string }>;
 
   const activeClassName = isTeacher 
-    ? (teacherClasses.find(c => c.code === dashboardClass)?.name || dashboardClass)
-    : (studentClasses.find(c => c.code === dashboardClass)?.name || dashboardClass || '');
+    ? (teacherClasses.find(c => c.code === dashboardClass)?.name || (dashboardClass ? dashboardClass : (language === 'vi' ? 'Chưa có lớp học' : 'No classes created')))
+    : (studentClasses.find(c => c.code === dashboardClass)?.name || dashboardClass || (language === 'vi' ? 'Chưa có lớp học' : 'No classes created'));
 
   // Student analytics
   const studentHistoryList = quizHistory.filter(h => h.username === user?.username);
@@ -2268,7 +2272,6 @@ export default function Home() {
                                     questions={activeSubmission?.questions || questions}
                                     isLoading={loadingType === 'quiz'}
                                     userRole={user.role}
-                                    userRoom={user?.room}
                                     hasSubmitted={activeAssignment ? !!activeSubmission : false}
                                     onScoreSubmit={handleScoreSubmit}
                                     previousScoreInfo={activeSubmission ? { score: activeSubmission.score, scale10Score: activeSubmission.scale10Score } : undefined}
@@ -2295,7 +2298,6 @@ export default function Home() {
                                 isLoading={loadingType === 'essay'}
                                 onGenerate={(metadata) => handleGenerateEssay(essay ? true : false, metadata)}
                                 userRole={user.role}
-                                userRoom={user?.room}
                                 onAssignEssay={handleAssignEssay}
                                 fileName={activeDoc?.fileName || ''}
                                 hasSubmitted={activeAssignment ? !!activeSubmission : false}
