@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { get } from '@vercel/blob';
+import { db } from '@/lib/firebase';
 import { readUsersFromExcel, deleteUserInExcel, updateUserRoomInExcel } from '@/lib/excel';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic';
 async function readClasses() {
   const localFilePath = process.env.LOCAL_DB_DIR ? path.join(process.env.LOCAL_DB_DIR, 'classes.json') : 'classes.json';
   
-  // Ưu tiên đọc file local trước để tránh trễ đồng bộ CDN / cache của Vercel Blob trong môi trường chạy thử nghiệm local
+  // Ưu tiên đọc file local trước
   if (fs.existsSync(localFilePath)) {
     try {
       const localData = fs.readFileSync(localFilePath, 'utf-8');
@@ -23,32 +23,17 @@ async function readClasses() {
     }
   }
 
-  const token = process.env.BLOB_READ_WRITE_TOKEN;
-  if (!token) return [];
+  // Firebase Firestore
+  if (db) {
+    try {
+      const snapshot = await db.collection('classes').get();
+      return snapshot.docs.map(doc => doc.data());
+    } catch (err) {
+      console.error('Lỗi đọc classes từ Firebase:', err);
+    }
+  }
 
-  // Thử fetch trực tiếp với timestamp để tránh CDN cache
-  try {
-    const storeId = token.match(/^vercel_blob_rw_([a-zA-Z0-9]+)_/)?.[1]?.toLowerCase() || '8shvc32y7x3rg5st';
-    const blobUrl = `https://${storeId}.public.blob.vercel-storage.com/classes.json?t=${Date.now()}`;
-    const res = await fetch(blobUrl, { cache: 'no-store' });
-    if (res.ok) {
-      return await res.json();
-    }
-  } catch (err) {
-    console.error('Lỗi khi fetch classes.json trực tiếp:', err);
-  }
-  // Fallback sử dụng SDK @vercel/blob
-  try {
-    const res = await get('classes.json', { token, access: 'public' });
-    if (!res || !res.stream) return [];
-    const chunks = [];
-    for await (const chunk of res.stream as any) {
-      chunks.push(chunk);
-    }
-    return JSON.parse(Buffer.concat(chunks).toString('utf-8'));
-  } catch {
-    return [];
-  }
+  return [];
 }
 
 export async function GET(request: Request) {

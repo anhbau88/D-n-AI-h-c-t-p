@@ -5,7 +5,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { extractTextFromPDF } from '@/lib/pdf';
 import mammoth from 'mammoth';
 import { callGeminiMultimodal } from '@/lib/gemini';
-import { put } from '@vercel/blob';
+import { bucket } from '@/lib/firebase';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -93,7 +93,7 @@ export async function POST(request: NextRequest) {
 Ghi lại nội dung văn bản một cách cực kỳ chi tiết và chính xác, giữ nguyên cấu trúc tiêu đề, đoạn văn và các phần nếu có.
 Nếu có sơ đồ, bảng biểu hoặc công thức học tập (toán, lý, hóa), hãy chuyển đổi thành dạng văn bản mô tả hoặc định dạng Markdown toán học thích hợp.
 Chỉ trả về phần nội dung văn bản đã được trích xuất hoàn chỉnh, không thêm bất kỳ nhận xét, lời bình luận hay phần giới thiệu nào khác.`;
-
+    
       // Gọi Gemini Multimodal
       try {
         const extractedText = await callGeminiMultimodal(buffer, mimeType, prompt);
@@ -120,15 +120,21 @@ Chỉ trả về phần nội dung văn bản đã được trích xuất hoàn 
       );
     }
 
-    // Upload file gốc lên Vercel Blob (Hỗ trợ PDF, Word, Image) để preview (hoặc local fallback)
+    // Upload file gốc lên Firebase Storage (hoặc local fallback) để preview
     let pdfUrl = undefined;
-    const token = process.env.BLOB_READ_WRITE_TOKEN;
-    if (token) {
+    if (bucket) {
       try {
-        const blob = await put(file.name, file, { access: 'public' });
-        pdfUrl = blob.url;
+        // Thêm timestamp để tránh trùng tên file
+        const uniqueName = `${Date.now()}-${file.name}`;
+        const fileRef = bucket.file(`uploads/${uniqueName}`);
+        await fileRef.save(buffer, {
+          contentType: file.type || 'application/octet-stream',
+          metadata: { cacheControl: 'public, max-age=31536000' },
+        });
+        await fileRef.makePublic();
+        pdfUrl = `https://storage.googleapis.com/${bucket.name}/uploads/${encodeURIComponent(uniqueName)}`;
       } catch (err) {
-        console.error('Lỗi khi upload file lên Vercel Blob:', err);
+        console.error('Lỗi khi upload file lên Firebase Storage:', err);
       }
     } else {
       // Local fallback: Lưu vào public/uploads
@@ -137,10 +143,10 @@ Chỉ trả về phần nội dung văn bản đã được trích xuất hoàn 
         if (!fs.existsSync(uploadDir)) {
           fs.mkdirSync(uploadDir, { recursive: true });
         }
-        const filePath = path.join(uploadDir, file.name);
-        fs.writeFileSync(filePath, buffer);
+        const localPath = path.join(uploadDir, file.name);
+        fs.writeFileSync(localPath, buffer);
         pdfUrl = `/uploads/${encodeURIComponent(file.name)}`;
-        console.log('Saved file locally to:', filePath);
+        console.log('Saved file locally to:', localPath);
       } catch (err) {
         console.error('Lỗi khi lưu file upload local:', err);
       }

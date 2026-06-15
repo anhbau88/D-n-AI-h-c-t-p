@@ -403,7 +403,8 @@ export default function Home() {
       
       // Load user isolated document chat history instead of public doc chat history
       const savedDocChat = localStorage.getItem(`docChatHistory_${user?.username}_${doc.id}`);
-      const chatHist = savedDocChat ? JSON.parse(savedDocChat) : [];
+      let chatHist: ChatMessage[] = [];
+      try { chatHist = savedDocChat ? JSON.parse(savedDocChat) : []; } catch { }
       setChatHistory(chatHist);
       
       // Đặt tab mặc định hiển thị tài liệu
@@ -531,7 +532,15 @@ export default function Home() {
   // Fetch score history
   const fetchHistory = async () => {
     try {
-      const res = await fetch('/api/history', { cache: 'no-store' });
+      if (!user) return;
+      let url = '/api/history';
+      if (user.role === 'student') {
+        url += `?username=${encodeURIComponent(user.username)}`;
+      } else if (user.role === 'teacher' && dashboardClass) {
+        url += `?roomId=${encodeURIComponent(dashboardClass)}`;
+      }
+      
+      const res = await fetch(url, { cache: 'no-store' });
       if (res.ok) {
         const data = await res.json();
         setQuizHistory(data);
@@ -564,12 +573,18 @@ export default function Home() {
     loadLibraryDocuments();
   }, [user]);
 
+  // Tự động tải lại lịch sử điểm số khi giáo viên chuyển lớp quản lý
+  useEffect(() => {
+    if (!user || user.role !== 'teacher' || !dashboardClass) return;
+    fetchHistory();
+  }, [dashboardClass]);
+
   // Đồng bộ lịch sử trò chuyện AI chung theo từng user khi đăng nhập/đăng xuất
   useEffect(() => {
     if (user) {
       const savedChat = localStorage.getItem(`generalChatHistory_${user.username}`);
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      setGeneralChatHistory(savedChat ? JSON.parse(savedChat) : []);
+      try { setGeneralChatHistory(savedChat ? JSON.parse(savedChat) : []); } catch { setGeneralChatHistory([]); }
     } else {
       setGeneralChatHistory([]);
     }
@@ -1833,7 +1848,7 @@ export default function Home() {
                       setShowJoinClassModal(false);
                       setJoinClassCode('');
                     }}
-                    className="flex-1 py-2.5 rounded-xl border border-gray-300 dark:border-gray-800 hover:bg-gray-55 dark:hover:bg-gray-800 text-foreground font-bold text-xs transition-all"
+                    className="flex-1 py-2.5 rounded-xl border border-gray-300 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800 text-foreground font-bold text-xs transition-all"
                   >
                     {language === 'vi' ? 'Hủy' : 'Cancel'}
                   </button>
@@ -1945,7 +1960,7 @@ export default function Home() {
                       setChangePasswordError('');
                       setChangePasswordSuccess('');
                     }}
-                    className="flex-1 py-2.5 rounded-xl border border-gray-300 dark:border-gray-800 hover:bg-gray-55 dark:hover:bg-gray-800 text-foreground font-bold text-xs transition-all"
+                    className="flex-1 py-2.5 rounded-xl border border-gray-300 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800 text-foreground font-bold text-xs transition-all"
                   >
                     {language === 'vi' ? 'Hủy' : 'Cancel'}
                   </button>

@@ -1,8 +1,8 @@
 // app/api/db/route.ts
-// API đồng bộ bài tập và dữ liệu qua Vercel Blob (hoặc local fallback)
+// API đồng bộ bài tập và dữ liệu qua Firebase Firestore (hoặc local fallback)
 
 import { NextRequest, NextResponse } from 'next/server';
-import { get } from '@vercel/blob';
+import { db } from '@/lib/firebase';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -10,19 +10,8 @@ export const dynamic = 'force-dynamic';
 
 const localFilePath = process.env.LOCAL_DB_DIR ? path.join(process.env.LOCAL_DB_DIR, 'assignments.json') : 'assignments.json';
 
-const getBlobUrls = () => {
-  const token = process.env.BLOB_READ_WRITE_TOKEN || '';
-  const storeId = token.match(/^vercel_blob_rw_([a-zA-Z0-9]+)_/)?.[1]?.toLowerCase() || '8shvc32y7x3rg5st';
-  return {
-    BLOB_URL: `https://${storeId}.public.blob.vercel-storage.com/assignments.json`,
-    API_URL: 'https://blob.vercel-storage.com/assignments.json'
-  };
-};
-
 export async function GET() {
-  const token = process.env.BLOB_READ_WRITE_TOKEN;
-  
-  // Ưu tiên đọc file local trước để tránh trễ đồng bộ CDN / cache của Vercel Blob
+  // Ưu tiên đọc file local trước
   if (fs.existsSync(localFilePath)) {
     try {
       const data = fs.readFileSync(localFilePath, 'utf-8');
@@ -39,72 +28,33 @@ export async function GET() {
     }
   }
 
-  if (!token) {
-    return NextResponse.json([], {
-      headers: {
-        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
-      },
-    });
-  }
-
-  // Chạy chính thức: Lấy từ Vercel Blob
-  try {
-    const { BLOB_URL } = getBlobUrls();
-    const fetchRes = await fetch(`${BLOB_URL}?t=${Date.now()}`, { cache: 'no-store' });
-    if (fetchRes.ok) {
-      const assignments = await fetchRes.json();
+  // Firebase Firestore
+  if (db) {
+    try {
+      const snapshot = await db.collection('assignments').get();
+      const assignments = snapshot.docs.map(doc => doc.data());
       return NextResponse.json(assignments, {
         headers: {
           'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
         },
       });
-    } else if (fetchRes.status === 404) {
-      return NextResponse.json([], {
-        headers: {
-          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
-        },
-      });
+    } catch (error) {
+      console.error('Error fetching assignments from Firebase:', error);
     }
-  } catch (error) {
-    console.error('Error fetching assignments via HTTP fetch:', error);
   }
 
-  // Fallback: Lấy từ Vercel Blob SDK
-  try {
-    const res = await get('assignments.json', { token, access: 'public' });
-    if (!res || !res.stream) {
-      return NextResponse.json([], {
-        headers: {
-          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
-        },
-      });
-    }
-    const chunks = [];
-    for await (const chunk of res.stream as any) {
-      chunks.push(chunk);
-    }
-    const assignments = JSON.parse(Buffer.concat(chunks).toString('utf-8'));
-    return NextResponse.json(assignments, {
-      headers: {
-        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
-      },
-    });
-  } catch (error) {
-    console.error('Error fetching assignments via SDK:', error);
-    return NextResponse.json([], {
-      headers: {
-        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
-      },
-    });
-  }
+  return NextResponse.json([], {
+    headers: {
+      'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+    },
+  });
 }
 
 export async function POST(request: NextRequest) {
   try {
     const assignments = await request.json();
-    const token = process.env.BLOB_READ_WRITE_TOKEN;
 
-    if (!token) {
+    if (!db) {
       // Fallback: Ghi dữ liệu vào file local assignments.json khi chạy offline/local
       try {
         fs.writeFileSync(localFilePath, JSON.stringify(assignments, null, 2), 'utf-8');
@@ -122,22 +72,33 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Chạy chính thức: Ghi lên Vercel Blob
-    const { API_URL } = getBlobUrls();
-    const res = await fetch(API_URL, {
-      method: 'PUT',
-      headers: {
-        authorization: `Bearer ${token}`,
-        'x-api-version': '1',
-        'x-add-random-suffix': 'false',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(assignments),
-    });
+    // Chạy chính thức: Ghi lên Firebase Firestore (lưu từng doc riêng lẻ để tránh vượt 1MB)
+    try {
+      const snapshot = await db.collection('assignments').get();
+      const existingIds = snapshot.docs.map(doc => doc.id);
+      const newIds = assignments.map((a: any) => a.id);
 
-    if (!res.ok) {
-      const errorText = await res.text();
-      throw new Error(`Vercel Blob write error: ${errorText}`);
+      const batch = db.batch();
+
+      // Xóa các bài tập cũ không còn trong danh sách mới
+      for (const id of existingIds) {
+        if (!newIds.includes(id)) {
+          batch.delete(db.collection('assignments').doc(id));
+        }
+      }
+
+      // Ghi đè hoặc thêm các bài tập mới
+      for (const asm of assignments) {
+        if (asm.id) {
+          batch.set(db.collection('assignments').doc(asm.id), asm);
+        }
+      }
+
+      await batch.commit();
+    } catch (error) {
+      console.error('Error saving assignments to Firebase:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to save assignments';
+      return NextResponse.json({ error: errorMessage }, { status: 500 });
     }
 
     // Write locally as well for fast local caching

@@ -1,23 +1,14 @@
 // app/api/classes/route.ts
-// API quản lý danh sách lớp học hỗ trợ Vercel Blob (hoặc local fallback)
+// API quản lý danh sách lớp học hỗ trợ Firebase Firestore (hoặc local fallback)
 
 import { NextRequest, NextResponse } from 'next/server';
-import { get } from '@vercel/blob';
+import { db } from '@/lib/firebase';
 import * as fs from 'fs';
 import * as path from 'path';
 
 export const dynamic = 'force-dynamic';
 
 const localFilePath = process.env.LOCAL_DB_DIR ? path.join(process.env.LOCAL_DB_DIR, 'classes.json') : 'classes.json';
-
-const getBlobUrls = () => {
-  const token = process.env.BLOB_READ_WRITE_TOKEN || '';
-  const storeId = token.match(/^vercel_blob_rw_([a-zA-Z0-9]+)_/)?.[1]?.toLowerCase() || '8shvc32y7x3rg5st';
-  return {
-    BLOB_URL: `https://${storeId}.public.blob.vercel-storage.com/classes.json`,
-    API_URL: 'https://blob.vercel-storage.com/classes.json'
-  };
-};
 
 interface ClassItem {
   code: string;
@@ -29,9 +20,7 @@ interface ClassItem {
 const SEED_CLASSES: ClassItem[] = [];
 
 export async function GET() {
-  const token = process.env.BLOB_READ_WRITE_TOKEN;
-  
-  // Ưu tiên đọc file local trước để tránh trễ đồng bộ CDN / cache của Vercel Blob
+  // Ưu tiên đọc file local trước để tránh trễ
   if (fs.existsSync(localFilePath)) {
     try {
       const data = fs.readFileSync(localFilePath, 'utf-8');
@@ -44,56 +33,24 @@ export async function GET() {
     }
   }
 
-  if (!token) {
+  // Firebase Firestore
+  if (db) {
     try {
-      fs.writeFileSync(localFilePath, JSON.stringify(SEED_CLASSES, null, 2), 'utf-8');
-      return NextResponse.json(SEED_CLASSES);
-    } catch (error) {
-      console.error('Error seeding local classes:', error);
-      return NextResponse.json(SEED_CLASSES);
-    }
-  }
-
-  // Chạy chính thức: Lấy từ Vercel Blob
-  try {
-    const { BLOB_URL } = getBlobUrls();
-    const fetchRes = await fetch(`${BLOB_URL}?t=${Date.now()}`, { cache: 'no-store' });
-    if (fetchRes.ok) {
-      const classes = await fetchRes.json();
+      const snapshot = await db.collection('classes').get();
+      if (snapshot.empty) return NextResponse.json(SEED_CLASSES);
+      const classes = snapshot.docs.map(doc => doc.data() as ClassItem);
       return NextResponse.json(classes);
-    } else if (fetchRes.status === 404) {
-      return NextResponse.json(SEED_CLASSES);
+    } catch (error) {
+      console.error('Error fetching classes from Firebase:', error);
     }
-  } catch (error) {
-    console.error('Error fetching classes via HTTP fetch:', error);
   }
 
-  // Fallback: Lấy từ Vercel Blob SDK
+  // Fallback: Seed local file
   try {
-    const res = await get('classes.json', { token, access: 'public' });
-    if (!res || !res.stream) {
-      // Seed Vercel Blob
-      const { API_URL } = getBlobUrls();
-      await fetch(API_URL, {
-        method: 'PUT',
-        headers: {
-          authorization: `Bearer ${token}`,
-          'x-api-version': '1',
-          'x-add-random-suffix': 'false',
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(SEED_CLASSES),
-      });
-      return NextResponse.json(SEED_CLASSES);
-    }
-    const chunks = [];
-    for await (const chunk of res.stream as any) {
-      chunks.push(chunk);
-    }
-    const classes = JSON.parse(Buffer.concat(chunks).toString('utf-8'));
-    return NextResponse.json(classes);
+    fs.writeFileSync(localFilePath, JSON.stringify(SEED_CLASSES, null, 2), 'utf-8');
+    return NextResponse.json(SEED_CLASSES);
   } catch (error) {
-    console.error('Error fetching classes via SDK:', error);
+    console.error('Error seeding local classes:', error);
     return NextResponse.json(SEED_CLASSES);
   }
 }
@@ -106,10 +63,9 @@ export async function POST(request: NextRequest) {
     }
 
     // Load existing classes
-    let currentClasses = [];
-    const token = process.env.BLOB_READ_WRITE_TOKEN;
+    let currentClasses: ClassItem[] = [];
 
-    if (!token) {
+    if (!db) {
       if (fs.existsSync(localFilePath)) {
         currentClasses = JSON.parse(fs.readFileSync(localFilePath, 'utf-8'));
       } else {
@@ -117,15 +73,13 @@ export async function POST(request: NextRequest) {
       }
     } else {
       try {
-        const res = await get('classes.json', { token, access: 'public' });
-        if (res && res.stream) {
-          const chunks = [];
-          for await (const chunk of res.stream as any) {
-            chunks.push(chunk);
-          }
-          currentClasses = JSON.parse(Buffer.concat(chunks).toString('utf-8'));
+        const snapshot = await db.collection('classes').get();
+        currentClasses = snapshot.docs.map(doc => doc.data() as ClassItem);
+      } catch {
+        if (fs.existsSync(localFilePath)) {
+          currentClasses = JSON.parse(fs.readFileSync(localFilePath, 'utf-8'));
         }
-      } catch {}
+      }
     }
 
     // Generate unique class code: C + 5 random alphanumeric uppercase
@@ -149,26 +103,20 @@ export async function POST(request: NextRequest) {
 
     currentClasses.push(newClass);
 
-    if (!token) {
-      fs.writeFileSync(localFilePath, JSON.stringify(currentClasses, null, 2), 'utf-8');
-    } else {
-      const { API_URL } = getBlobUrls();
-      await fetch(API_URL, {
-        method: 'PUT',
-        headers: {
-          authorization: `Bearer ${token}`,
-          'x-api-version': '1',
-          'x-add-random-suffix': 'false',
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(currentClasses),
-      });
-      // Write locally as well for fast local caching
+    if (db) {
       try {
-        fs.writeFileSync(localFilePath, JSON.stringify(currentClasses, null, 2), 'utf-8');
-      } catch (err) {
-        console.error('Error writing local classes cache:', err);
+        await db.collection('classes').doc(code).set(newClass);
+      } catch (error) {
+        console.error('Error saving class to Firebase:', error);
+        return NextResponse.json({ error: 'Failed to create class' }, { status: 500 });
       }
+    }
+
+    // Write locally as well for fast local caching
+    try {
+      fs.writeFileSync(localFilePath, JSON.stringify(currentClasses, null, 2), 'utf-8');
+    } catch (err) {
+      console.error('Error writing local classes cache:', err);
     }
 
     return NextResponse.json(newClass);

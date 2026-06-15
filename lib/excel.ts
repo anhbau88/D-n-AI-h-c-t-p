@@ -1,21 +1,12 @@
 // lib/excel.ts
-// Quản lý việc đọc/ghi tài khoản người dùng vào file Excel hoặc Vercel Blob
+// Quản lý việc đọc/ghi tài khoản người dùng vào file Excel hoặc Firebase Firestore
 
-import { get } from '@vercel/blob';
+import { db } from './firebase';
 import * as XLSX from 'xlsx';
 import * as fs from 'fs';
 import * as path from 'path';
 
 const filePath = process.env.LOCAL_DB_DIR ? path.join(process.env.LOCAL_DB_DIR, 'users.xlsx') : 'users.xlsx';
-
-const getBlobUrls = () => {
-  const token = process.env.BLOB_READ_WRITE_TOKEN || '';
-  const storeId = token.match(/^vercel_blob_rw_([a-zA-Z0-9]+)_/)?.[1]?.toLowerCase() || '8shvc32y7x3rg5st';
-  return {
-    BLOB_URL: `https://${storeId}.public.blob.vercel-storage.com/users.json`,
-    API_URL: 'https://blob.vercel-storage.com/users.json'
-  };
-};
 
 export interface ExcelUser {
   Username: string;
@@ -29,75 +20,18 @@ export interface ExcelUser {
 const SEED_USERS: ExcelUser[] = [];
 
 /**
- * Ghi danh sách người dùng vào Vercel Blob
- */
-async function saveUsersToBlob(users: ExcelUser[]): Promise<boolean> {
-  const token = process.env.BLOB_READ_WRITE_TOKEN;
-  if (!token) return false;
-  const { API_URL } = getBlobUrls();
-  try {
-    const res = await fetch(API_URL, {
-      method: 'PUT',
-      headers: {
-        authorization: `Bearer ${token}`,
-        'x-api-version': '1',
-        'x-add-random-suffix': 'false',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(users),
-    });
-    return res.ok;
-  } catch (error) {
-    console.error('Lỗi ghi vào Vercel Blob:', error);
-    return false;
-  }
-}
-
-/**
- * Đọc danh sách người dùng từ Vercel Blob
- */
-async function readUsersFromBlob(): Promise<ExcelUser[] | null> {
-  const token = process.env.BLOB_READ_WRITE_TOKEN;
-  if (!token) return null;
-  try {
-    const res = await get('users.json', { token, access: 'public' });
-    if (!res || !res.stream) {
-      // Tự động khởi tạo nếu chưa có file
-      await saveUsersToBlob(SEED_USERS);
-      return SEED_USERS;
-    }
-    const chunks = [];
-    for await (const chunk of res.stream as any) {
-      chunks.push(chunk);
-    }
-    const data = JSON.parse(Buffer.concat(chunks).toString('utf-8')) as ExcelUser[];
-    if (!data) {
-      return SEED_USERS;
-    }
-    return data;
-  } catch (error) {
-    console.error('Lỗi đọc từ Vercel Blob:', error);
-    return null;
-  }
-}
-
-/**
- * Đọc toàn bộ danh sách người dùng (ưu tiên Vercel Blob, fallback sang Excel cục bộ)
+ * Đọc toàn bộ danh sách người dùng (ưu tiên Firebase Firestore, fallback sang Excel cục bộ)
  */
 export async function readUsersFromExcel(): Promise<ExcelUser[]> {
   const isLocal = !process.env.VERCEL || process.env.NODE_ENV === 'development';
-  if (!isLocal) {
-    const blobUsers = await readUsersFromBlob();
-    if (blobUsers !== null) {
-      return blobUsers;
+  if (!isLocal && db) {
+    try {
+      const snapshot = await db.collection('users').get();
+      if (snapshot.empty) return SEED_USERS;
+      return snapshot.docs.map(doc => doc.data() as ExcelUser);
+    } catch (error) {
+      console.error('Lỗi đọc users từ Firebase:', error);
     }
-  }
-
-  try {
-    const rawData = fs.readFileSync(filePath);
-    console.log('Direct fs.readFileSync succeeded at path:', filePath, 'Size:', rawData.length);
-  } catch (err: any) {
-    console.error('Direct fs.readFileSync failed at path:', filePath, 'Error:', err.message, 'Code:', err.code);
   }
 
   // 2. Fallback hoặc chạy local: Đọc Excel cục bộ
@@ -119,20 +53,21 @@ export async function readUsersFromExcel(): Promise<ExcelUser[]> {
 }
 
 /**
- * Lưu một người dùng mới (ưu tiên Vercel Blob, fallback sang Excel cục bộ)
+ * Lưu một người dùng mới (ưu tiên Firebase Firestore, fallback sang Excel cục bộ)
  */
 export async function saveUserToExcel(user: { username: string; fullName?: string; password: string; role: string; room?: string }): Promise<boolean> {
   const isLocal = !process.env.VERCEL || process.env.NODE_ENV === 'development';
-  const token = process.env.BLOB_READ_WRITE_TOKEN;
+
+  const newUser: ExcelUser = {
+    Username: user.username,
+    FullName: user.fullName || '',
+    Password: user.password,
+    Role: user.role,
+    Room: user.room || '',
+    CreatedAt: new Date().toISOString(),
+  };
 
   if (isLocal) {
-    try {
-      fs.writeFileSync(filePath + '.test', 'test');
-      fs.unlinkSync(filePath + '.test');
-      console.log('Direct fs write test succeeded at path:', filePath);
-    } catch (err: any) {
-      console.error('Direct fs write test failed at path:', filePath, 'Error:', err.message, 'Code:', err.code);
-    }
     let localSuccess = false;
     let data: ExcelUser[] = [];
     try {
@@ -153,14 +88,7 @@ export async function saveUserToExcel(user: { username: string; fullName?: strin
       const exists = data.some(u => String(u.Username).toLowerCase() === user.username.toLowerCase());
       if (exists) return false;
 
-      data.push({
-        Username: user.username,
-        FullName: user.fullName || '',
-        Password: user.password,
-        Role: user.role,
-        Room: user.room || '',
-        CreatedAt: new Date().toISOString(),
-      });
+      data.push(newUser);
 
       const workbook = XLSX.utils.book_new();
       const newWorksheet = XLSX.utils.json_to_sheet(data);
@@ -172,27 +100,25 @@ export async function saveUserToExcel(user: { username: string; fullName?: strin
       console.error('Lỗi khi ghi đè file Excel cục bộ:', error);
     }
 
-    if (token && localSuccess) {
-      saveUsersToBlob(data).catch(err => console.error('Lỗi sync cloud:', err));
+    if (db && localSuccess) {
+      db.collection('users').doc(user.username.toLowerCase()).set(newUser)
+        .catch(err => console.error('Lỗi sync cloud:', err));
     }
     return localSuccess;
   }
 
-  // 1. Ưu tiên lưu vào Vercel Blob (Chạy trên Vercel production)
-  if (token) {
-    const currentUsers = await readUsersFromBlob() || [];
-    const exists = currentUsers.some(u => String(u.Username).toLowerCase() === user.username.toLowerCase());
-    if (exists) return false;
+  // 1. Ưu tiên lưu vào Firebase (Chạy trên Vercel production)
+  if (db) {
+    const existingDoc = await db.collection('users').doc(user.username.toLowerCase()).get();
+    if (existingDoc.exists) return false;
 
-    currentUsers.push({
-      Username: user.username,
-      FullName: user.fullName || '',
-      Password: user.password,
-      Role: user.role,
-      Room: user.room || '',
-      CreatedAt: new Date().toISOString(),
-    });
-    return await saveUsersToBlob(currentUsers);
+    try {
+      await db.collection('users').doc(user.username.toLowerCase()).set(newUser);
+      return true;
+    } catch (error) {
+      console.error('Lỗi ghi user vào Firebase:', error);
+      return false;
+    }
   }
 
   return false;
@@ -202,6 +128,19 @@ export async function saveUserToExcel(user: { username: string; fullName?: strin
  * Tìm kiếm người dùng theo tên tài khoản
  */
 export async function findUserInExcel(username: string): Promise<ExcelUser | null> {
+  const isLocal = !process.env.VERCEL || process.env.NODE_ENV === 'development';
+
+  if (!isLocal && db) {
+    try {
+      const doc = await db.collection('users').doc(username.toLowerCase()).get();
+      if (!doc.exists) return null;
+      return doc.data() as ExcelUser;
+    } catch (error) {
+      console.error('Lỗi tìm user trong Firebase:', error);
+    }
+  }
+
+  // Fallback: đọc tất cả rồi filter
   const users = await readUsersFromExcel();
   const found = users.find(u => String(u.Username).toLowerCase() === username.toLowerCase());
   return found || null;
@@ -221,22 +160,24 @@ export async function updateUserRoomInExcel(username: string, room: string, mode
   const existingRoom = String(currentUsers[userIndex].Room || '');
   const existingRooms = existingRoom.split(',').map(r => r.trim()).filter(Boolean);
 
+  let newRoomValue: string;
   if (mode === 'add') {
     // Thêm lớp mới, tránh trùng lặp
     if (!existingRooms.includes(room)) {
       existingRooms.push(room);
     }
-    currentUsers[userIndex].Room = existingRooms.join(',');
+    newRoomValue = existingRooms.join(',');
   } else if (mode === 'remove') {
     // Xóa lớp khỏi danh sách
-    currentUsers[userIndex].Room = existingRooms.filter(r => r !== room).join(',');
+    newRoomValue = existingRooms.filter(r => r !== room).join(',');
   } else {
     // Ghi đè toàn bộ
-    currentUsers[userIndex].Room = room;
+    newRoomValue = room;
   }
 
+  currentUsers[userIndex].Room = newRoomValue;
+
   const isLocal = !process.env.VERCEL || process.env.NODE_ENV === 'development';
-  const token = process.env.BLOB_READ_WRITE_TOKEN;
 
   if (isLocal) {
     try {
@@ -246,8 +187,9 @@ export async function updateUserRoomInExcel(username: string, room: string, mode
       const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
       fs.writeFileSync(filePath, buffer);
       
-      if (token) {
-        saveUsersToBlob(currentUsers).catch(err => console.error('Lỗi sync cloud room:', err));
+      if (db) {
+        db.collection('users').doc(username.toLowerCase()).update({ Room: newRoomValue })
+          .catch(err => console.error('Lỗi sync cloud room:', err));
       }
       return true;
     } catch (error) {
@@ -256,9 +198,15 @@ export async function updateUserRoomInExcel(username: string, room: string, mode
     }
   }
 
-  // 1. Ưu tiên lưu vào Vercel Blob (Chạy trên Vercel production)
-  if (token) {
-    return await saveUsersToBlob(currentUsers);
+  // Production: Cập nhật Firebase
+  if (db) {
+    try {
+      await db.collection('users').doc(username.toLowerCase()).update({ Room: newRoomValue });
+      return true;
+    } catch (error) {
+      console.error('Lỗi cập nhật room trong Firebase:', error);
+      return false;
+    }
   }
 
   return false;
@@ -268,16 +216,15 @@ export async function updateUserRoomInExcel(username: string, room: string, mode
  * Cập nhật mật khẩu cho một người dùng
  */
 export async function updateUserPasswordInExcel(username: string, newPassword: string): Promise<boolean> {
-  const currentUsers = await readUsersFromExcel();
-  const userIndex = currentUsers.findIndex(u => String(u.Username).toLowerCase() === username.toLowerCase());
-  if (userIndex === -1) return false;
-
-  currentUsers[userIndex].Password = newPassword;
-
   const isLocal = !process.env.VERCEL || process.env.NODE_ENV === 'development';
-  const token = process.env.BLOB_READ_WRITE_TOKEN;
 
   if (isLocal) {
+    const currentUsers = await readUsersFromExcel();
+    const userIndex = currentUsers.findIndex(u => String(u.Username).toLowerCase() === username.toLowerCase());
+    if (userIndex === -1) return false;
+
+    currentUsers[userIndex].Password = newPassword;
+
     try {
       const workbook = XLSX.utils.book_new();
       const newWorksheet = XLSX.utils.json_to_sheet(currentUsers);
@@ -285,8 +232,9 @@ export async function updateUserPasswordInExcel(username: string, newPassword: s
       const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
       fs.writeFileSync(filePath, buffer);
       
-      if (token) {
-        saveUsersToBlob(currentUsers).catch(err => console.error('Lỗi sync cloud password:', err));
+      if (db) {
+        db.collection('users').doc(username.toLowerCase()).update({ Password: newPassword })
+          .catch(err => console.error('Lỗi sync cloud password:', err));
       }
       return true;
     } catch (error) {
@@ -295,9 +243,18 @@ export async function updateUserPasswordInExcel(username: string, newPassword: s
     }
   }
 
-  // 1. Ưu tiên lưu vào Vercel Blob (Chạy trên Vercel production)
-  if (token) {
-    return await saveUsersToBlob(currentUsers);
+  // Production: Cập nhật Firebase
+  if (db) {
+    try {
+      const doc = await db.collection('users').doc(username.toLowerCase()).get();
+      if (!doc.exists) return false;
+
+      await db.collection('users').doc(username.toLowerCase()).update({ Password: newPassword });
+      return true;
+    } catch (error) {
+      console.error('Lỗi cập nhật mật khẩu trong Firebase:', error);
+      return false;
+    }
   }
 
   return false;
@@ -311,33 +268,24 @@ function initExcelFile() {
   const workbook = XLSX.utils.book_new();
   const worksheet = XLSX.utils.json_to_sheet([], { header: ['Username', 'FullName', 'Password', 'Role', 'Room', 'CreatedAt'] });
   XLSX.utils.book_append_sheet(workbook, worksheet, 'Users');
-  try {
-    fs.writeFileSync(filePath + '.test', 'test');
-    fs.unlinkSync(filePath + '.test');
-    console.log('Direct fs write test succeeded in initExcelFile at path:', filePath);
-  } catch (err: any) {
-    console.error('Direct fs write test failed in initExcelFile at path:', filePath, 'Error:', err.message, 'Code:', err.code);
-  }
   const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
   fs.writeFileSync(filePath, buffer);
-  console.log('Đã tạo file Excel seed tài khoản tại:', filePath);
 }
 
 /**
  * Xóa một người dùng theo tên tài khoản
  */
 export async function deleteUserInExcel(username: string): Promise<boolean> {
-  const currentUsers = await readUsersFromExcel();
-  const initialLength = currentUsers.length;
-  const filteredUsers = currentUsers.filter(u => String(u.Username).toLowerCase() !== username.toLowerCase());
-
-  // Nếu độ dài không đổi => User không tồn tại
-  if (filteredUsers.length === initialLength) return false;
-
   const isLocal = !process.env.VERCEL || process.env.NODE_ENV === 'development';
-  const token = process.env.BLOB_READ_WRITE_TOKEN;
 
   if (isLocal) {
+    const currentUsers = await readUsersFromExcel();
+    const initialLength = currentUsers.length;
+    const filteredUsers = currentUsers.filter(u => String(u.Username).toLowerCase() !== username.toLowerCase());
+
+    // Nếu độ dài không đổi => User không tồn tại
+    if (filteredUsers.length === initialLength) return false;
+
     try {
       const workbook = XLSX.utils.book_new();
       const newWorksheet = XLSX.utils.json_to_sheet(filteredUsers);
@@ -345,8 +293,9 @@ export async function deleteUserInExcel(username: string): Promise<boolean> {
       const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx' });
       fs.writeFileSync(filePath, buffer);
       
-      if (token) {
-        saveUsersToBlob(filteredUsers).catch(err => console.error('Lỗi sync cloud delete:', err));
+      if (db) {
+        db.collection('users').doc(username.toLowerCase()).delete()
+          .catch(err => console.error('Lỗi sync cloud delete:', err));
       }
       return true;
     } catch (error) {
@@ -355,9 +304,18 @@ export async function deleteUserInExcel(username: string): Promise<boolean> {
     }
   }
 
-  // 1. Ưu tiên lưu vào Vercel Blob (Chạy trên Vercel production)
-  if (token) {
-    return await saveUsersToBlob(filteredUsers);
+  // Production: Xóa từ Firebase
+  if (db) {
+    try {
+      const doc = await db.collection('users').doc(username.toLowerCase()).get();
+      if (!doc.exists) return false;
+
+      await db.collection('users').doc(username.toLowerCase()).delete();
+      return true;
+    } catch (error) {
+      console.error('Lỗi xóa user từ Firebase:', error);
+      return false;
+    }
   }
 
   return false;
