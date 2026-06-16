@@ -172,3 +172,46 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const { assignmentId } = await request.json();
+    if (!assignmentId) {
+      return NextResponse.json({ error: 'Thiếu mã bài tập.' }, { status: 400 });
+    }
+
+    // 1. Firebase Firestore
+    if (db) {
+      try {
+        const snap = await db.collection('history').where('assignmentId', '==', assignmentId).get();
+        const batch = db.batch();
+        snap.docs.forEach(doc => {
+          batch.delete(doc.ref);
+        });
+        await batch.commit();
+      } catch (error) {
+        console.error('Error deleting history by assignmentId from Firebase:', error);
+      }
+    }
+
+    // 2. Local fallback
+    if (fs.existsSync(localFilePath)) {
+      try {
+        const data = fs.readFileSync(localFilePath, 'utf-8');
+        let list = JSON.parse(data) as QuizHistoryItem[];
+        list = list.filter(item => item.assignmentId !== assignmentId);
+        fs.writeFileSync(localFilePath, JSON.stringify(list, null, 2), 'utf-8');
+      } catch (error) {
+        console.error('Error deleting local history by assignmentId:', error);
+      }
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Lỗi khi xóa lịch sử bài thi:', error);
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : 'Lỗi server khi xóa lịch sử điểm số.' },
+      { status: 500 }
+    );
+  }
+}

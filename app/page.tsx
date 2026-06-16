@@ -942,8 +942,23 @@ export default function Home() {
         throw new Error('Lỗi server khi đồng bộ sau khi xóa.');
       }
 
+      // Xóa điểm số và lịch sử làm bài liên đới của học sinh
+      try {
+        await fetch('/api/history', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ assignmentId: asmId }),
+        });
+      } catch (historyErr) {
+        console.error('Lỗi khi xóa lịch sử bài thi liên đới:', historyErr);
+      }
+
       setAssignments(updatedAssignments);
       localStorage.setItem('assignments', JSON.stringify(updatedAssignments));
+      
+      // Đồng bộ lại lịch sử điểm số cục bộ
+      fetchHistory();
+
       showMessage(language === 'vi' ? 'Đã xóa bài thi đã giao thành công!' : 'Assigned exam deleted successfully!', false);
     } catch (err) {
       console.error('Lỗi khi xóa bài thi:', err);
@@ -2713,7 +2728,10 @@ export default function Home() {
 
                     {/* Stats processing block */}
                     {(() => {
-                      const classHistory = quizHistory.filter(h => isTeacher ? h.roomId === dashboardClass : userRooms.includes(h.roomId));
+                      const classHistory = quizHistory.filter(h => 
+                        (isTeacher ? h.roomId === dashboardClass : userRooms.includes(h.roomId)) &&
+                        assignments.some(a => a.id === h.assignmentId)
+                      );
                       const totalClassSubmissions = classHistory.length;
                       const passCount = classHistory.filter(h => parseFloat(h.scale10Score) >= 5.0).length;
                       const retakeCount = classHistory.filter(h => {
