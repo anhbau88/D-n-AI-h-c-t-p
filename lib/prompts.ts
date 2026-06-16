@@ -597,3 +597,62 @@ YÊU CẦU ĐẦU RA:
 }
 `;
 }
+
+/**
+ * Tạo prompt sinh thẻ ghi nhớ (Flashcards) từ tài liệu
+ */
+export function createFlashcardsPrompt(pdfText: string): string {
+  return `Bạn là một chuyên gia thiết kế tài liệu học tập và thẻ ghi nhớ (Flashcards) chuyên nghiệp.
+Hãy đọc kỹ nội dung tài liệu học tập dưới đây và trích xuất ra tối đa 8 khái niệm, định nghĩa, công thức hoặc sự kiện cốt lõi quan trọng nhất dưới dạng các thẻ ghi nhớ (Flashcards).
+
+YÊU CẦU:
+1. Mỗi thẻ ghi nhớ phải gồm:
+   - "id": số thứ tự tăng dần bắt đầu bằng chuỗi (ví dụ: "1", "2", "3",...)
+   - "front": Mặt trước của thẻ. Chứa một thuật ngữ, khái niệm, câu hỏi ngắn hoặc công thức cần ghi nhớ.
+   - "back": Mặt sau của thẻ. Chứa định nghĩa ngắn gọn, câu trả lời súc tích hoặc lời giải thích ngắn gọn (nên dưới 40 từ để dễ ghi nhớ).
+2. Nội dung phải hoàn toàn dựa trên tài liệu được cung cấp. Trả lời bằng tiếng Việt.
+3. Trả về cấu trúc JSON thuần túy, không bọc trong các ký hiệu markdown \`\`\`json hay \`\`\`.
+
+CẤU TRÚC JSON ĐẦU RA MẪU:
+{
+  "flashcards": [
+    {
+      "id": "1",
+      "front": "Hành tinh thứ ba tính từ Mặt Trời trong Hệ Mặt Trời là gì?",
+      "back": "Trái Đất"
+    }
+  ]
+}
+
+NỘI DUNG TÀI LIỆU:
+---
+${pdfText}
+---`;
+}
+
+/**
+ * Tạo prompt chẩn đoán điểm yếu của lớp học dựa trên bảng điểm và bài làm
+ */
+export function createClassDiagnosticPrompt(submissionsJson: string): string {
+  return `Bạn là một chuyên gia cố vấn sư phạm và phân tích dữ liệu giáo dục thông minh.
+Dưới đây là dữ liệu kết quả học tập và bài làm của học sinh trong một lớp học (đã được định dạng JSON).
+Hãy phân tích dữ liệu này và cung cấp một Báo cáo Chẩn đoán Giáo dục chi tiết (Classroom Diagnostic Report) bằng tiếng Việt để giúp giáo viên hiểu rõ tình hình học tập của lớp.
+
+DỮ LIỆU ĐIỂM SỐ & BÀI LÀM CỦA LỚP:
+====================
+${submissionsJson}
+====================
+
+YÊU CẦU BÁO CÁO (Trình bày bằng Markdown sạch đẹp, chuyên nghiệp):
+1. Đánh giá tổng quan lớp học: Nhận xét về phân bố điểm số, tỷ lệ đạt (trên 5.0), cần cải thiện và trung bình cộng của lớp.
+2. Xác định các lỗi sai / Khái niệm bị hổng nhiều nhất: 
+   - Phân tích chi tiết những điểm yếu chung của học sinh dựa trên các câu trả lời trắc nghiệm sai hoặc các đánh giá phản hồi tự luận.
+   - Chỉ rõ khái niệm cụ thể nào học sinh đang hiểu sai hoặc thiếu sót nhiều nhất.
+3. Giải pháp & Gợi ý giảng lại cho Giáo viên:
+   - Đưa ra các gợi ý cụ thể để giáo viên điều chỉnh phương pháp dạy, tập trung giảng lại phần kiến thức nào.
+   - Đề xuất 2-3 hoạt động ôn tập hoặc dạng câu hỏi luyện tập bù đắp kiến thức.
+
+LƯU Ý:
+- Viết văn phong sư phạm, lịch sự, tích cực và có tính định hướng thực tiễn cao cho giáo viên.
+- Trả về báo cáo trực tiếp bằng Markdown, không viết mở đầu dài dòng hoặc nói "Dưới đây là...".`;
+}

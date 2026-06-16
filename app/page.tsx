@@ -1,7 +1,7 @@
 // app/page.tsx
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import Image from 'next/image';
 import dynamic from 'next/dynamic';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -39,6 +39,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import ThemeToggle from '@/components/ThemeToggle';
 import AccessibilitySettings from '@/components/AccessibilitySettings';
 import AuthScreen from '@/components/AuthScreen';
+import ToastContainer, { Toast } from '@/components/ui/ToastContainer';
 
 // Dynamic imports - heavy, deferred loading
 const FileUpload = dynamic(() => import('@/components/FileUpload'), { ssr: false });
@@ -49,6 +50,8 @@ const EssayPanel = dynamic(() => import('@/components/EssayPanel'), { ssr: false
 const DocumentLibrary = dynamic(() => import('@/components/DocumentLibrary'), { ssr: false });
 const UserManagement = dynamic(() => import('@/components/UserManagement'), { ssr: false });
 const TeacherClassManagement = dynamic(() => import('@/components/TeacherClassManagement'), { ssr: false });
+const FlashcardPanel = dynamic(() => import('@/components/FlashcardPanel'), { ssr: false });
+
 
 import { FileInfo, QuizQuestion, User, Assignment, QuizHistoryItem, DocumentItem, ChatMessage } from '@/types';
 
@@ -321,6 +324,47 @@ export default function Home() {
   // Language State (VI/EN)
   const [language, setLanguage] = useState<'vi' | 'en'>('vi');
 
+  // Toast notifications state
+  const [toasts, setToasts] = useState<Toast[]>([]);
+
+  // Function to add a toast message
+  const addToast = useCallback((
+    type: 'success' | 'error' | 'info' | 'assignment',
+    title: string,
+    description?: string,
+    action?: { label: string; handler: () => void }
+  ) => {
+    const id = Math.random().toString(36).substring(2, 9);
+    const duration = 6000;
+    const newToast: Toast = {
+      id,
+      type,
+      title,
+      description,
+      actionLabel: action?.label,
+      onAction: action?.handler,
+      duration
+    };
+    setToasts(prev => [...prev, newToast]);
+    setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== id));
+    }, duration);
+  }, []);
+
+  const handleCloseToast = useCallback((id: string) => {
+    setToasts(prev => prev.filter(t => t.id !== id));
+  }, []);
+
+  const showMessage = useCallback((msg: string, isError = true) => {
+    addToast(
+      isError ? 'error' : 'success',
+      isError 
+        ? (language === 'vi' ? 'Lỗi' : 'Error') 
+        : (language === 'vi' ? 'Thông báo' : 'Notice'),
+      msg
+    );
+  }, [addToast, language]);
+
   // Streaming for summary
   const { completion: streamingSummary, complete: startStreamingSummary, isLoading: isSummaryStreaming, setCompletion: setStreamingSummary } = useCompletion({
     api: '/api/summarize',
@@ -363,7 +407,9 @@ export default function Home() {
   }, [activeTab]);
 
   const [loadingType, setLoadingType] = useState<string | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [error, setError] = useState('');
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [successMsg, setSuccessMsg] = useState('');
   const [isMounted, setIsMounted] = useState(false);
   const [showUserManagement, setShowUserManagement] = useState(false);
@@ -386,7 +432,7 @@ export default function Home() {
     return () => window.removeEventListener('mousemove', handleMouseMove);
   }, []);
 
-  const syncWorkspaceWithDoc = (doc: DocumentItem | null) => {
+  const syncWorkspaceWithDoc = useCallback((doc: DocumentItem | null) => {
     setActiveDoc(doc);
     setActiveAssignment(null); // Deselect assignment
     if (doc) {
@@ -417,9 +463,9 @@ export default function Home() {
       setEssay('');
       setChatHistory([]);
     }
-  };
+  }, [user, setActiveTab]);
 
-  const syncWorkspaceWithAssignment = (asm: Assignment | null) => {
+  const syncWorkspaceWithAssignment = useCallback((asm: Assignment | null) => {
     setActiveAssignment(asm);
     setActiveDoc(null); // Deselect document
     if (asm) {
@@ -445,10 +491,10 @@ export default function Home() {
       setSummary('');
       setChatHistory([]);
     }
-  };
+  }, [setActiveTab]);
 
   // Load public documents
-  const loadLibraryDocuments = async () => {
+  const loadLibraryDocuments = useCallback(async () => {
     try {
       const res = await fetch('/api/documents', { cache: 'no-store' });
       if (res.ok) {
@@ -459,7 +505,7 @@ export default function Home() {
     } catch (err) {
       console.error('Lỗi tải tài liệu từ máy chủ:', err);
     }
-  };
+  }, []);
 
   // Restore session & settings
   useEffect(() => {
@@ -507,7 +553,7 @@ export default function Home() {
         loadLibraryDocuments();
       } catch { }
     }
-  }, []);
+  }, [loadLibraryDocuments]);
 
   // Cập nhật lớp học mặc định khi danh sách lớp thay đổi hoặc giáo viên đăng nhập
   useEffect(() => {
@@ -530,7 +576,7 @@ export default function Home() {
   }, [user, classList, dashboardClass]);
 
   // Fetch score history
-  const fetchHistory = async () => {
+  const fetchHistory = useCallback(async () => {
     try {
       if (!user) return;
       let url = '/api/history';
@@ -549,10 +595,10 @@ export default function Home() {
     } catch (err) {
       console.error('Lỗi đồng bộ lịch sử điểm số:', err);
     }
-  };
+  }, [user, dashboardClass]);
 
   // Fetch assignments
-  const fetchAssignments = async () => {
+  const fetchAssignments = useCallback(async () => {
     try {
       const res = await fetch('/api/db', { cache: 'no-store' });
       if (res.ok) {
@@ -563,27 +609,25 @@ export default function Home() {
     } catch (err) {
       console.error('Lỗi đồng bộ assignments:', err);
     }
-  };
+  }, []);
 
   useEffect(() => {
     if (!user) return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchAssignments();
     fetchHistory();
     loadLibraryDocuments();
-  }, [user]);
+  }, [user, fetchAssignments, fetchHistory, loadLibraryDocuments]);
 
   // Tự động tải lại lịch sử điểm số khi giáo viên chuyển lớp quản lý
   useEffect(() => {
     if (!user || user.role !== 'teacher' || !dashboardClass) return;
     fetchHistory();
-  }, [dashboardClass]);
+  }, [user, dashboardClass, fetchHistory]);
 
   // Đồng bộ lịch sử trò chuyện AI chung theo từng user khi đăng nhập/đăng xuất
   useEffect(() => {
     if (user) {
       const savedChat = localStorage.getItem(`generalChatHistory_${user.username}`);
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       try { setGeneralChatHistory(savedChat ? JSON.parse(savedChat) : []); } catch { setGeneralChatHistory([]); }
     } else {
       setGeneralChatHistory([]);
@@ -625,7 +669,61 @@ export default function Home() {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('focus', handleFocus);
     };
-  }, [user]);
+  }, [user, fetchAssignments, fetchHistory, loadLibraryDocuments]);
+
+  // Đăng ký nhận thông báo thời gian thực qua Server-Sent Events (SSE) dành cho Học sinh
+  useEffect(() => {
+    if (!user || user.role !== 'student') return;
+
+    const eventSource = new EventSource('/api/notifications');
+
+    eventSource.addEventListener('NEW_ASSIGNMENT', (event) => {
+      try {
+        const assignment = JSON.parse(event.data) as Assignment;
+        
+        // 1. Kiểm tra xem học sinh có thuộc lớp học được giao đề này hay không
+        const currentRooms = (user.room || '').split(',').map(r => r.trim()).filter(Boolean);
+        if (!currentRooms.includes(assignment.roomId)) return;
+
+        // 2. Kiểm tra xem học sinh đã làm bài thi này chưa
+        const hasTaken = quizHistory.some(h => h.assignmentId === assignment.id);
+        if (hasTaken) return;
+
+        // 3. Cập nhật danh sách bài tập đã giao tức thì
+        setAssignments(prev => {
+          if (prev.some(a => a.id === assignment.id)) return prev;
+          const updated = [...prev, assignment];
+          localStorage.setItem('assignments', JSON.stringify(updated));
+          return updated;
+        });
+
+        // 4. Kích hoạt Toast thông báo cao cấp với hành động làm bài ngay
+        addToast(
+          'assignment',
+          language === 'vi' ? '🔔 Bài kiểm tra lớp mới!' : '🔔 New Class Exam!',
+          language === 'vi' 
+            ? `Lớp ${assignment.roomId} vừa có đề thi mới: "${assignment.title}"` 
+            : `Class ${assignment.roomId} has a new exam: "${assignment.title}"`,
+          {
+            label: language === 'vi' ? 'Làm bài ngay' : 'Take exam',
+            handler: () => {
+              syncWorkspaceWithAssignment(assignment);
+            }
+          }
+        );
+      } catch (err) {
+        console.error('Lỗi phân tích sự kiện thông báo SSE:', err);
+      }
+    });
+
+    eventSource.onerror = (err) => {
+      console.warn('Lỗi kết nối SSE stream, đang tự động thử lại...', err);
+    };
+
+    return () => {
+      eventSource.close();
+    };
+  }, [user, quizHistory, addToast, language, syncWorkspaceWithAssignment]);
 
   if (!isMounted) return null;
 
@@ -715,15 +813,7 @@ export default function Home() {
     }
   };
 
-  const showMessage = (msg: string, isError = true) => {
-    if (isError) {
-      setError(msg);
-      setTimeout(() => setError(''), 5000);
-    } else {
-      setSuccessMsg(msg);
-      setTimeout(() => setSuccessMsg(''), 5000);
-    }
-  };
+
 
   const handleScoreSubmit = async (score: number, scale10Score: string, studentAnswers?: Record<number, string>, takenQuestions?: QuizQuestion[]) => {
     if (!user || !activeAssignment) return;
@@ -880,6 +970,46 @@ export default function Home() {
     } catch (err: unknown) {
       const errMsg = err instanceof Error ? err.message : 'Lỗi khi xóa học sinh khỏi lớp.';
       console.error('Lỗi khi xóa học sinh khỏi lớp:', err);
+      showMessage(errMsg);
+      throw err;
+    }
+  };
+
+  const handleDeleteClass = async (classCode: string): Promise<boolean> => {
+    if (!user) return false;
+    try {
+      const res = await fetch('/api/classes', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          code: classCode,
+          teacherUsername: user.username
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Lỗi khi xóa lớp học.');
+      }
+
+      // Cập nhật state lớp học cục bộ
+      setClassList(prev => prev.filter(c => c.code !== classCode));
+
+      // Reset dashboardClass nếu trùng
+      if (dashboardClass === classCode) {
+        const remaining = classList.filter(c => c.code !== classCode && c.teacherUsername === user.username);
+        setDashboardClass(remaining.length > 0 ? remaining[0].code : '');
+      }
+
+      // Làm mới dữ liệu bài tập và lịch sử sau khi xóa liên đới
+      Promise.all([
+        fetchAssignments(),
+        fetchHistory()
+      ]).catch(e => console.error('Lỗi cập nhật đồng bộ sau khi xóa lớp:', e));
+
+      return true;
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : 'Lỗi khi xóa lớp học.';
+      console.error('Lỗi khi xóa lớp học:', err);
       showMessage(errMsg);
       throw err;
     }
@@ -2118,6 +2248,14 @@ export default function Home() {
                         </TabsTrigger>
 
                         <TabsTrigger
+                          value="flashcard"
+                          disabled={!!activeAssignment}
+                          className="flex-1 shrink-0 min-w-[110px] rounded-xl px-4 py-2 text-xs font-semibold data-[state=active]:bg-primary data-[state=active]:text-white transition-all"
+                        >
+                          {language === 'vi' ? 'Thẻ ghi nhớ' : 'Flashcards'}
+                        </TabsTrigger>
+
+                        <TabsTrigger
                           value="chat"
                           disabled={!!activeAssignment}
                           className="flex-1 shrink-0 min-w-[110px] rounded-xl px-4 py-2 text-xs font-semibold data-[state=active]:bg-primary data-[state=active]:text-white transition-all"
@@ -2189,6 +2327,16 @@ export default function Home() {
                             {(streamingSummary || summary || isLoading) && (
                               <SummaryPanel summary={streamingSummary || summary} isLoading={isSummaryStreaming || loadingType === 'summary'} />
                             )}
+                          </TabsContent>
+
+                          {/* Tab: Flashcards */}
+                          <TabsContent value="flashcard" className="mt-0 outline-none">
+                            <FlashcardPanel
+                              activeDoc={activeDoc}
+                              language={language}
+                              onUpdateDocument={updateDocumentOnServer}
+                              username={user.username}
+                            />
                           </TabsContent>
 
                           {/* Tab: Chat */}
@@ -2469,6 +2617,7 @@ export default function Home() {
                       language={language}
                       classList={classList}
                       onRemoveStudent={handleRemoveStudentFromClass}
+                      onDeleteClass={handleDeleteClass}
                       onError={(msg, isErr) => showMessage(msg, isErr ?? true)}
                     />
                   </div>
@@ -2675,6 +2824,8 @@ export default function Home() {
                                   </div>
                                 </div>
                               )}
+
+
                             </>
                           ) : (
                             /* STUDENT VIEW: Personal Grade statistics grid only */
@@ -3406,6 +3557,9 @@ export default function Home() {
           </div>
         </div>
       )}
+
+      {/* ===== TOAST NOTIFICATION CONTAINER ===== */}
+      <ToastContainer toasts={toasts} onClose={handleCloseToast} />
     </div>
   );
 }

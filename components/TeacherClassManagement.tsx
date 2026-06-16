@@ -21,6 +21,7 @@ interface TeacherClassManagementProps {
   language: 'vi' | 'en';
   classList: Array<{ code: string; name: string; teacherUsername: string }>;
   onRemoveStudent: (studentUsername: string, classCode: string) => Promise<boolean>;
+  onDeleteClass: (classCode: string) => Promise<boolean>;
   onError: (msg: string, isError?: boolean) => void;
 }
 
@@ -29,6 +30,7 @@ export default function TeacherClassManagement({
   language,
   classList,
   onRemoveStudent,
+  onDeleteClass,
   onError
 }: TeacherClassManagementProps) {
   const myClasses = classList.filter(c => c.teacherUsername === user.username);
@@ -103,6 +105,35 @@ export default function TeacherClassManagement({
       }
     } catch (err: unknown) {
       const errMsg = err instanceof Error ? err.message : 'Lỗi khi xóa học sinh khỏi lớp.';
+      onError(errMsg, true);
+    }
+  };
+  
+  // Xử lý xóa lớp học
+  const handleDelete = async () => {
+    if (!selectedClassCode || !selectedClass) return;
+    
+    const confirmMsg1 = language === 'vi'
+      ? `Bạn có chắc chắn muốn xóa toàn bộ lớp học "${selectedClass.name}" này? Hành động này sẽ xóa vĩnh viễn danh sách học sinh, bài tập đã giao và lịch sử điểm số liên quan.`
+      : `Are you sure you want to delete the entire class "${selectedClass.name}"? This action will permanently delete student lists, assigned exams, and related score histories.`;
+
+    const confirmMsg2 = language === 'vi'
+      ? `CẢNH BÁO: Thao tác này KHÔNG THỂ HOÀN TÁC. Bạn vẫn chắc chắn muốn xóa chứ?`
+      : `WARNING: This action CANNOT BE UNDONE. Are you absolutely sure you want to delete this class?`;
+
+    if (!confirm(confirmMsg1)) return;
+    if (!confirm(confirmMsg2)) return;
+
+    try {
+      const success = await onDeleteClass(selectedClassCode);
+      if (success) {
+        const successMsg = language === 'vi'
+          ? `Đã xóa lớp học "${selectedClass.name}" thành công.`
+          : `Class "${selectedClass.name}" deleted successfully.`;
+        onError(successMsg, false);
+      }
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : 'Lỗi khi xóa lớp học.';
       onError(errMsg, true);
     }
   };
@@ -201,8 +232,19 @@ export default function TeacherClassManagement({
                       <span className="font-bold text-primary bg-primary/10 px-2 py-0.5 rounded ml-1 font-mono text-sm">{selectedClass.code}</span>
                     </p>
                   </div>
-                  <div className="text-xs font-bold text-gray-400 bg-gray-100 dark:bg-gray-800 px-3 py-1.5 rounded-lg shrink-0">
-                    {language === 'vi' ? `Tổng số: ${students.length} học sinh` : `Total: ${students.length} students`}
+                  <div className="flex flex-wrap items-center gap-2 shrink-0">
+                    <div className="text-xs font-bold text-gray-400 bg-gray-100 dark:bg-gray-800 px-3 py-1.5 rounded-lg">
+                      {language === 'vi' ? `Tổng số: ${students.length} học sinh` : `Total: ${students.length} students`}
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleDelete}
+                      className="text-red-500 hover:text-red-650 hover:bg-red-50 dark:hover:bg-red-950/20 border border-red-500/15 hover:border-red-500/30 rounded-xl h-8 px-2.5 text-[11px] font-bold gap-1 transition-all"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      {language === 'vi' ? 'Xóa lớp học' : 'Delete Class'}
+                    </Button>
                   </div>
                 </div>
 

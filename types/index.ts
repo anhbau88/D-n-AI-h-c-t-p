@@ -29,6 +29,18 @@ export interface Assignment {
   endTime: string;
 }
 
+export interface Flashcard {
+  id: string;
+  front: string;
+  back: string;
+}
+
+export interface FlashcardProgress {
+  cardId: string;
+  status: 'forgot' | 'medium' | 'easy';
+  lastReviewedAt: string;
+}
+
 // Thông tin file PDF đã upload
 export interface FileInfo {
   fileName: string;   // Tên file

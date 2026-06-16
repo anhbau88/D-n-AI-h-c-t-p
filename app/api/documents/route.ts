@@ -11,7 +11,22 @@ export const dynamic = 'force-dynamic';
 const localFilePath = process.env.LOCAL_DB_DIR ? path.join(process.env.LOCAL_DB_DIR, 'documents.json') : 'documents.json';
 
 export async function GET() {
-  // Ưu tiên đọc file local trước
+  // 1. Ưu tiên truy vấn Firebase Firestore trước nếu có cấu hình db
+  if (db) {
+    try {
+      const snapshot = await db.collection('documents').get();
+      const documents = snapshot.docs.map(doc => doc.data());
+      return NextResponse.json(documents, {
+        headers: {
+          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+        },
+      });
+    } catch (error) {
+      console.error('Error fetching documents from Firebase, falling back to local cache:', error);
+    }
+  }
+
+  // 2. Fallback: Đọc file local khi Firebase chưa được cấu hình hoặc lỗi kết nối
   if (fs.existsSync(localFilePath)) {
     try {
       const data = fs.readFileSync(localFilePath, 'utf-8');
@@ -25,21 +40,6 @@ export async function GET() {
       }
     } catch (error) {
       console.error('Error reading local documents cache:', error);
-    }
-  }
-
-  // Firebase Firestore
-  if (db) {
-    try {
-      const snapshot = await db.collection('documents').get();
-      const documents = snapshot.docs.map(doc => doc.data());
-      return NextResponse.json(documents, {
-        headers: {
-          'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
-        },
-      });
-    } catch (error) {
-      console.error('Error fetching documents from Firebase:', error);
     }
   }
 
@@ -57,6 +57,10 @@ export async function POST(request: NextRequest) {
     if (!db) {
       // Fallback: Ghi dữ liệu vào file local documents.json khi chạy offline/local
       try {
+        const dir = path.dirname(localFilePath);
+        if (!fs.existsSync(dir)) {
+          fs.mkdirSync(dir, { recursive: true });
+        }
         fs.writeFileSync(localFilePath, JSON.stringify(documents, null, 2), 'utf-8');
         return NextResponse.json({ success: true }, {
           headers: {
@@ -103,6 +107,10 @@ export async function POST(request: NextRequest) {
 
     // Write locally as well for fast local caching
     try {
+      const dir = path.dirname(localFilePath);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
       fs.writeFileSync(localFilePath, JSON.stringify(documents, null, 2), 'utf-8');
     } catch (err) {
       console.error('Error writing local documents cache:', err);

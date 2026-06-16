@@ -13,7 +13,26 @@ const localFilePath = process.env.LOCAL_DB_DIR ? path.join(process.env.LOCAL_DB_
 
 // Hàm đọc lịch sử từ file local hoặc Firebase Firestore
 async function getHistoryList(username?: string | null, roomId?: string | null): Promise<QuizHistoryItem[]> {
-  // Ưu tiên đọc file local trước
+  // 1. Firebase Firestore (Nếu có cấu hình db)
+  if (db) {
+    try {
+      let query: any = db.collection('history');
+      if (username) {
+        query = query.where('username', '==', username);
+      }
+      if (roomId) {
+        query = query.where('roomId', '==', roomId);
+      }
+      const snapshot = await query.get();
+      if (!snapshot.empty) {
+        return snapshot.docs.map((doc: any) => doc.data() as QuizHistoryItem);
+      }
+    } catch (error) {
+      console.error('Error fetching history from Firebase, falling back to local cache:', error);
+    }
+  }
+
+  // 2. Fallback: Đọc file local
   if (fs.existsSync(localFilePath)) {
     try {
       const data = fs.readFileSync(localFilePath, 'utf-8');
@@ -33,24 +52,6 @@ async function getHistoryList(username?: string | null, roomId?: string | null):
     }
   }
 
-  // Firebase Firestore
-  if (db) {
-    try {
-      let query: any = db.collection('history');
-      if (username) {
-        query = query.where('username', '==', username);
-      }
-      if (roomId) {
-        query = query.where('roomId', '==', roomId);
-      }
-      const snapshot = await query.get();
-      if (snapshot.empty) return [];
-      return snapshot.docs.map((doc: any) => doc.data() as QuizHistoryItem);
-    } catch (error) {
-      console.error('Error fetching history from Firebase:', error);
-    }
-  }
-
   return [];
 }
 
@@ -58,7 +59,25 @@ async function getHistoryList(username?: string | null, roomId?: string | null):
 async function saveHistoryItem(newItem: QuizHistoryItem): Promise<boolean> {
   // Ghi xuống local làm cache trước
   try {
-    const currentHistory = await getHistoryList(); // Lấy toàn bộ để append cục bộ
+    let currentHistory: QuizHistoryItem[] = [];
+    if (fs.existsSync(localFilePath)) {
+      try {
+        const data = fs.readFileSync(localFilePath, 'utf-8');
+        currentHistory = JSON.parse(data);
+      } catch (err) {
+        console.error('Lỗi đọc local history cache khi lưu:', err);
+      }
+    }
+    // Nếu local file không tồn tại hoặc rỗng, mới fetch từ Firebase
+    if (currentHistory.length === 0 && db) {
+      try {
+        const snapshot = await db.collection('history').get();
+        currentHistory = snapshot.docs.map((doc: any) => doc.data() as QuizHistoryItem);
+      } catch (err) {
+        console.error('Error fetching all history from Firebase for local sync:', err);
+      }
+    }
+
     const updatedHistory = [...currentHistory, newItem];
     const dir = path.dirname(localFilePath);
     if (!fs.existsSync(dir)) {

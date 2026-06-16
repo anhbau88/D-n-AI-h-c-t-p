@@ -4,6 +4,7 @@
 import { UserRole } from './role';
 import { QuizQuestion } from './quiz';
 import { ChatMessage } from './chat';
+import { Flashcard } from './index';
 
 export interface DocumentItem {
   id: string;
@@ -18,6 +19,7 @@ export interface DocumentItem {
   textContent: string; // Nội dung văn bản trích xuất từ PDF/Word
   summary?: string; // Cache kết quả tóm tắt từ AI
   quiz?: QuizQuestion[]; // Cache danh sách câu hỏi trắc nghiệm từ AI
+  flashcards?: Flashcard[]; // Cache danh sách thẻ ghi nhớ từ AI
   chatHistory?: ChatMessage[]; // Cache lịch sử hỏi đáp với AI
   essay?: string; // Cache câu hỏi tự luận của Giáo viên
   outline?: string; // Cache dàn ý bài giảng của Giáo viên

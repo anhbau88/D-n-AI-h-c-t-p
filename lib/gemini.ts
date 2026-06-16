@@ -78,14 +78,15 @@ const modelMultimodal = genAIMultimodal.getGenerativeModel({
  * Hàm helper tự động gọi lại (retry) khi Gemini API gặp sự cố (e.g. Lỗi 503, 429 quá tải, nghẽn mạng)
  */
 async function callWithRetry<T>(fn: () => Promise<T>, retries = 5, delayMs = 2000): Promise<T> {
-  let lastError: any;
+  let lastError: unknown;
   for (let i = 0; i < retries; i++) {
     try {
       return await fn();
-    } catch (error: any) {
+    } catch (error) {
       lastError = error;
-      const errorMsg = error.toString() || '';
-      console.warn(`[Gemini API Warning] Thất bại lần thử ${i + 1}/${retries}:`, error.message || error);
+      const err = error as Error & { status?: number };
+      const errorMsg = err.toString() || '';
+      console.warn(`[Gemini API Warning] Thất bại lần thử ${i + 1}/${retries}:`, err.message || err);
       
       // Nếu là hết quota hàng ngày (định mức 20 requests/ngày của free tier), ném lỗi luôn để kích hoạt cơ chế fallback ngay lập tức
       const isDailyQuotaExceeded = errorMsg.includes('daily quota') || 
@@ -99,7 +100,7 @@ async function callWithRetry<T>(fn: () => Promise<T>, retries = 5, delayMs = 200
 
       if (i < retries - 1) {
         let waitTime = delayMs * Math.pow(2, i);
-        const isRateLimit = errorMsg.includes('429') || errorMsg.includes('quota') || errorMsg.includes('RESOURCE_EXHAUSTED') || error.status === 429;
+        const isRateLimit = errorMsg.includes('429') || errorMsg.includes('quota') || errorMsg.includes('RESOURCE_EXHAUSTED') || err.status === 429;
         
         if (isRateLimit) {
           const match = errorMsg.match(/retry in ([\d\.]+)\s*s/i);
