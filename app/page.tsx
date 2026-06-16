@@ -942,17 +942,6 @@ export default function Home() {
         throw new Error('Lỗi server khi đồng bộ sau khi xóa.');
       }
 
-      // Xóa điểm số và lịch sử làm bài liên đới của học sinh
-      try {
-        await fetch('/api/history', {
-          method: 'DELETE',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ assignmentId: asmId }),
-        });
-      } catch (historyErr) {
-        console.error('Lỗi khi xóa lịch sử bài thi liên đới:', historyErr);
-      }
-
       setAssignments(updatedAssignments);
       localStorage.setItem('assignments', JSON.stringify(updatedAssignments));
       
