@@ -25,7 +25,6 @@ const AUTH_TRANSLATIONS = {
     passwordPlaceholder: "Nhập mật khẩu...",
     loginButton: "Đăng nhập vào hệ thống",
     authenticating: "Đang xác thực...",
-    sampleAccountHint: "Dữ liệu người dùng đã được làm sạch. Vui lòng bấm vào tab \"Đăng ký\" ở trên để tạo tài khoản Giáo viên hoặc Học sinh mới để bắt đầu trải nghiệm!",
     teacherPrefix: "GV:",
     studentPrefix: "HS:",
     passwordPrefix: "Mật khẩu:",
@@ -60,7 +59,6 @@ const AUTH_TRANSLATIONS = {
     passwordPlaceholder: "Enter password...",
     loginButton: "Log In to System",
     authenticating: "Authenticating...",
-    sampleAccountHint: "All registered users have been cleared. Please click the \"Register\" tab above to create a new Teacher or Student account to get started!",
     teacherPrefix: "Teacher:",
     studentPrefix: "Student:",
     passwordPrefix: "Password:",
@@ -299,10 +297,6 @@ export default function AuthScreen({ onLogin, language, setLanguage }: AuthScree
             >
               {loading ? t.authenticating : t.loginButton}
             </Button>
-
-            <div className="text-[10px] text-center text-gray-500 dark:text-gray-400 mt-4 bg-gray-50 dark:bg-gray-900/40 p-2.5 rounded-xl border border-gray-200/10 font-bold leading-normal">
-              <p>{t.sampleAccountHint}</p>
-            </div>
           </form>
         ) : (
           /* ================= FORM ĐĂNG KÝ ================= */

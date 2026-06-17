@@ -50,7 +50,6 @@ const EssayPanel = dynamic(() => import('@/components/EssayPanel'), { ssr: false
 const DocumentLibrary = dynamic(() => import('@/components/DocumentLibrary'), { ssr: false });
 const UserManagement = dynamic(() => import('@/components/UserManagement'), { ssr: false });
 const TeacherClassManagement = dynamic(() => import('@/components/TeacherClassManagement'), { ssr: false });
-const FlashcardPanel = dynamic(() => import('@/components/FlashcardPanel'), { ssr: false });
 
 
 import { FileInfo, QuizQuestion, User, Assignment, QuizHistoryItem, DocumentItem, ChatMessage } from '@/types';
@@ -1881,7 +1880,7 @@ export default function Home() {
                       setShowCreateClassModal(false);
                       setCreatedClassCode('');
                     }}
-                    className="w-full py-2.5 rounded-xl bg-gradient-to-r from-primary to-violet text-white font-bold text-xs"
+                    className="w-full py-2.5 rounded-xl bg-linear-to-r from-primary to-violet text-white font-bold text-xs"
                   >
                     {language === 'vi' ? 'Hoàn thành' : 'Done'}
                   </button>
@@ -1911,7 +1910,7 @@ export default function Home() {
 
                   <button
                     type="submit"
-                    className="w-full h-10 mt-2 rounded-xl bg-gradient-to-r from-primary to-violet hover:brightness-110 text-white font-bold text-xs shadow-md transition-all"
+                    className="w-full h-10 mt-2 rounded-xl bg-linear-to-r from-primary to-violet hover:brightness-110 text-white font-bold text-xs shadow-md transition-all"
                   >
                     {language === 'vi' ? 'Tạo lớp & Sinh mã' : 'Create Class & Generate Code'}
                   </button>
@@ -1988,7 +1987,7 @@ export default function Home() {
                   </button>
                   <button
                     onClick={handleJoinClass}
-                    className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-primary to-violet hover:brightness-110 active:scale-95 text-white font-bold text-xs shadow-md transition-all"
+                    className="flex-1 py-2.5 rounded-xl bg-linear-to-r from-primary to-violet hover:brightness-110 active:scale-95 text-white font-bold text-xs shadow-md transition-all"
                   >
                     {language === 'vi' ? 'Xác nhận' : 'Confirm'}
                   </button>
@@ -2101,7 +2100,7 @@ export default function Home() {
                   <button
                     type="submit"
                     disabled={isChangingPassword}
-                    className="flex-1 py-2.5 rounded-xl bg-gradient-to-r from-primary to-violet hover:brightness-110 active:scale-95 text-white font-bold text-xs shadow-md transition-all flex items-center justify-center gap-1.5"
+                    className="flex-1 py-2.5 rounded-xl bg-linear-to-r from-primary to-violet hover:brightness-110 active:scale-95 text-white font-bold text-xs shadow-md transition-all flex items-center justify-center gap-1.5"
                   >
                     {isChangingPassword ? (language === 'vi' ? 'Đang cập nhật...' : 'Updating...') : (language === 'vi' ? 'Cập nhật' : 'Update')}
                   </button>
@@ -2211,7 +2210,7 @@ export default function Home() {
                   
                   {/* Left Column: PDF/Word Viewer (Desktop) */}
                   {activeDoc?.pdfUrl && (
-                    <div className="hidden lg:flex lg:w-7/12 bg-white dark:bg-gray-900 rounded-2xl shadow-md border border-gray-300 dark:border-gray-800 overflow-hidden flex flex-col h-[700px] xl:h-[800px] animate-fade-in-up">
+                    <div className="hidden lg:flex lg:w-7/12 bg-white dark:bg-gray-900 rounded-2xl shadow-md border border-gray-300 dark:border-gray-800 overflow-hidden flex-col h-175 xl:h-200 animate-fade-in-up">
                       <div className="bg-gray-100 dark:bg-gray-800/80 px-4 py-2 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center shrink-0">
                         <span className="text-xs font-semibold text-gray-500 dark:text-gray-300">
                           📄 {t.originalDoc} ({activeDoc.fileName.endsWith('.docx') ? 'Word' : (activeDoc.fileName.match(/\.(png|jpe?g|webp)$/i) ? 'Image' : 'PDF')})
@@ -2233,11 +2232,11 @@ export default function Home() {
                   {/* Right Column: AI tabs */}
                   <div className={`w-full ${activeDoc?.pdfUrl ? 'lg:w-5/12' : ''}`}>
                     <Tabs value={activeTab} onValueChange={setActiveTab}>
-                      <TabsList className="mb-4 bg-white/50 dark:bg-gray-900/50 backdrop-blur-sm border border-gray-300 dark:border-gray-800 p-1.5 rounded-2xl flex flex-row items-center justify-start overflow-x-auto scrollbar-none max-w-full !h-auto flex-nowrap gap-1 w-full">
+                      <TabsList className="mb-4 bg-white/50 dark:bg-gray-900/50 backdrop-blur-sm border border-gray-300 dark:border-gray-800 p-1.5 rounded-2xl flex flex-row items-center justify-start overflow-x-auto scrollbar-none max-w-full h-auto! flex-nowrap gap-1 w-full">
                         {activeDoc?.pdfUrl && (
                           <TabsTrigger
                             value="document"
-                            className="lg:hidden flex-1 shrink-0 min-w-[110px] rounded-xl px-4 py-2 text-xs font-semibold data-[state=active]:bg-primary data-[state=active]:text-white transition-all"
+                            className="lg:hidden flex-1 shrink-0 min-w-27.5 rounded-xl px-4 py-2 text-xs font-semibold data-[state=active]:bg-primary data-[state=active]:text-white transition-all"
                           >
                             {t.originalDoc}
                           </TabsTrigger>
@@ -2246,23 +2245,17 @@ export default function Home() {
                         <TabsTrigger
                           value="summary"
                           disabled={!!activeAssignment}
-                          className="flex-1 shrink-0 min-w-[110px] rounded-xl px-4 py-2 text-xs font-semibold data-[state=active]:bg-primary data-[state=active]:text-white transition-all"
+                          className="flex-1 shrink-0 min-w-27.5 rounded-xl px-4 py-2 text-xs font-semibold data-[state=active]:bg-primary data-[state=active]:text-white transition-all"
                         >
                           {t.docSummary}
                         </TabsTrigger>
 
-                        <TabsTrigger
-                          value="flashcard"
-                          disabled={!!activeAssignment}
-                          className="flex-1 shrink-0 min-w-[110px] rounded-xl px-4 py-2 text-xs font-semibold data-[state=active]:bg-primary data-[state=active]:text-white transition-all"
-                        >
-                          {language === 'vi' ? 'Thẻ ghi nhớ' : 'Flashcards'}
-                        </TabsTrigger>
+
 
                         <TabsTrigger
                           value="chat"
                           disabled={!!activeAssignment}
-                          className="flex-1 shrink-0 min-w-[110px] rounded-xl px-4 py-2 text-xs font-semibold data-[state=active]:bg-primary data-[state=active]:text-white transition-all"
+                          className="flex-1 shrink-0 min-w-27.5 rounded-xl px-4 py-2 text-xs font-semibold data-[state=active]:bg-primary data-[state=active]:text-white transition-all"
                         >
                           {t.chatWithAi}
                         </TabsTrigger>
@@ -2270,7 +2263,7 @@ export default function Home() {
                         <TabsTrigger
                           value="quiz"
                           disabled={activeAssignment?.type === 'essay'}
-                          className="flex-1 shrink-0 min-w-[110px] rounded-xl px-4 py-2 text-xs font-semibold data-[state=active]:bg-primary data-[state=active]:text-white transition-all"
+                          className="flex-1 shrink-0 min-w-27.5 rounded-xl px-4 py-2 text-xs font-semibold data-[state=active]:bg-primary data-[state=active]:text-white transition-all"
                         >
                           {t.practiceQuiz}
                         </TabsTrigger>
@@ -2278,7 +2271,7 @@ export default function Home() {
                         {(isTeacher || activeAssignment?.type === 'essay') && (
                           <TabsTrigger
                             value="essay"
-                            className="flex-1 shrink-0 min-w-[110px] rounded-xl px-4 py-2 text-xs font-semibold data-[state=active]:bg-primary data-[state=active]:text-white transition-all"
+                            className="flex-1 shrink-0 min-w-27.5 rounded-xl px-4 py-2 text-xs font-semibold data-[state=active]:bg-primary data-[state=active]:text-white transition-all"
                           >
                             {isTeacher ? (language === 'vi' ? 'Đề thi tự luận' : 'Essay Exam') : t.practiceEssay}
                           </TabsTrigger>
@@ -2296,7 +2289,7 @@ export default function Home() {
                           {/* Tab: Document (Mobile) */}
                           {activeDoc?.pdfUrl && (
                             <TabsContent value="document" className="mt-0 outline-none lg:hidden animate-fade-in-up">
-                              <div className="w-full bg-white dark:bg-gray-900 rounded-2xl shadow-md border border-gray-300 dark:border-gray-800 overflow-hidden flex flex-col h-[500px]">
+                              <div className="w-full bg-white dark:bg-gray-900 rounded-2xl shadow-md border border-gray-300 dark:border-gray-800 overflow-hidden flex flex-col h-125">
                                 <div className="bg-gray-200 dark:bg-gray-800 px-4 py-2 border-b border-gray-300 dark:border-gray-700 flex justify-between items-center shrink-0">
                                   <span className="text-xs font-semibold text-gray-500 dark:text-gray-300">
                                     📄 {t.originalDoc}
@@ -2333,15 +2326,7 @@ export default function Home() {
                             )}
                           </TabsContent>
 
-                          {/* Tab: Flashcards */}
-                          <TabsContent value="flashcard" className="mt-0 outline-none">
-                            <FlashcardPanel
-                              activeDoc={activeDoc}
-                              language={language}
-                              onUpdateDocument={updateDocumentOnServer}
-                              username={user.username}
-                            />
-                          </TabsContent>
+
 
                           {/* Tab: Chat */}
                           <TabsContent value="chat" className="mt-0 outline-none space-y-4">
@@ -2607,7 +2592,7 @@ export default function Home() {
                       onError={showMessage}
                       chatHistory={generalChatHistory}
                       onSendMessage={handleSendGeneralMessage}
-                      className="h-[620px] sm:h-[680px] border border-gray-200 dark:border-white/5 rounded-2xl"
+                      className="h-155 sm:h-170 border border-gray-200 dark:border-white/5 rounded-2xl"
                       language={language}
                     />
                   </div>
@@ -2680,7 +2665,7 @@ export default function Home() {
                                 setCreatedClassCode('');
                                 setShowCreateClassModal(true);
                               }}
-                              className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-gradient-to-r from-primary to-violet hover:brightness-110 active:scale-95 text-white transition-all text-xs font-bold shadow-sm"
+                              className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-linear-to-r from-primary to-violet hover:brightness-110 active:scale-95 text-white transition-all text-xs font-bold shadow-sm"
                               title={language === 'vi' ? 'Tạo lớp học mới' : 'Create new class'}
                             >
                               <Plus className="w-4 h-4" />
@@ -2695,7 +2680,7 @@ export default function Home() {
                               setJoinClassCode('');
                               setShowJoinClassModal(true);
                             }}
-                            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-primary to-violet hover:brightness-110 active:scale-95 text-white transition-all text-xs font-bold shadow-sm"
+                            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-linear-to-r from-primary to-violet hover:brightness-110 active:scale-95 text-white transition-all text-xs font-bold shadow-sm"
                           >
                             <Plus className="w-4 h-4" />
                             <span>
@@ -2897,8 +2882,8 @@ export default function Home() {
                                 </p>
                               </div>
 
-                              <div className="glass-card min-h-[380px] rounded-3xl flex flex-col items-center justify-center text-center p-10 overflow-hidden relative border border-gray-300 dark:border-white/5">
-                                <div className="mb-6 mx-auto w-20 h-20 bg-gray-200/50 dark:bg-surface-container-highest rounded-2xl flex items-center justify-center shadow-lg border border-gray-300 dark:border-white/10 p-1 bg-white">
+                              <div className="glass-card min-h-95 rounded-3xl flex flex-col items-center justify-center text-center p-10 overflow-hidden relative border border-gray-300 dark:border-white/5">
+                                <div className="mb-6 mx-auto w-20 h-20 bg-white dark:bg-surface-container-highest rounded-2xl flex items-center justify-center shadow-lg border border-gray-300 dark:border-white/10 p-1">
                                   <Image src="/logo.png" alt="AI Assistant Icon" width={64} height={64} className="w-16 h-16 object-contain" />
                                 </div>
                                 <h2 className="text-2xl sm:text-3xl font-black mb-4">Chào mừng đến với <span className="text-primary">AI Study Assistant!</span></h2>
@@ -2950,7 +2935,7 @@ export default function Home() {
                                 const isQuiz = asm.type === 'quiz';
 
                                 return (
-                                  <Card key={asm.id} className="border-0 shadow-md bg-white dark:bg-gray-900 backdrop-blur-sm transition-all hover:shadow-lg duration-200 overflow-hidden rounded-2xl border border-gray-300 dark:border-white/5">
+                                  <Card key={asm.id} className="shadow-md bg-white dark:bg-gray-900 backdrop-blur-sm transition-all hover:shadow-lg duration-200 overflow-hidden rounded-2xl border border-gray-300 dark:border-white/5">
                                     {/* Assignment Header Card */}
                                     <div className="p-5 border-b border-gray-300 dark:border-white/5">
                                       <div className="flex justify-between items-start gap-4 flex-wrap">
@@ -2981,7 +2966,7 @@ export default function Home() {
                                         </div>
 
                                         <div className="flex flex-col items-end gap-2 shrink-0">
-                                          <div className="text-right p-3 rounded-2xl border border-gray-300 dark:border-white/5 min-w-[130px] bg-primary/5">
+                                          <div className="text-right p-3 rounded-2xl border border-gray-300 dark:border-white/5 min-w-32.5 bg-primary/5">
                                             <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t.submittedClass}</p>
                                             <p className="text-xl font-black text-primary mt-0.5">
                                               {totalSubmissions} <span className="text-xs font-semibold text-gray-500 dark:text-gray-400">{language === 'vi' ? 'học sinh' : 'students'}</span>
@@ -3016,7 +3001,7 @@ export default function Home() {
 
                                       {asmHistory.length > 0 ? (
                                         <div className="overflow-x-auto rounded-xl border border-gray-300 dark:border-gray-800 bg-white dark:bg-gray-900">
-                                          <table className="w-full text-left border-collapse text-sm min-w-[500px]">
+                                          <table className="w-full text-left border-collapse text-sm min-w-125">
                                             <thead>
                                               <tr className="bg-gray-50 dark:bg-gray-800 border-b border-gray-300 dark:border-gray-800">
                                                 <th className="py-2.5 px-4 text-xs font-bold text-gray-600 dark:text-gray-400 uppercase tracking-wider">{t.historyTableHeadName}</th>
@@ -3159,7 +3144,7 @@ export default function Home() {
                           {userRooms.length === 0 ? (
                             /* Join class card for student */
                             <Card className="p-8 border border-gray-300 dark:border-white/5 bg-white dark:bg-gray-900 rounded-3xl shadow-lg relative overflow-hidden">
-                              <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-primary/10 to-violet/10 rounded-bl-full"></div>
+                              <div className="absolute top-0 right-0 w-24 h-24 bg-linear-to-br from-primary/10 to-violet/10 rounded-bl-full"></div>
                               <h3 className="text-lg font-black text-foreground mb-2 flex items-center gap-2">
                                 <GraduationCap className="w-6 h-6 text-primary" />
                                 {language === 'vi' ? 'Tham gia lớp học mới' : 'Join a New Class'}
@@ -3180,7 +3165,7 @@ export default function Home() {
                                 />
                                 <button
                                   onClick={handleJoinClass}
-                                  className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-primary to-violet hover:brightness-110 active:scale-95 text-white font-bold text-sm shadow-md transition-all whitespace-nowrap"
+                                  className="px-6 py-2.5 rounded-xl bg-linear-to-r from-primary to-violet hover:brightness-110 active:scale-95 text-white font-bold text-sm shadow-md transition-all whitespace-nowrap"
                                 >
                                   {language === 'vi' ? 'Vào lớp' : 'Join Class'}
                                 </button>
@@ -3201,8 +3186,8 @@ export default function Home() {
                                     {t.noTestsAssigned.replace('{room}', studentClasses.map(c => c.name).join(', ') || activeClassName)}
                                   </Card>
 
-                                  <div className="glass-card min-h-[380px] rounded-3xl flex flex-col items-center justify-center text-center p-10 overflow-hidden relative border border-gray-300 dark:border-white/5">
-                                    <div className="mb-6 mx-auto w-20 h-20 bg-gray-200/50 dark:bg-surface-container-highest rounded-2xl flex items-center justify-center shadow-lg border border-gray-300 dark:border-white/10 p-1 bg-white">
+                                  <div className="glass-card min-h-95 rounded-3xl flex flex-col items-center justify-center text-center p-10 overflow-hidden relative border border-gray-300 dark:border-white/5">
+                                    <div className="mb-6 mx-auto w-20 h-20 bg-white dark:bg-surface-container-highest rounded-2xl flex items-center justify-center shadow-lg border border-gray-300 dark:border-white/10 p-1">
                                       <Image src="/logo.png" alt="AI Assistant Icon" width={64} height={64} className="w-16 h-16 object-contain" />
                                     </div>
                                     <h2 className="text-2xl sm:text-3xl font-black mb-4">Chào mừng đến với <span className="text-primary">AI Study Assistant!</span></h2>
@@ -3249,7 +3234,7 @@ export default function Home() {
                                   }
 
                                   return (
-                                    <Card key={asm.id} className="p-5 border-0 shadow-md bg-white dark:bg-gray-900 backdrop-blur-sm flex flex-col justify-between hover:shadow-lg transition-all duration-200 rounded-2xl border border-gray-300 dark:border-white/5">
+                                    <Card key={asm.id} className="p-5 shadow-md bg-white dark:bg-gray-900 backdrop-blur-sm flex flex-col justify-between hover:shadow-lg transition-all duration-200 rounded-2xl border border-gray-300 dark:border-white/5">
                                       <div>
                                         <div className="flex justify-between items-start gap-2">
                                           <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${statusColor}`}>
@@ -3365,7 +3350,7 @@ export default function Home() {
           <div className="bg-white dark:bg-gray-900 rounded-3xl shadow-2xl border border-gray-200 dark:border-gray-800 w-full max-w-4xl max-h-[85vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
             
             {/* Modal Header */}
-            <div className="px-6 py-4.5 bg-gradient-to-r from-primary to-violet text-white flex justify-between items-center shrink-0">
+            <div className="px-6 py-4.5 bg-linear-to-r from-primary to-violet text-white flex justify-between items-center shrink-0">
               <div>
                 <h3 className="font-bold text-base flex items-center gap-2">
                   <Award className="w-5 h-5 text-yellow-300" />
@@ -3392,7 +3377,7 @@ export default function Home() {
                   <FileText className="w-4 h-4 text-primary" />
                   {t.studentAnswer}
                 </h4>
-                <div className="flex-1 p-4 bg-gray-50 dark:bg-gray-950/40 border border-gray-200 dark:border-gray-800 rounded-2xl text-sm text-foreground whitespace-pre-wrap leading-relaxed overflow-y-auto min-h-[250px] md:min-h-[400px]">
+                <div className="flex-1 p-4 bg-gray-50 dark:bg-gray-950/40 border border-gray-200 dark:border-gray-800 rounded-2xl text-sm text-foreground whitespace-pre-wrap leading-relaxed overflow-y-auto min-h-62.5 md:min-h-100">
                   {selectedEssaySubmission.studentAnswer}
                 </div>
               </div>
@@ -3409,7 +3394,7 @@ export default function Home() {
                   </span>
                 </div>
 
-                <div className="flex-1 p-4 bg-primary/5 border border-primary/10 rounded-2xl overflow-y-auto min-h-[250px] md:min-h-[400px]
+                <div className="flex-1 p-4 bg-primary/5 border border-primary/10 rounded-2xl overflow-y-auto min-h-62.5 md:min-h-100
                   prose prose-sm dark:prose-invert max-w-none
                   prose-headings:text-foreground
                   prose-h2:text-xs prose-h2:mt-3 prose-h2:mb-1.5 prose-h2:font-bold prose-h2:text-primary
@@ -3442,7 +3427,7 @@ export default function Home() {
           <div className="bg-white dark:bg-gray-900 rounded-3xl shadow-2xl border border-gray-200 dark:border-gray-800 w-full max-w-4xl max-h-[85vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
             
             {/* Modal Header */}
-            <div className="px-6 py-4.5 bg-gradient-to-r from-emerald-500 to-teal-600 text-white flex justify-between items-center shrink-0">
+            <div className="px-6 py-4.5 bg-linear-to-r from-emerald-500 to-teal-600 text-white flex justify-between items-center shrink-0">
               <div>
                 <h3 className="font-bold text-base flex items-center gap-2">
                   <CheckCircle2 className="w-5 h-5 text-yellow-300" />

@@ -176,7 +176,7 @@ export default function TeacherClassManagement({
 
       {myClasses.length === 0 ? (
         <Card className="p-8 text-center bg-white/80 dark:bg-gray-900/80 border-0 shadow-lg backdrop-blur-sm flex flex-col items-center justify-center">
-          <div className="w-16 h-16 bg-gradient-to-br from-indigo-100 to-blue-100 dark:from-indigo-900/30 dark:to-blue-900/30 rounded-2xl flex items-center justify-center mb-4">
+          <div className="w-16 h-16 bg-linear-to-br from-indigo-100 to-blue-100 dark:from-indigo-900/30 dark:to-blue-900/30 rounded-2xl flex items-center justify-center mb-4">
             <BookOpen className="w-8 h-8 text-indigo-600 dark:text-indigo-400" />
           </div>
           <h4 className="text-base font-bold text-foreground">
@@ -197,7 +197,7 @@ export default function TeacherClassManagement({
                 {language === 'vi' ? 'Chọn lớp học quản lý' : 'Select Class to Manage'}
               </label>
               
-              <div className="space-y-1.5 max-h-[400px] overflow-y-auto pr-1">
+              <div className="space-y-1.5 max-h-100 overflow-y-auto pr-1">
                 {myClasses.map((cls) => {
                   const isActive = cls.code === selectedClassCode;
                   return (
@@ -306,7 +306,7 @@ export default function TeacherClassManagement({
                                   <span className="w-7 h-7 bg-primary/10 text-primary rounded-full flex items-center justify-center font-bold text-xs uppercase shrink-0">
                                     {(student.fullName || student.username).charAt(0)}
                                   </span>
-                                  <span className="truncate max-w-[150px] sm:max-w-none">{student.fullName || '(Chưa cập nhật)'}</span>
+                                  <span className="truncate max-w-37.5 sm:max-w-none">{student.fullName || '(Chưa cập nhật)'}</span>
                                 </div>
                               </td>
                               <td className="px-5 py-3.5 font-mono text-[11px] text-gray-600 dark:text-gray-350">{student.username}</td>

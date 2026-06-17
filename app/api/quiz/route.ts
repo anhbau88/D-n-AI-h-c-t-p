@@ -66,72 +66,10 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ questions });
   } catch (error) {
-    console.warn('[Gemini API Fallback] Lỗi khi gọi Gemini Quiz, tự động tạo trắc nghiệm mẫu:', error);
-    
-    // Tạo danh sách câu hỏi trắc nghiệm mẫu chất lượng cao
-    const mockQuestions: QuizQuestion[] = [
-      {
-        id: 1,
-        question: "Trong Hệ Mặt Trời, Trái Đất là hành tinh thứ mấy tính từ Mặt Trời?",
-        options: [
-          "A. Thứ nhất",
-          "B. Thứ hai",
-          "C. Thứ ba",
-          "D. Thứ tư"
-        ],
-        answer: "C",
-        explanation: "Theo vị trí trong Hệ Mặt Trời, Trái Đất là hành tinh thứ ba tính từ Mặt Trời."
-      },
-      {
-        id: 2,
-        question: "Hiện tượng nào sau đây là hệ quả quan trọng của chuyển động tự quay quanh trục của Trái Đất?",
-        options: [
-          "A. Hiện tượng luân phiên ngày và đêm",
-          "B. Sự thay đổi thời tiết theo mùa",
-          "C. Nhật thực và nguyệt thực",
-          "D. Hiện tượng thủy triều"
-        ],
-        answer: "A",
-        explanation: "Hiện tượng luân phiên ngày và đêm diễn ra liên tục do Trái Đất tự quay quanh trục từ Tây sang Đông."
-      },
-      {
-        id: 3,
-        question: "Trái Đất tự quay quanh một trục tưởng tượng nghiêng bao nhiêu độ so với mặt phẳng quỹ đạo?",
-        options: [
-          "A. 23 độ 27 phút",
-          "B. 66 độ 33 phút",
-          "C. 90 độ",
-          "D. 0 độ"
-        ],
-        answer: "B",
-        explanation: "Trục Trái Đất nghiêng một góc 66 độ 33 phút so với mặt phẳng quỹ đạo."
-      },
-      {
-        id: 4,
-        question: "Khoảng cách trung bình từ Trái Đất đến Mặt Trời là bao nhiêu?",
-        options: [
-          "A. Khoảng 100 triệu km",
-          "B. Khoảng 120 triệu km",
-          "C. Khoảng 150 triệu km",
-          "D. Khoảng 200 triệu km"
-        ],
-        answer: "C",
-        explanation: "Khoảng cách trung bình từ Trái Đất đến Mặt Trời là khoảng 150 triệu km."
-      },
-      {
-        id: 5,
-        question: "Lực nào gây ra sự lệch hướng chuyển động của các vật thể khi chúng di chuyển trên bề mặt Trái Đất?",
-        options: [
-          "A. Lực hấp dẫn của Mặt Trời",
-          "B. Lực Coriolis",
-          "C. Lực ly tâm địa lý",
-          "D. Lực ma sát không khí"
-        ],
-        answer: "B",
-        explanation: "Lực Coriolis sinh ra do Trái Đất tự quay quanh trục làm lệch hướng chuyển động của các vật thể."
-      }
-    ];
-
-    return NextResponse.json({ questions: mockQuestions });
+    console.error('[Gemini API] Lỗi khi gọi Gemini Quiz:', error);
+    return NextResponse.json(
+      { error: 'Lỗi khi kết nối với AI để soạn câu hỏi trắc nghiệm: ' + (error instanceof Error ? error.message : 'Unknown error') },
+      { status: 500 }
+    );
   }
 }

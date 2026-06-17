@@ -8,7 +8,7 @@ import { Card } from '@/components/ui/card';
 
 export default function QuizSkeleton() {
   return (
-    <Card className="p-6 border-0 shadow-lg bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm h-[500px] lg:h-[640px] xl:h-[740px] overflow-hidden">
+    <Card className="p-6 border-0 shadow-lg bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm h-125 lg:h-160 xl:h-185 overflow-hidden">
       <div className="space-y-6 animate-pulse">
         {/* Mô phỏng badge header */}
         <div className="flex items-center justify-between">
@@ -23,7 +23,7 @@ export default function QuizSkeleton() {
           >
             {/* Số thứ tự + câu hỏi */}
             <div className="flex items-start gap-3 mb-4">
-              <div className="shrink-0 w-8 h-8 bg-gradient-to-br from-blue-200 to-purple-200 dark:from-blue-900/50 dark:to-purple-900/50 rounded-lg" />
+              <div className="shrink-0 w-8 h-8 bg-linear-to-br from-blue-200 to-purple-200 dark:from-blue-900/50 dark:to-purple-900/50 rounded-lg" />
               <div className="flex-1 space-y-2 pt-1">
                 <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-full" />
                 <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4" />

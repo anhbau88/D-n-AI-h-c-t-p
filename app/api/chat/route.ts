@@ -1,6 +1,4 @@
-// app/api/chat/route.ts
-// API chat hỏi đáp dựa trên tài liệu
-
+import '@/lib/env-loader';
 import { NextRequest, NextResponse } from 'next/server';
 import { streamText, CoreMessage } from 'ai';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
@@ -96,40 +94,10 @@ export async function POST(request: NextRequest) {
 
     return result.toAIStreamResponse();
   } catch (error) {
-    console.warn('[Gemini API Fallback] Lỗi khi gọi Gemini Chat, tự động trả lời mẫu:', error);
-    
-    const lastMessage = messages[messages.length - 1];
-    const question = lastMessage?.content || '';
-    
-    let replyText = '';
-    if (question.toLowerCase().includes('coriolis') || question.toLowerCase().includes('lệch hướng')) {
-      replyText = `Lực Coriolis là lực lệch hướng xuất hiện do Trái Đất tự quay quanh trục từ Tây sang Đông. \n\n` +
-        `Hệ quả:\n` +
-        `- Ở Bán cầu Bắc, các vật thể chuyển động bị lệch về bên phải so với hướng chuyển động ban đầu.\n` +
-        `- Ở Bán cầu Nam, các vật thể chuyển động bị lệch về bên trái.\n\n` +
-        `Đây là lực gây ra sự lệch hướng của gió, dòng biển và các vật thể chuyển động tự do trên bề mặt Trái Đất.`;
-    } else {
-      replyText = `Tôi đã nhận được câu hỏi của bạn: "${question}". Đây là câu trả lời định hướng: Hãy nghiên cứu kỹ nội dung bài học trong tài liệu đã được tải lên để tìm kiếm thông tin chi tiết và trả lời câu hỏi học thuật này.`;
-    }
-
-    const encoder = new TextEncoder();
-    const customStream = new ReadableStream({
-      async start(controller) {
-        const parts = replyText.match(/.{1,100}/g) || [replyText];
-        for (const part of parts) {
-          const chunk = `0:${JSON.stringify(part)}\n`;
-          controller.enqueue(encoder.encode(chunk));
-          await new Promise(r => setTimeout(r, 10)); // Mô phỏng trễ stream nhẹ
-        }
-        controller.close();
-      }
-    });
-
-    return new Response(customStream, {
-      headers: {
-        'Content-Type': 'text/plain; charset=utf-8',
-        'x-vercel-ai-data-stream': 'v1',
-      },
-    });
+    console.error('[Gemini API] Lỗi khi gọi Gemini Chat:', error);
+    return NextResponse.json(
+      { error: 'Lỗi khi kết nối với AI để trò chuyện: ' + (error instanceof Error ? error.message : 'Unknown error') },
+      { status: 500 }
+    );
   }
 }

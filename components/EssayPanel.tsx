@@ -138,7 +138,7 @@ export default function EssayPanel({
   // Trạng thái đang tải câu hỏi tự luận từ AI (Dành cho Giáo viên khi click tạo đề)
   if (isLoading) {
     return (
-      <Card className="p-6 border-0 shadow-lg bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm h-[500px] lg:h-[640px] xl:h-[740px] flex flex-col items-center justify-center overflow-hidden">
+      <Card className="p-6 border-0 shadow-lg bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm h-125 lg:h-160 xl:h-185 flex flex-col items-center justify-center overflow-hidden">
         <TextStreamLoader 
           messages={[
             "AI đang đọc tài liệu...",
@@ -157,9 +157,9 @@ export default function EssayPanel({
   // Trạng thái chưa có đề tự luận
   if (!essay) {
     return (
-      <Card className="p-6 border-0 shadow-lg bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm h-[500px] lg:h-[640px] xl:h-[740px] overflow-y-auto">
+      <Card className="p-6 border-0 shadow-lg bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm h-125 lg:h-160 xl:h-185 overflow-y-auto">
         <div className="flex flex-col items-center justify-center py-6 text-gray-400">
-          <div className="w-16 h-16 bg-gradient-to-br from-purple-100 to-indigo-100 dark:from-purple-900/30 dark:to-indigo-900/30 rounded-2xl flex items-center justify-center mb-4">
+          <div className="w-16 h-16 bg-linear-to-br from-purple-100 to-indigo-100 dark:from-purple-900/30 dark:to-indigo-900/30 rounded-2xl flex items-center justify-center mb-4">
             <svg className="w-8 h-8 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
             </svg>
@@ -239,7 +239,7 @@ export default function EssayPanel({
     const finalSubmission = previousSubmission;
 
     return (
-      <div className="space-y-6 h-[500px] lg:h-[640px] xl:h-[740px] overflow-y-auto pr-2">
+      <div className="space-y-6 h-125 lg:h-160 xl:h-185 overflow-y-auto pr-2">
         {/* 1. Đề bài tự luận */}
         <Card className="p-6 border-0 shadow-lg bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 border-b border-gray-100 dark:border-gray-800 pb-3">
@@ -342,7 +342,7 @@ export default function EssayPanel({
                   <>
                     <div className="relative">
                       <textarea
-                        className="w-full min-h-[250px] p-4 rounded-xl border border-gray-200 dark:border-gray-800 bg-white/50 dark:bg-gray-950/50 text-sm text-gray-800 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all leading-relaxed"
+                        className="w-full min-h-62.5 p-4 rounded-xl border border-gray-200 dark:border-gray-800 bg-white/50 dark:bg-gray-950/50 text-sm text-gray-800 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all leading-relaxed"
                         placeholder="Nhập câu trả lời tự luận chi tiết của bạn tại đây (sử dụng kiến thức trong tài liệu tham khảo để lập luận)..."
                         value={studentAnswerText}
                         onChange={(e) => setStudentAnswerText(e.target.value)}
@@ -365,7 +365,7 @@ export default function EssayPanel({
                     <div className="pt-2 flex justify-end">
                       <Button
                         onClick={handleStudentSubmit}
-                        className="h-10 px-6 rounded-xl bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white shadow-md shadow-purple-500/20 font-semibold flex items-center gap-2"
+                        className="h-10 px-6 rounded-xl bg-linear-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white shadow-md shadow-purple-500/20 font-semibold flex items-center gap-2"
                       >
                         <Send className="w-4 h-4" /> Nộp bài tự luận
                       </Button>
@@ -389,7 +389,7 @@ export default function EssayPanel({
 
   // Giao diện cho Giáo viên
   return (
-    <div className="space-y-6 h-[500px] lg:h-[640px] xl:h-[740px] overflow-y-auto pr-2">
+    <div className="space-y-6 h-125 lg:h-160 xl:h-185 overflow-y-auto pr-2">
       {/* 1. Nội dung đề tự luận */}
       <Card className="p-6 border-0 shadow-lg bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 border-b border-gray-100 dark:border-gray-800 pb-3">

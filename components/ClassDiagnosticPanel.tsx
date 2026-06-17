@@ -65,7 +65,7 @@ export default function ClassDiagnosticPanel({
         <Button
           onClick={handleRunDiagnostic}
           disabled={loading || !classCode}
-          className="h-10 px-5 rounded-xl bg-gradient-to-r from-primary to-violet text-white font-bold text-xs shadow-md shadow-primary/20 hover:brightness-110 active:scale-95 transition-all flex items-center gap-1.5 shrink-0"
+          className="h-10 px-5 rounded-xl bg-linear-to-r from-primary to-violet text-white font-bold text-xs shadow-md shadow-primary/20 hover:brightness-110 active:scale-95 transition-all flex items-center gap-1.5 shrink-0"
         >
           <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           {loading 
@@ -96,7 +96,7 @@ export default function ClassDiagnosticPanel({
         </div>
       ) : report ? (
         /* Report Markdown Render */
-        <div className="p-5 bg-gradient-to-br from-gray-50/50 to-indigo-50/10 dark:from-gray-950/20 dark:to-indigo-950/5 border border-gray-250 dark:border-gray-800 rounded-2xl relative overflow-hidden">
+        <div className="p-5 bg-linear-to-br from-gray-50/50 to-indigo-50/10 dark:from-gray-950/20 dark:to-indigo-950/5 border border-gray-250 dark:border-gray-800 rounded-2xl relative overflow-hidden">
           <div className="absolute top-0 right-0 p-3 opacity-10 pointer-events-none">
             <Sparkles className="w-20 h-20 text-primary" />
           </div>

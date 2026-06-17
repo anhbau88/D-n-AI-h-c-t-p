@@ -24,6 +24,44 @@ interface QuizPanelProps {
   previousAnswers?: Record<number, string>;
 }
 
+const letters = ['A', 'B', 'C', 'D'];
+
+const cleanOptionText = (optionStr: string) => {
+  return optionStr.replace(/^([A-D])\s*[\.\)]\s*/i, '').trim();
+};
+
+function shuffleArray<T>(array: T[]): T[] {
+  const arr = [...array];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+function shuffleQuestionsAndOptions(questions: QuizQuestion[]): QuizQuestion[] {
+  if (questions.length === 0) return [];
+  return shuffleArray(questions).map(q => {
+    const correctLetter = q.answer.trim().toUpperCase();
+    const correctIdx = letters.indexOf(correctLetter);
+    const correctOptionText = correctIdx !== -1 ? cleanOptionText(q.options[correctIdx]) : '';
+    
+    const cleanOptions = q.options.map(opt => cleanOptionText(opt));
+    const shuffledCleanOptions = shuffleArray(cleanOptions);
+    
+    const finalOptions = shuffledCleanOptions.map((opt, idx) => `${letters[idx]}. ${opt}`);
+    
+    let newCorrectIdx = shuffledCleanOptions.indexOf(correctOptionText);
+    if (newCorrectIdx === -1) newCorrectIdx = 0;
+    
+    return {
+      ...q,
+      options: finalOptions,
+      answer: letters[newCorrectIdx]
+    };
+  });
+}
+
 export default function QuizPanel({
   questions,
   isLoading,
@@ -73,28 +111,7 @@ export default function QuizPanel({
     if (isTeacher || hasSubmitted) {
       return questions;
     }
-    function shuffleArray<T>(array: T[]): T[] {
-      const arr = [...array];
-      for (let i = arr.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [arr[i], arr[j]] = [arr[j], arr[i]];
-      }
-      return arr;
-    }
-    const letters = ['A', 'B', 'C', 'D'];
-    return shuffleArray(questions).map(q => {
-      const correctLetter = q.answer.trim().toUpperCase();
-      const correctIdx = letters.indexOf(correctLetter);
-      const correctOptionText = correctIdx !== -1 ? q.options[correctIdx] : '';
-      const shuffledOptions = shuffleArray(q.options);
-      let newCorrectIdx = shuffledOptions.indexOf(correctOptionText);
-      if (newCorrectIdx === -1) newCorrectIdx = 0;
-      return {
-        ...q,
-        options: shuffledOptions,
-        answer: letters[newCorrectIdx]
-      };
-    });
+    return shuffleQuestionsAndOptions(questions);
   });
 
   // Track props for rendering-time updates to avoid useEffect setState cascading renders
@@ -130,30 +147,7 @@ export default function QuizPanel({
     } else if (isTeacher || hasSubmitted) {
       setShuffledQuestions(questions);
     } else {
-      const shuffleArray = <T,>(array: T[]): T[] => {
-        const arr = [...array];
-        for (let i = arr.length - 1; i > 0; i--) {
-          const j = Math.floor(Math.random() * (i + 1));
-          [arr[i], arr[j]] = [arr[j], arr[i]];
-        }
-        return arr;
-      };
-
-      const letters = ['A', 'B', 'C', 'D'];
-      const shuffled = shuffleArray(questions).map(q => {
-        const correctLetter = q.answer.trim().toUpperCase();
-        const correctIdx = letters.indexOf(correctLetter);
-        const correctOptionText = correctIdx !== -1 ? q.options[correctIdx] : '';
-        const shuffledOptions = shuffleArray(q.options);
-        let newCorrectIdx = shuffledOptions.indexOf(correctOptionText);
-        if (newCorrectIdx === -1) newCorrectIdx = 0;
-        return {
-          ...q,
-          options: shuffledOptions,
-          answer: letters[newCorrectIdx]
-        };
-      });
-      setShuffledQuestions(shuffled);
+      setShuffledQuestions(shuffleQuestionsAndOptions(questions));
     }
   }
 
@@ -291,9 +285,9 @@ export default function QuizPanel({
   // Trạng thái trống
   if (shuffledQuestions.length === 0) {
     return (
-      <Card className="p-6 border-0 shadow-lg bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm h-[500px] lg:h-[640px] xl:h-[740px] flex flex-col items-center justify-center">
+      <Card className="p-6 border-0 shadow-lg bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm h-125 lg:h-160 xl:h-185 flex flex-col items-center justify-center">
         <div className="flex flex-col items-center justify-center text-gray-400">
-          <div className="w-16 h-16 bg-gradient-to-br from-emerald-100 to-teal-100 dark:from-emerald-900/30 dark:to-teal-900/30 rounded-2xl flex items-center justify-center mb-4">
+          <div className="w-16 h-16 bg-linear-to-br from-emerald-100 to-teal-100 dark:from-emerald-900/30 dark:to-teal-900/30 rounded-2xl flex items-center justify-center mb-4">
             <svg className="w-8 h-8 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
             </svg>
@@ -306,7 +300,7 @@ export default function QuizPanel({
   }
 
   return (
-    <div className="space-y-6 h-[500px] lg:h-[640px] xl:h-[740px] overflow-y-auto pr-2">
+    <div className="space-y-6 h-125 lg:h-160 xl:h-185 overflow-y-auto pr-2">
       {/* Header trạng thái */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300">
@@ -339,7 +333,7 @@ export default function QuizPanel({
             <Card key={index} className="p-5 border-0 shadow-lg bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm transition-all hover:shadow-xl">
               {/* Câu hỏi */}
               <div className="flex items-start gap-3 mb-4">
-                <span className="shrink-0 w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 text-white rounded-lg flex items-center justify-center text-sm font-bold shadow-md">
+                <span className="shrink-0 w-8 h-8 bg-linear-to-br from-blue-500 to-purple-600 text-white rounded-lg flex items-center justify-center text-sm font-bold shadow-md">
                   {index + 1}
                 </span>
                 <h3 className="font-semibold text-gray-800 dark:text-gray-100 leading-relaxed pt-0.5">
@@ -429,7 +423,7 @@ export default function QuizPanel({
         <div className="pt-4 flex justify-end">
           <Button 
             onClick={handleSubmitQuiz}
-            className="h-12 px-8 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white shadow-lg shadow-emerald-500/30 font-semibold"
+            className="h-12 px-8 rounded-xl bg-linear-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white shadow-lg shadow-emerald-500/30 font-semibold"
           >
             Nộp bài & Xem kết quả
           </Button>

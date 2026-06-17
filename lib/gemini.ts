@@ -1,6 +1,4 @@
-// lib/gemini.ts
-// Khởi tạo và gọi Google Gemini API
-
+import '@/lib/env-loader';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 // Khởi tạo các client với API Key tương ứng từ biến môi trường
