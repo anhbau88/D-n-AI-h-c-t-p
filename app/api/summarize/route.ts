@@ -3,32 +3,24 @@ import { NextRequest, NextResponse } from 'next/server';
 import { streamText } from 'ai';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createSummarizePrompt } from '@/lib/prompts';
+import { checkAndConsumeAiQuota } from '@/lib/quota';
+import { getCandidateModelsForTier, enhancePromptForModelTier } from '@/lib/gemini';
+import { AIModelTier } from '@/types';
 
-const getValidGeminiKey = () => {
+function getAllApiKeys(): string[] {
   const keys = [
+    process.env.GEMINI_API_KEY_MULTIMODAL,
     process.env.GEMINI_API_KEY,
+    process.env.GEMINI_API_KEY_BACKUP,
+    process.env.GEMINI_API_KEY_BACKUP_2,
     process.env.GEMINI_API_KEY_CHAT,
     process.env.GEMINI_API_KEY_QUIZ,
-    process.env.GEMINI_API_KEY_MULTIMODAL,
     process.env.GEMINI_API_KEY_ESSAY,
     process.env.GOOGLE_GENERATIVE_AI_API_KEY
   ].map(k => (k || '').trim()).filter(Boolean);
-
-  const workingKeys = [
-    process.env.GEMINI_API_KEY_QUIZ,
-    process.env.GEMINI_API_KEY_MULTIMODAL,
-    process.env.GEMINI_API_KEY_ESSAY
-  ].map(k => (k || '').trim()).filter(Boolean);
-
-  const foundWorking = keys.find(k => workingKeys.includes(k));
-  if (foundWorking) return foundWorking;
-  if (workingKeys.length > 0) return workingKeys[0];
-  return keys.find(k => k.startsWith('AIzaSy')) || keys[0] || '';
-};
-
-const google = createGoogleGenerativeAI({
-  apiKey: (process.env.GEMINI_API_KEY_MULTIMODAL || '').trim() || getValidGeminiKey(),
-});
+  
+  return Array.from(new Set(keys));
+}
 
 export async function POST(request: NextRequest) {
   let pdfText = '';
@@ -39,11 +31,19 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     pdfText = body.pdfText || '';
-    role = body.role || 'student';
+    role = body.role === 'teacher' ? 'teacher' : 'student';
     fileName = body.fileName || 'Tài liệu';
     fileType = body.fileType || 'PDF';
+    const requestedTier: AIModelTier = ['flash', 'pro', 'ultra'].includes(body.modelTier) ? body.modelTier : 'flash';
 
-    // Kiểm tra input
+    const quota = await checkAndConsumeAiQuota(request, requestedTier, 10);
+    if (!quota.allowed) {
+      return NextResponse.json(
+        { error: quota.error, upgradeRequired: quota.upgradeRequired },
+        { status: 403 }
+      );
+    }
+
     if (!pdfText || pdfText.trim().length === 0) {
       return NextResponse.json(
         { error: 'Không có nội dung tài liệu. Vui lòng upload PDF trước.' },
@@ -51,18 +51,54 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Cắt bớt text nếu quá dài (giới hạn ~30,000 ký tự để tránh vượt token)
     const truncatedText = pdfText.substring(0, 30000);
+    const keys = getAllApiKeys();
+    if (keys.length === 0) {
+      throw new Error('Không tìm thấy API Key nào trong cấu hình.');
+    }
 
-    // Tạo prompt
-    // Gọi Gemini với streaming
-    const result = await streamText({
-      model: google('models/gemini-2.5-flash'),
-      system: createSummarizePrompt(truncatedText, role, fileName, fileType),
-      messages: [{ role: 'user', content: 'Hãy tóm tắt tài liệu này.' }],
-    });
+    const preferredKey = (process.env.GEMINI_API_KEY_MULTIMODAL || '').trim();
+    const orderedKeys = [...keys];
+    if (preferredKey && orderedKeys.includes(preferredKey)) {
+      const idx = orderedKeys.indexOf(preferredKey);
+      orderedKeys.splice(idx, 1);
+      orderedKeys.unshift(preferredKey);
+    }
 
-    return result.toAIStreamResponse();
+    const defaultKey = (process.env.GEMINI_API_KEY || '').trim();
+    if (defaultKey && orderedKeys.includes(defaultKey) && orderedKeys[0] !== defaultKey) {
+      const idx = orderedKeys.indexOf(defaultKey);
+      orderedKeys.splice(idx, 1);
+      orderedKeys.splice(1, 0, defaultKey);
+    }
+
+    const systemPrompt = enhancePromptForModelTier(
+      createSummarizePrompt(truncatedText, role, fileName, fileType),
+      quota.effectiveModelTier,
+      false
+    );
+    const candidateModels = getCandidateModelsForTier(quota.effectiveModelTier);
+
+    let lastError: any;
+    for (const modelName of candidateModels) {
+      for (const key of orderedKeys) {
+        try {
+          console.log(`[Summarize API] Đang thử streamText model ${modelName} với key: ${key.substring(0, 8)}...`);
+          const googleClient = createGoogleGenerativeAI({ apiKey: key });
+          const result = await streamText({
+            model: googleClient(`models/${modelName}`),
+            system: systemPrompt,
+            messages: [{ role: 'user', content: 'Hãy tóm tắt tài liệu này.' }],
+          });
+          return result.toAIStreamResponse();
+        } catch (err: any) {
+          console.error(`[Summarize API Error] Thất bại model ${modelName} với key ${key.substring(0, 8)}...:`, err.message || err);
+          lastError = err;
+        }
+      }
+    }
+
+    throw lastError;
   } catch (error) {
     console.error('[Gemini API] Lỗi khi gọi Gemini Summarize:', error);
     return NextResponse.json(

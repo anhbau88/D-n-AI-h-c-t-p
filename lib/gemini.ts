@@ -1,81 +1,59 @@
 import '@/lib/env-loader';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { AIModelTier } from '@/types';
 
-// Khởi tạo các client với API Key tương ứng từ biến môi trường
-const getValidGeminiKey = (...keys: (string | undefined)[]) => {
-  const nonEmptyKeys = keys.map(k => (k || '').trim()).filter(Boolean);
-  
-  // Danh sách các key đã được xác nhận hoạt động tốt (không bị 503)
-  const workingKeys = [
+/**
+ * Lấy tất cả các API key không rỗng và duy nhất từ biến môi trường
+ */
+export function getAllApiKeys(): string[] {
+  const keys = [
+    process.env.GEMINI_API_KEY,
+    process.env.GEMINI_API_KEY_BACKUP,
+    process.env.GEMINI_API_KEY_BACKUP_2,
     process.env.GEMINI_API_KEY_QUIZ,
+    process.env.GEMINI_API_KEY_CHAT,
     process.env.GEMINI_API_KEY_MULTIMODAL,
-    process.env.GEMINI_API_KEY_ESSAY
+    process.env.GEMINI_API_KEY_ESSAY,
+    process.env.GOOGLE_GENERATIVE_AI_API_KEY
   ].map(k => (k || '').trim()).filter(Boolean);
+  
+  return Array.from(new Set(keys));
+}
 
-  // Thử tìm xem có key yêu cầu nào nằm trong danh sách các key hoạt động tốt hay không
-  const requestedWorkingKey = nonEmptyKeys.find(k => workingKeys.includes(k));
-  if (requestedWorkingKey) return requestedWorkingKey;
+/**
+ * Trả về danh sách tên model ưu tiên dựa theo cấp độ AI Model Tier ('flash' | 'pro' | 'ultra')
+ * Có cơ chế tự động fallback an toàn xuống gemini-2.5-flash nếu key miễn phí chạm giới hạn model Pro
+ */
+export function getCandidateModelsForTier(tier: AIModelTier = 'flash'): string[] {
+  const defaultModel = (process.env.GEMINI_MODEL || 'gemini-2.5-flash').trim();
+  if (tier === 'ultra') {
+    return ['gemini-2.5-pro', defaultModel];
+  }
+  if (tier === 'pro') {
+    return ['gemini-2.5-pro', defaultModel];
+  }
+  return [defaultModel];
+}
 
-  // Nếu không, sử dụng key hoạt động tốt đầu tiên có sẵn
-  if (workingKeys.length > 0) return workingKeys[0];
+/**
+ * Bổ sung chỉ dẫn tư duy chuyên sâu (Deep Reasoning / Academic Rigor) khi người dùng chọn gói Model Pro hoặc Ultra
+ */
+export function enhancePromptForModelTier(prompt: string, tier: AIModelTier = 'flash', jsonMode = false): string {
+  if (tier === 'flash' || jsonMode) return prompt;
 
-  // Fallback: Tìm key chuẩn bắt đầu bằng AIzaSy
-  const standardKey = nonEmptyKeys.find(k => k.startsWith('AIzaSy'));
-  if (standardKey) return standardKey;
+  if (tier === 'ultra') {
+    return `[CHẾ ĐỘ AI ULTRA ACADEMIC - HỘI ĐỒNG CHUYÊN GIA KHẢO THÍ QUỐC GIA]
+Hãy suy luận đa bước, phân tích sâu sắc bản chất học thuật, đối chiếu ngữ cảnh chặt chẽ, đưa ra lập luận sắc bén, liên hệ mở rộng thực tiễn và trình bày đạt chuẩn mực sư phạm cao nhất.\n\n${prompt}`;
+  }
 
-  return nonEmptyKeys[0] || '';
-};
-
-// Phân chia tải (Load balance) giữa các key hoạt động tốt để tránh quá hạn ngạch (quota limit) 20 requests/ngày
-const keyQuiz = (process.env.GEMINI_API_KEY_QUIZ || '').trim() || getValidGeminiKey();
-const keyEssay = (process.env.GEMINI_API_KEY_ESSAY || '').trim() || getValidGeminiKey();
-const keyMultimodal = (process.env.GEMINI_API_KEY_MULTIMODAL || '').trim() || getValidGeminiKey();
-const keyChat = keyEssay; // Sử dụng keyEssay cho Chat
-const keySummarize = keyMultimodal; // Sử dụng keyMultimodal cho Summarize
-
-const genAI = new GoogleGenerativeAI(keySummarize);
-const genAIQuiz = new GoogleGenerativeAI(keyQuiz);
-const genAIChat = new GoogleGenerativeAI(keyChat);
-const genAIEssay = new GoogleGenerativeAI(keyEssay);
-const genAIMultimodal = new GoogleGenerativeAI(keyMultimodal);
-
-// Khởi tạo các model tương ứng cho từng mục đích sử dụng
-const modelName = (process.env.GEMINI_MODEL || 'gemini-2.5-flash').trim();
-
-const modelSummarize = genAI.getGenerativeModel({
-  model: modelName,
-});
-
-const modelQuiz = genAIQuiz.getGenerativeModel({
-  model: modelName,
-});
-
-const modelQuizJson = genAIQuiz.getGenerativeModel({
-  model: modelName,
-  generationConfig: { responseMimeType: 'application/json' },
-});
-
-const modelChat = genAIChat.getGenerativeModel({
-  model: modelName,
-});
-
-const modelEssay = genAIEssay.getGenerativeModel({
-  model: modelName,
-});
-
-const modelEssayJson = genAIEssay.getGenerativeModel({
-  model: modelName,
-  generationConfig: { responseMimeType: 'application/json' },
-});
-
-const modelMultimodal = genAIMultimodal.getGenerativeModel({
-  model: modelName,
-});
+  return `[CHẾ ĐỘ AI PRO REASONING - TƯ DUY LOGIC CHUYÊN SÂU]
+Hãy phân tích kỹ lưỡng từng bước (Chain-of-Thought), giải thích rõ bản chất vấn đề, tránh trả lời hời hợt và đảm bảo độ chính xác học thuật tối đa.\n\n${prompt}`;
+}
 
 /**
  * Hàm helper tự động gọi lại (retry) khi Gemini API gặp sự cố (e.g. Lỗi 503, 429 quá tải, nghẽn mạng)
  */
-async function callWithRetry<T>(fn: () => Promise<T>, retries = 5, delayMs = 2000): Promise<T> {
+async function callWithRetry<T>(fn: () => Promise<T>, retries = 3, delayMs = 1500): Promise<T> {
   let lastError: unknown;
   for (let i = 0; i < retries; i++) {
     try {
@@ -86,13 +64,13 @@ async function callWithRetry<T>(fn: () => Promise<T>, retries = 5, delayMs = 200
       const errorMsg = err.toString() || '';
       console.warn(`[Gemini API Warning] Thất bại lần thử ${i + 1}/${retries}:`, err.message || err);
       
-      // Nếu là hết quota hàng ngày (định mức 20 requests/ngày của free tier), ném lỗi luôn để kích hoạt cơ chế fallback ngay lập tức
       const isDailyQuotaExceeded = errorMsg.includes('daily quota') || 
                                    errorMsg.includes('generate_content_free_tier_requests') || 
                                    errorMsg.includes('limit: 20') ||
-                                   errorMsg.includes('Quota exceeded');
+                                   errorMsg.includes('Quota exceeded') ||
+                                   errorMsg.includes('404') ||
+                                   errorMsg.includes('not found');
       if (isDailyQuotaExceeded) {
-        console.warn('[Gemini API] Phát hiện vượt quá hạn ngạch hàng ngày. Bỏ qua thử lại để chuyển sang dữ liệu dự phòng (fallback).');
         throw error;
       }
 
@@ -104,11 +82,9 @@ async function callWithRetry<T>(fn: () => Promise<T>, retries = 5, delayMs = 200
           const match = errorMsg.match(/retry in ([\d\.]+)\s*s/i);
           if (match) {
             const seconds = parseFloat(match[1]);
-            waitTime = Math.ceil(seconds * 1000) + 1500; // Chờ thêm 1.5 giây để quota hồi phục hoàn toàn
-            console.warn(`[Gemini API Rate Limit] API yêu cầu chờ. Sẽ tự động chờ ${waitTime / 1000} giây trước khi thử lại...`);
+            waitTime = Math.min(8000, Math.ceil(seconds * 1000) + 1000);
           } else {
-            waitTime = 15000; // Mặc định chờ 15s nếu là rate limit chung
-            console.warn(`[Gemini API Rate Limit] Phát hiện quá tải. Sẽ chờ ${waitTime / 1000} giây trước khi thử lại...`);
+            waitTime = 4000;
           }
         }
         await new Promise(resolve => setTimeout(resolve, waitTime));
@@ -119,64 +95,121 @@ async function callWithRetry<T>(fn: () => Promise<T>, retries = 5, delayMs = 200
 }
 
 /**
- * Gọi Gemini API với prompt và phân chia mục đích sử dụng key
- * @param prompt - Nội dung prompt gửi cho AI
- * @param purpose - Mục đích sử dụng: 'summarize' | 'quiz' | 'chat' | 'essay'
- * @param jsonMode - Có yêu cầu định dạng đầu ra là JSON hay không (áp dụng khi purpose là 'quiz' hoặc 'essay')
- * @returns Kết quả trả về từ AI (text)
+ * Thực hiện gọi Gemini với cơ chế xoay vòng Key động và phân tầng Model AI ('flash' | 'pro' | 'ultra')
+ */
+async function callGenerativeAIWithFallback(
+  purpose: 'summarize' | 'quiz' | 'chat' | 'essay' | 'multimodal',
+  jsonMode: boolean,
+  runner: (model: any) => Promise<any>,
+  modelTier: AIModelTier = 'flash'
+): Promise<any> {
+  const keys = getAllApiKeys();
+  if (keys.length === 0) {
+    throw new Error('Không tìm thấy API Key nào trong biến môi trường.');
+  }
+
+  let preferredKey: string | undefined;
+  if (purpose === 'quiz') preferredKey = process.env.GEMINI_API_KEY_QUIZ;
+  else if (purpose === 'chat') preferredKey = process.env.GEMINI_API_KEY_CHAT;
+  else if (purpose === 'essay') preferredKey = process.env.GEMINI_API_KEY_ESSAY;
+  else if (purpose === 'multimodal') preferredKey = process.env.GEMINI_API_KEY_MULTIMODAL;
+  else preferredKey = process.env.GEMINI_API_KEY;
+
+  preferredKey = (preferredKey || '').trim();
+
+  const orderedKeys = [...keys];
+  if (preferredKey && orderedKeys.includes(preferredKey)) {
+    const idx = orderedKeys.indexOf(preferredKey);
+    orderedKeys.splice(idx, 1);
+    orderedKeys.unshift(preferredKey);
+  }
+
+  const defaultKey = (process.env.GEMINI_API_KEY || '').trim();
+  if (defaultKey && orderedKeys.includes(defaultKey) && orderedKeys[0] !== defaultKey) {
+    const idx = orderedKeys.indexOf(defaultKey);
+    orderedKeys.splice(idx, 1);
+    orderedKeys.splice(1, 0, defaultKey);
+  }
+
+  const candidateModels = getCandidateModelsForTier(modelTier);
+  let lastError: any;
+
+  for (const modelName of candidateModels) {
+    for (const key of orderedKeys) {
+      try {
+        console.log(`[Gemini SDK] Đang gọi model ${modelName} (Tier: ${modelTier}) với key: ${key.substring(0, 8)}... (${purpose})`);
+        const genAI = new GoogleGenerativeAI(key);
+        const modelConfig: any = { model: modelName };
+        if (jsonMode) {
+          modelConfig.generationConfig = { responseMimeType: 'application/json' };
+        }
+        const model = genAI.getGenerativeModel(modelConfig);
+        
+        const result = await callWithRetry(() => runner(model));
+        return result;
+      } catch (err: any) {
+        console.error(`[Gemini SDK Error] Thất bại model ${modelName} với key ${key.substring(0, 8)}...:`, err.message || err);
+        lastError = err;
+      }
+    }
+  }
+
+  throw lastError;
+}
+
+/**
+ * Gọi Gemini API với prompt, mục đích sử dụng và cấp độ Model AI ('flash' | 'pro' | 'ultra')
  */
 export async function callGemini(
   prompt: string,
   purpose: 'summarize' | 'quiz' | 'chat' | 'essay',
-  jsonMode: boolean = false
+  jsonMode: boolean = false,
+  modelTier: AIModelTier = 'flash'
 ): Promise<string> {
   try {
-    let activeModel;
-    if (purpose === 'quiz') {
-      activeModel = jsonMode ? modelQuizJson : modelQuiz;
-    } else if (purpose === 'chat') {
-      activeModel = modelChat;
-    } else if (purpose === 'essay') {
-      activeModel = jsonMode ? modelEssayJson : modelEssay;
-    } else {
-      activeModel = modelSummarize;
-    }
-
-    const result = await callWithRetry(() => activeModel.generateContent(prompt));
+    const finalPrompt = enhancePromptForModelTier(prompt, modelTier, jsonMode);
+    const result = await callGenerativeAIWithFallback(
+      purpose,
+      jsonMode,
+      (model) => model.generateContent(finalPrompt),
+      modelTier
+    );
     const response = result.response;
     return response.text();
   } catch (error) {
-    console.error(`Lỗi gọi Gemini (${purpose}):`, error);
+    console.error(`Lỗi gọi Gemini (${purpose}, tier=${modelTier}) sau khi đã thử tất cả các key:`, error);
     throw new Error('AI không phản hồi. Vui lòng thử lại.');
   }
 }
 
 /**
- * Gọi Gemini Multimodal API để trích xuất văn bản từ hình ảnh hoặc PDF quét
- * @param fileBuffer - Buffer của file
- * @param mimeType - MimeType của file
- * @param prompt - Câu lệnh hướng dẫn AI trích xuất nội dung
- * @returns Văn bản trích xuất được từ file
+ * Gọi Gemini Multimodal API để trích xuất văn bản / chấm bài từ hình ảnh hoặc PDF quét
  */
 export async function callGeminiMultimodal(
   fileBuffer: Buffer,
   mimeType: string,
-  prompt: string
+  prompt: string,
+  modelTier: AIModelTier = 'flash'
 ): Promise<string> {
   try {
-    const result = await callWithRetry(() => modelMultimodal.generateContent([
-      {
-        inlineData: {
-          data: fileBuffer.toString('base64'),
-          mimeType: mimeType
-        }
-      },
-      prompt
-    ]));
+    const result = await callGenerativeAIWithFallback(
+      'multimodal',
+      false,
+      (model) =>
+        model.generateContent([
+          {
+            inlineData: {
+              data: fileBuffer.toString('base64'),
+              mimeType: mimeType
+            }
+          },
+          prompt
+        ]),
+      modelTier
+    );
     return result.response.text();
   } catch (error) {
-    console.error('Lỗi trích xuất đa phương tiện từ Gemini:', error);
+    console.error('Lỗi trích xuất đa phương tiện từ Gemini sau khi đã thử tất cả các key:', error);
     throw new Error('AI không phản hồi khi xử lý tệp đa phương tiện. Vui lòng thử lại.');
   }
 }
-

@@ -1,15 +1,17 @@
 // components/EssayPanel.tsx
-// Giao diện hiển thị đề thi tự luận dành cho Giáo viên (giao đề) và Học sinh (làm đề, xem điểm & AI nhận xét)
+// Giao diện đề thi tự luận nâng cấp: Hỗ trợ Chấm Bài Qua Ảnh Chụp Vở Viết Tay (Handwriting OCR Grading), Xuất Đề Thi In A4 & Giao Bài Lớp Học
 
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, ChangeEvent } from 'react';
+import Image from 'next/image';
 import ReactMarkdown from 'react-markdown';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
 import { QuizHistoryItem } from '@/types';
-import { BookOpen, Send, CheckCircle, FileText, Award } from 'lucide-react';
+import { BookOpen, Send, CheckCircle, FileText, Award, Camera, Printer, X, Sparkles } from 'lucide-react';
 import TextStreamLoader from '@/components/TextStreamLoader';
 
 interface EssayPanelProps {
@@ -21,13 +23,13 @@ interface EssayPanelProps {
     lessonTopic: string;
     examTime: string;
   }) => void;
-  userRole?: 'student' | 'teacher';
+  userRole?: 'student' | 'teacher' | 'admin';
   onAssignEssay?: (title: string, targetRoom: string, startTime: string, endTime: string) => Promise<void>;
   fileName?: string;
   
   // Student props
   hasSubmitted?: boolean;
-  onEssaySubmit?: (studentAnswer: string) => Promise<void>;
+  onEssaySubmit?: (studentAnswer: string, handwritingImageBase64?: string) => Promise<void>;
   previousSubmission?: QuizHistoryItem;
   canTake?: boolean;
   timeMessage?: string;
@@ -50,7 +52,7 @@ export default function EssayPanel({
   isGrading = false,
   availableRooms = []
 }: EssayPanelProps) {
-  const isTeacher = userRole === 'teacher';
+  const isTeacher = userRole === 'teacher' || userRole === 'admin';
 
   // Form states cho tạo bài tự luận (Teacher)
   const [subject, setSubject] = useState('Ngữ văn');
@@ -69,12 +71,12 @@ export default function EssayPanel({
   const [isAssigning, setIsAssigning] = useState(false);
   const [formError, setFormError] = useState('');
 
-  // States làm bài tự luận (Student)
+  // States làm bài tự luận (Student): Gõ chữ hoặc Chụp ảnh vở viết tay (Handwriting OCR)
   const [studentAnswerText, setStudentAnswerText] = useState('');
+  const [handwritingImage, setHandwritingImage] = useState<string | null>(null);
   const [studentErrorMsg, setStudentErrorMsg] = useState('');
+  const handwritingInputRef = useRef<HTMLInputElement>(null);
 
-
-  // Tự động điền chủ đề theo tên file nếu chưa nhập
   useEffect(() => {
     if (fileName) {
       const topic = fileName.replace(/\.[^/.]+$/, "");
@@ -83,7 +85,6 @@ export default function EssayPanel({
     }
   }, [fileName]);
 
-  // Xử lý nộp form giao bài (Teacher)
   const handleAssignClick = async () => {
     setFormError('');
     if (!assignTitle.trim()) {
@@ -103,7 +104,6 @@ export default function EssayPanel({
       setIsAssigning(true);
       try {
         await onAssignEssay(assignTitle.trim(), targetRoom, assignStart, assignEnd);
-        // Reset form
         setAssignTitle('');
         setAssignStart('');
         setAssignEnd('');
@@ -115,27 +115,42 @@ export default function EssayPanel({
     }
   };
 
-  // Tính số từ của bài làm học sinh
+  const handleSelectHandwritingPhoto = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 8 * 1024 * 1024) {
+      setStudentErrorMsg('Ảnh quá lớn. Vui lòng chọn ảnh dưới 8MB.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      if (typeof ev.target?.result === 'string') {
+        setHandwritingImage(ev.target.result);
+        setStudentErrorMsg('');
+      }
+    };
+    reader.readAsDataURL(file);
+    if (handwritingInputRef.current) handwritingInputRef.current.value = '';
+  };
+
   const wordCount = studentAnswerText.trim() === '' ? 0 : studentAnswerText.trim().split(/\s+/).length;
 
-  // Xử lý học sinh nộp bài tự luận
   const handleStudentSubmit = async () => {
     setStudentErrorMsg('');
-    if (wordCount < 10) {
-      setStudentErrorMsg('Bài làm quá ngắn. Vui lòng viết câu trả lời chi tiết hơn (tối thiểu 10 từ).');
+    if (wordCount < 10 && !handwritingImage) {
+      setStudentErrorMsg('Vui lòng viết câu trả lời (tối thiểu 10 từ) HOẶC chụp ảnh trang vở bài làm viết tay của bạn.');
       return;
     }
 
     if (onEssaySubmit) {
       try {
-        await onEssaySubmit(studentAnswerText);
+        await onEssaySubmit(studentAnswerText, handwritingImage || undefined);
       } catch (err) {
         setStudentErrorMsg(err instanceof Error ? err.message : 'Có lỗi xảy ra khi nộp bài.');
       }
     }
   };
 
-  // Trạng thái đang tải câu hỏi tự luận từ AI (Dành cho Giáo viên khi click tạo đề)
   if (isLoading) {
     return (
       <Card className="p-6 border-0 shadow-lg bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm h-125 lg:h-160 xl:h-185 flex flex-col items-center justify-center overflow-hidden">
@@ -154,7 +169,6 @@ export default function EssayPanel({
     );
   }
 
-  // Trạng thái chưa có đề tự luận
   if (!essay) {
     return (
       <Card className="p-6 border-0 shadow-lg bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm h-125 lg:h-160 xl:h-185 overflow-y-auto">
@@ -272,7 +286,7 @@ export default function EssayPanel({
                 {finalSubmission && (
                   <span className="text-xs bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 px-3 py-1 rounded-full font-bold flex items-center gap-1.5 shadow-sm border border-emerald-100 dark:border-emerald-900/30">
                     <Award className="w-4 h-4 text-yellow-500" />
-                    Điểm AI chấm: {finalSubmission.scale10Score}/10
+                    Điểm chấm: {finalSubmission.scale10Score}/10
                   </span>
                 )}
               </div>
@@ -287,17 +301,23 @@ export default function EssayPanel({
                     {finalSubmission?.studentAnswer}
                   </div>
                 </div>
+
+                {finalSubmission?.teacherComment && (
+                  <div className="p-4 bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-xl">
+                    <p className="text-xs font-black text-amber-700 dark:text-amber-300 uppercase mb-1">
+                      👩‍🏫 Lời phê của Giáo viên:
+                    </p>
+                    <p className="text-sm text-amber-900 dark:text-amber-200">{finalSubmission.teacherComment}</p>
+                  </div>
+                )}
               </div>
             </Card>
 
-            {/* Báo cáo nhận xét chi tiết của AI */}
             {finalSubmission?.aiFeedback && (
               <Card className="p-6 border border-purple-200 dark:border-purple-900/50 shadow-lg bg-white/85 dark:bg-gray-900/85 backdrop-blur-sm animate-fade-in-up">
                 <div className="flex items-center gap-2 mb-4 border-b border-gray-100 dark:border-gray-800 pb-3">
                   <span className="p-1.5 bg-purple-500/10 text-purple-600 dark:text-purple-400 rounded-lg">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                    </svg>
+                    <Sparkles className="w-5 h-5" />
                   </span>
                   <h3 className="font-bold text-sm text-purple-700 dark:text-purple-400 uppercase tracking-wider">
                     Báo cáo chấm điểm chi tiết của AI
@@ -319,15 +339,20 @@ export default function EssayPanel({
           </div>
         ) : (
           <Card className="p-6 border border-purple-200 dark:border-purple-900/50 shadow-lg bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm">
-            <h3 className="font-bold text-sm text-purple-700 dark:text-purple-400 uppercase tracking-wider mb-4 flex items-center gap-2">
-              <FileText className="w-5 h-5" />
-              Nội dung bài làm tự luận của bạn
-            </h3>
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
+              <h3 className="font-bold text-sm text-purple-700 dark:text-purple-400 uppercase tracking-wider flex items-center gap-2">
+                <FileText className="w-5 h-5" />
+                Nội dung bài làm tự luận của bạn
+              </h3>
+              <Badge className="bg-indigo-500/10 text-indigo-600 dark:text-indigo-300 border-0 text-[10px]">
+                📸 Hỗ trợ AI chấm ảnh chụp vở viết tay (OCR)
+              </Badge>
+            </div>
 
             {isGrading ? (
               <TextStreamLoader 
                 messages={[
-                  "AI đang đọc bài làm của bạn...",
+                  "AI đang nhận diện chữ viết & đọc bài làm...",
                   "Đang phân tích lập luận và cấu trúc...",
                   "Đang kiểm tra lỗi ngữ pháp và chính tả...",
                   "Đang so sánh với đáp án chuẩn...",
@@ -340,22 +365,77 @@ export default function EssayPanel({
               <div className="space-y-4">
                 {canTake ? (
                   <>
+                    {/* Khu vực tải ảnh chụp vở viết tay (Handwriting OCR Grading) */}
+                    <div className="p-3.5 rounded-2xl bg-indigo-50/60 dark:bg-indigo-950/25 border border-dashed border-indigo-300 dark:border-indigo-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="text-xs">
+                        <p className="font-bold text-indigo-800 dark:text-indigo-300 flex items-center gap-1.5">
+                          <Camera className="w-4 h-4" /> Nộp bài bằng ảnh chụp trang vở viết tay (Tùy chọn)
+                        </p>
+                        <p className="text-[11px] text-indigo-600/80 dark:text-indigo-400/80 mt-0.5">
+                          Ngại gõ phím dài? Hãy chụp ảnh bài viết trên giấy của bạn, AI sẽ tự đọc chữ viết tay và chấm điểm!
+                        </p>
+                      </div>
+
+                      <input
+                        ref={handwritingInputRef}
+                        type="file"
+                        accept="image/png, image/jpeg, image/jpg, image/webp"
+                        className="hidden"
+                        onChange={handleSelectHandwritingPhoto}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handwritingInputRef.current?.click()}
+                        className="rounded-xl text-xs h-9 border-indigo-300 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300 font-bold shrink-0 gap-1.5"
+                      >
+                        <Camera className="w-3.5 h-3.5" /> Chọn ảnh bài viết tay
+                      </Button>
+                    </div>
+
+                    {handwritingImage && (
+                      <div className="p-3 rounded-xl bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800 flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-16 h-16 rounded-lg overflow-hidden border border-emerald-300 relative shrink-0">
+                            <Image src={handwritingImage} alt="Handwriting preview" fill className="object-cover" />
+                          </div>
+                          <div>
+                            <p className="text-xs font-bold text-emerald-700 dark:text-emerald-300">
+                              ✅ Đã đính kèm ảnh chụp bài viết tay
+                            </p>
+                            <p className="text-[11px] text-emerald-600/80">
+                              AI sẽ tự động OCR đọc chữ viết tay trong ảnh này khi bạn bấm Nộp bài.
+                            </p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setHandwritingImage(null)}
+                          className="p-1.5 rounded-lg text-red-500 hover:bg-red-100/50"
+                          title="Xóa ảnh"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    )}
+
                     <div className="relative">
                       <textarea
-                        className="w-full min-h-62.5 p-4 rounded-xl border border-gray-200 dark:border-gray-800 bg-white/50 dark:bg-gray-950/50 text-sm text-gray-800 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all leading-relaxed"
-                        placeholder="Nhập câu trả lời tự luận chi tiết của bạn tại đây (sử dụng kiến thức trong tài liệu tham khảo để lập luận)..."
+                        className="w-full min-h-52 p-4 rounded-xl border border-gray-200 dark:border-gray-800 bg-white/50 dark:bg-gray-950/50 text-sm text-gray-800 dark:text-gray-100 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all leading-relaxed"
+                        placeholder="Nhập câu trả lời tự luận của bạn tại đây (hoặc để trống nếu đã đính kèm ảnh chụp vở viết tay ở trên)..."
                         value={studentAnswerText}
                         onChange={(e) => setStudentAnswerText(e.target.value)}
                         onPaste={(e) => {
                           e.preventDefault();
-                          alert('Không cho phép dán (paste) câu trả lời! Vui lòng tự gõ bài làm.');
+                          alert('Không cho phép dán (paste) câu trả lời! Vui lòng tự gõ bài làm hoặc chụp ảnh vở viết tay.');
                         }}
                       />
                     </div>
                     
                     <div className="flex justify-between items-center text-xs text-gray-400 font-medium">
-                      <span>Độ dài: <span className="font-bold text-purple-600 dark:text-purple-400">{wordCount}</span> từ | Ký tự: <span className="font-bold">{studentAnswerText.length}</span></span>
-                      <span>Yêu cầu tối thiểu: 10 từ</span>
+                      <span>Độ dài văn bản gõ: <span className="font-bold text-purple-600 dark:text-purple-400">{wordCount}</span> từ | Ký tự: <span className="font-bold">{studentAnswerText.length}</span></span>
+                      <span>{handwritingImage ? '📸 Đã có ảnh viết tay' : 'Yêu cầu tối thiểu: 10 từ'}</span>
                     </div>
 
                     {studentErrorMsg && (
@@ -367,7 +447,7 @@ export default function EssayPanel({
                         onClick={handleStudentSubmit}
                         className="h-10 px-6 rounded-xl bg-linear-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white shadow-md shadow-purple-500/20 font-semibold flex items-center gap-2"
                       >
-                        <Send className="w-4 h-4" /> Nộp bài tự luận
+                        <Send className="w-4 h-4" /> Nộp bài & Chấm điểm AI
                       </Button>
                     </div>
                   </>
@@ -396,14 +476,24 @@ export default function EssayPanel({
           <h3 className="font-semibold text-base text-gray-800 dark:text-gray-200">
             📝 Đề thi tự luận & Thang điểm gợi ý
           </h3>
-          <Button 
-            onClick={() => onGenerate({ subject, gradeLevel, lessonTopic, examTime })} 
-            variant="outline" 
-            size="sm" 
-            className="rounded-lg text-xs h-8 border-purple-200 dark:border-purple-800 hover:bg-purple-50 dark:hover:bg-purple-950 text-purple-600 dark:text-purple-400"
-          >
-            🔄 Tạo lại đề mới
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              onClick={() => window.print()}
+              variant="outline"
+              size="sm"
+              className="rounded-lg text-xs h-8 border-gray-200 dark:border-gray-700 gap-1 font-bold"
+            >
+              <Printer className="w-3.5 h-3.5" /> In Đề A4
+            </Button>
+            <Button 
+              onClick={() => onGenerate({ subject, gradeLevel, lessonTopic, examTime })} 
+              variant="outline" 
+              size="sm" 
+              className="rounded-lg text-xs h-8 border-purple-200 dark:border-purple-800 hover:bg-purple-50 dark:hover:bg-purple-950 text-purple-600 dark:text-purple-400"
+            >
+              🔄 Tạo lại đề mới
+            </Button>
+          </div>
         </div>
         <div className="prose prose-sm dark:prose-invert max-w-none
           prose-headings:text-gray-800 dark:prose-headings:text-gray-100
@@ -505,4 +595,3 @@ export default function EssayPanel({
     </div>
   );
 }
-

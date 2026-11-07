@@ -1,16 +1,32 @@
 // app/api/quiz/route.ts
-// API tạo trắc nghiệm từ tài liệu
+// API tạo trắc nghiệm từ tài liệu (hỗ trợ Ma trận độ khó 4 mức độ, Luyện lại câu sai Adaptive Drill & Chọn Model AI)
 
 import { NextRequest, NextResponse } from 'next/server';
 import { callGemini } from '@/lib/gemini';
-import { createQuizPrompt } from '@/lib/prompts';
-import { QuizQuestion } from '@/types';
+import { createQuizPrompt, createAdaptiveDrillPrompt } from '@/lib/prompts';
+import { QuizQuestion, AIModelTier } from '@/types';
+import { checkAndConsumeAiQuota } from '@/lib/quota';
 
 export async function POST(request: NextRequest) {
   try {
-    const { pdfText, questionCount = 5, role = 'student' } = await request.json();
+    const {
+      pdfText,
+      questionCount = 5,
+      role = 'student',
+      difficultyMatrix = 'standard',
+      wrongQuestionsSummary,
+      modelTier,
+    } = await request.json();
 
-    // Kiểm tra input
+    const requestedTier: AIModelTier = ['flash', 'pro', 'ultra'].includes(modelTier) ? modelTier : 'flash';
+    const quota = await checkAndConsumeAiQuota(request, requestedTier, 15);
+    if (!quota.allowed) {
+      return NextResponse.json(
+        { error: quota.error, upgradeRequired: quota.upgradeRequired },
+        { status: 403 }
+      );
+    }
+
     if (!pdfText || pdfText.trim().length === 0) {
       return NextResponse.json(
         { error: 'Chưa có tài liệu. Vui lòng upload PDF trước.' },
@@ -18,31 +34,38 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Cắt bớt text nếu quá dài
     const truncatedText = pdfText.substring(0, 30000);
-    const count = Math.min(19, Math.max(1, questionCount));
+    const count = Math.min(20, Math.max(1, questionCount));
 
-    // Tạo prompt và gọi Gemini
-    let prompt = createQuizPrompt(truncatedText, count);
-    if (role === 'student') {
-      prompt += '\n\nLƯU Ý QUAN TRỌNG: Các câu hỏi hướng đến mục tiêu giúp HỌC SINH tự ôn tập và kiểm tra kiến thức cá nhân. Cần viết lời giải thích dễ hiểu, gần gũi.';
+    let prompt = '';
+    if (wrongQuestionsSummary && String(wrongQuestionsSummary).trim().length > 0) {
+      prompt = createAdaptiveDrillPrompt(truncatedText, String(wrongQuestionsSummary), count);
     } else {
-      prompt += '\n\nLƯU Ý QUAN TRỌNG: Các câu hỏi hướng đến mục tiêu giúp GIÁO VIÊN làm bài kiểm tra hoặc đánh giá lớp học. Cần có độ phân hóa tốt, tính học thuật cao.';
+      prompt = createQuizPrompt(truncatedText, count);
+      if (difficultyMatrix === 'basic') {
+        prompt += '\n\nMA TRẬN ĐỘ KHÓ: Tập trung 70% Nhận biết, 30% Thông hiểu. Câu hỏi rõ ràng, giúp học sinh nắm chắc kiến thức nền tảng.';
+      } else if (difficultyMatrix === 'advanced') {
+        prompt += '\n\nMA TRẬN ĐỘ KHÓ NÂNG CAO (CHUẨN THI THPT QUỐC GIA / HỌC SINH GIỎI): Phân bổ 20% Thông hiểu, 50% Vận dụng và 30% Vận dụng cao. Các phương án nhiễu phải có tính phân loại cao.';
+      } else {
+        prompt += '\n\nMA TRẬN ĐỘ KHÓ CHUẨN BỘ GD&ĐT: Phân bổ 40% Nhận biết, 30% Thông hiểu, 20% Vận dụng, 10% Vận dụng cao.';
+      }
+
+      if (role === 'student') {
+        prompt += '\nLƯU Ý: Giải thích đáp án dễ hiểu, gần gũi để học sinh tự học.';
+      } else {
+        prompt += '\nLƯU Ý: Câu hỏi chuẩn mực sư phạm để giáo viên dùng làm đề kiểm tra chính thức.';
+      }
     }
 
-    const response = await callGemini(prompt, 'quiz', true); // Bật JSON Mode
+    const response = await callGemini(prompt, 'quiz', true, quota.effectiveModelTier);
 
-    // Parse JSON từ response
     let jsonString = response.trim();
-
-    // Loại bỏ markdown code block nếu có
     if (jsonString.startsWith('```json')) {
       jsonString = jsonString.replace(/^```json\n?/, '').replace(/\n?```$/, '');
     } else if (jsonString.startsWith('```')) {
       jsonString = jsonString.replace(/^```\n?/, '').replace(/\n?```$/, '');
     }
 
-    // Trích xuất phần JSON thực tế nằm trong cặp ngoặc { ... } hoặc [ ... ] đề phòng AI sinh text thừa
     const firstBrace = jsonString.indexOf('{');
     const lastBrace = jsonString.lastIndexOf('}');
     if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
@@ -59,12 +82,16 @@ export async function POST(request: NextRequest) {
 
     const questions: QuizQuestion[] = parsedData.questions || parsedData;
 
-    // Validate format
     if (!Array.isArray(questions) || questions.length === 0) {
       throw new Error('Format JSON không hợp lệ');
     }
 
-    return NextResponse.json({ questions });
+    return NextResponse.json({
+      questions,
+      modelUsed: quota.effectiveModelTier,
+      quotaUsed: quota.quotaUsed,
+      quotaLimit: quota.quotaLimit,
+    });
   } catch (error) {
     console.error('[Gemini API] Lỗi khi gọi Gemini Quiz:', error);
     return NextResponse.json(

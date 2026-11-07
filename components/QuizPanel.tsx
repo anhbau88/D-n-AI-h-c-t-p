@@ -1,5 +1,5 @@
 // components/QuizPanel.tsx
-// Hiển thị câu hỏi trắc nghiệm với nút xem đáp án, tích hợp Form giao bài trắc nghiệm dành cho Giáo viên
+// Hiển thị câu hỏi trắc nghiệm nâng cấp: Hỗ trợ Luyện Tập Khắc Phục Câu Sai 1-Click (Adaptive Weakness Drill), In Đề A4 & Giao Bài Lớp Học
 
 'use client';
 
@@ -9,19 +9,20 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { QuizQuestion } from '@/types';
-import { BookOpen } from 'lucide-react';
+import { BookOpen, Target, Printer, RefreshCw } from 'lucide-react';
 import QuizSkeleton from '@/components/ui/QuizSkeleton';
 
 interface QuizPanelProps {
   questions: QuizQuestion[];
   isLoading: boolean;
-  userRole?: 'teacher' | 'student';
+  userRole?: 'teacher' | 'student' | 'admin';
   hasSubmitted?: boolean;
   onScoreSubmit?: (score: number, scale10Score: string, studentAnswers?: Record<number, string>, takenQuestions?: QuizQuestion[]) => void;
   previousScoreInfo?: { score: number, scale10Score: string };
   onAssignQuiz?: (title: string, targetRoom: string, startTime: string, endTime: string) => Promise<void>;
   availableRooms?: Array<{ code: string; name: string }>;
   previousAnswers?: Record<number, string>;
+  onAdaptiveDrill?: (wrongQuestionsSummary: string) => Promise<void>;
 }
 
 const letters = ['A', 'B', 'C', 'D'];
@@ -71,16 +72,16 @@ export default function QuizPanel({
   previousScoreInfo,
   onAssignQuiz,
   availableRooms = [],
-  previousAnswers
+  previousAnswers,
+  onAdaptiveDrill
 }: QuizPanelProps) {
-  // State lưu câu hỏi nào đang hiện đáp án (Giáo viên có thể toggle từng câu, học sinh thì hiện tất cả khi nộp bài)
   const [revealedAnswers, setRevealedAnswers] = useState<Set<number>>(() => {
     if (hasSubmitted) {
       return new Set(questions.map((_, i) => i));
     }
     return new Set();
   });
-  // State lưu đáp án người dùng đã chọn
+
   const [selectedAnswers, setSelectedAnswers] = useState<Map<number, string>>(() => {
     const answersMap = new Map<number, string>();
     if (hasSubmitted && previousAnswers) {
@@ -90,10 +91,10 @@ export default function QuizPanel({
     }
     return answersMap;
   });
-  // Học sinh đã nộp bài chưa? (Local state, or initial from props)
-  const [isSubmitted, setIsSubmitted] = useState(hasSubmitted);
 
-  // Form states cho giáo viên giao bài trắc nghiệm
+  const [isSubmitted, setIsSubmitted] = useState(hasSubmitted);
+  const [isDrilling, setIsDrilling] = useState(false);
+
   const [assignTitle, setAssignTitle] = useState('');
   const [targetRoom, setTargetRoom] = useState(() => {
     if (availableRooms.length > 0) return availableRooms[0].code;
@@ -104,7 +105,7 @@ export default function QuizPanel({
   const [isAssigning, setIsAssigning] = useState(false);
   const [formError, setFormError] = useState('');
 
-  const isTeacher = userRole === 'teacher';
+  const isTeacher = userRole === 'teacher' || userRole === 'admin';
 
   const [shuffledQuestions, setShuffledQuestions] = useState<QuizQuestion[]>(() => {
     if (questions.length === 0) return [];
@@ -114,7 +115,6 @@ export default function QuizPanel({
     return shuffleQuestionsAndOptions(questions);
   });
 
-  // Track props for rendering-time updates to avoid useEffect setState cascading renders
   const [prevQuestions, setPrevQuestions] = useState(questions);
   const [prevHasSubmitted, setPrevHasSubmitted] = useState(hasSubmitted);
   const [prevPreviousAnswers, setPrevPreviousAnswers] = useState(previousAnswers);
@@ -156,7 +156,6 @@ export default function QuizPanel({
     handleSubmitQuizRef.current = handleSubmitQuiz;
   });
 
-  // Tự động nộp bài trắc nghiệm khi học sinh rời khỏi tab thi
   useEffect(() => {
     if (isTeacher || isSubmitted || questions.length === 0) return;
 
@@ -177,8 +176,6 @@ export default function QuizPanel({
     };
   }, [isTeacher, isSubmitted, questions]);
 
-
-  // Toggle hiện/ẩn đáp án cho câu hỏi thứ index (Dành cho GV)
   const toggleAnswer = (index: number) => {
     setRevealedAnswers(prev => {
       const newSet = new Set(prev);
@@ -191,14 +188,11 @@ export default function QuizPanel({
     });
   };
 
-  // Nộp bài (Dành cho HS)
   function handleSubmitQuiz() {
     setIsSubmitted(true);
-    // Hiện toàn bộ đáp án
     const all = new Set(shuffledQuestions.map((_, i) => i));
     setRevealedAnswers(all);
     
-    // Gọi callback để lưu điểm
     if (onScoreSubmit) {
       const scoreCount = shuffledQuestions.reduce((acc, q, idx) => {
         if (selectedAnswers.get(idx) === q.answer) return acc + 1;
@@ -215,10 +209,9 @@ export default function QuizPanel({
     }
   }
 
-  // Chọn đáp án
   const selectAnswer = (questionIndex: number, answer: string) => {
-    if (isTeacher) return; // GV không cần chọn đáp án để làm bài
-    if (isSubmitted) return; // Nộp rồi thì không đổi được
+    if (isTeacher) return;
+    if (isSubmitted) return;
     
     setSelectedAnswers(prev => {
       const newMap = new Map(prev);
@@ -227,13 +220,11 @@ export default function QuizPanel({
     });
   };
 
-  // Lấy chữ cái đáp án từ option (VD: "A. Đáp án" -> "A", hoặc dùng index làm phương án dự phòng)
   const getOptionLetter = (option: string, index: number) => {
     const match = option.trim().match(/^([A-D])\s*\.?\s*/i);
     return match ? match[1].toUpperCase() : ['A', 'B', 'C', 'D'][index];
   };
 
-  // Xử lý nộp form giao bài trắc nghiệm
   const handleAssignClick = async () => {
     setFormError('');
     if (!assignTitle.trim()) {
@@ -253,7 +244,6 @@ export default function QuizPanel({
       setIsAssigning(true);
       try {
         await onAssignQuiz(assignTitle.trim(), targetRoom, assignStart, assignEnd);
-        // Reset form
         setAssignTitle('');
         setAssignStart('');
         setAssignEnd('');
@@ -265,24 +255,41 @@ export default function QuizPanel({
     }
   };
 
-  // Tính điểm
+  // Xử lý Luyện lại các câu vừa làm sai (1-Click Adaptive Weakness Drill)
+  const handleTriggerAdaptiveDrill = async () => {
+    if (!onAdaptiveDrill) return;
+    const wrongQuestions = shuffledQuestions.filter((q, idx) => selectedAnswers.get(idx) !== q.answer);
+    if (wrongQuestions.length === 0) return;
+
+    const summaryStr = wrongQuestions
+      .map((q, i) => `Câu sai ${i + 1}: "${q.question}" | Đáp án đúng là: ${q.answer} (${q.explanation})`)
+      .join('\n');
+
+    setIsDrilling(true);
+    try {
+      await onAdaptiveDrill(summaryStr);
+      setIsSubmitted(false);
+      setSelectedAnswers(new Map());
+      setRevealedAnswers(new Set());
+    } finally {
+      setIsDrilling(false);
+    }
+  };
+
   const currentScore = shuffledQuestions.reduce((acc, q, idx) => {
     if (selectedAnswers.get(idx) === q.answer) return acc + 1;
     return acc;
   }, 0);
 
   const currentScale10Score = shuffledQuestions.length > 0 ? ((currentScore / shuffledQuestions.length) * 10).toFixed(1) : "0.0";
-
-  // Hiển thị điểm (dùng previousScoreInfo nếu có sẵn (đã nộp từ trước), hoặc tính toán mới)
   const displayScore = hasSubmitted && previousScoreInfo ? previousScoreInfo.score : currentScore;
   const displayScale10 = hasSubmitted && previousScoreInfo ? previousScoreInfo.scale10Score : currentScale10Score;
+  const wrongCount = shuffledQuestions.length - displayScore;
 
-  // Trạng thái đang tải
-  if (isLoading) {
+  if (isLoading || isDrilling) {
     return <QuizSkeleton />;
   }
 
-  // Trạng thái trống
   if (shuffledQuestions.length === 0) {
     return (
       <Card className="p-6 border-0 shadow-lg bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm h-125 lg:h-160 xl:h-185 flex flex-col items-center justify-center">
@@ -301,17 +308,44 @@ export default function QuizPanel({
 
   return (
     <div className="space-y-6 h-125 lg:h-160 xl:h-185 overflow-y-auto pr-2">
-      {/* Header trạng thái */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300">
-          📝 {shuffledQuestions.length} câu hỏi trắc nghiệm
-        </Badge>
-        
-        {isSubmitted && (
-          <Badge variant="default" className="bg-blue-500 hover:bg-blue-600 text-white shadow-md px-3 py-1">
-            Điểm số: {displayScale10}/10 ({displayScore}/{shuffledQuestions.length} câu)
+      {/* Header trạng thái & Công cụ */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300">
+            📝 {shuffledQuestions.length} câu hỏi trắc nghiệm
           </Badge>
-        )}
+          {isTeacher && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => window.print()}
+              className="h-7 px-2.5 rounded-lg text-[11px] font-bold gap-1"
+            >
+              <Printer className="w-3 h-3" /> In Đề A4
+            </Button>
+          )}
+        </div>
+        
+        <div className="flex flex-wrap items-center gap-2">
+          {isSubmitted && (
+            <Badge variant="default" className="bg-blue-500 hover:bg-blue-600 text-white shadow-md px-3 py-1">
+              Điểm số: {displayScale10}/10 ({displayScore}/{shuffledQuestions.length} câu)
+            </Badge>
+          )}
+
+          {isSubmitted && wrongCount > 0 && onAdaptiveDrill && (
+            <Button
+              type="button"
+              size="sm"
+              onClick={handleTriggerAdaptiveDrill}
+              className="h-8 px-3.5 rounded-xl bg-linear-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white text-xs font-bold shadow-md shadow-amber-500/20 flex items-center gap-1.5"
+            >
+              <Target className="w-3.5 h-3.5" />
+              Luyện khắc phục {wrongCount} câu vừa sai (AI Adaptive)
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Danh sách câu hỏi */}
@@ -331,7 +365,6 @@ export default function QuizPanel({
 
           return (
             <Card key={index} className="p-5 border-0 shadow-lg bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm transition-all hover:shadow-xl">
-              {/* Câu hỏi */}
               <div className="flex items-start gap-3 mb-4">
                 <span className="shrink-0 w-8 h-8 bg-linear-to-br from-blue-500 to-purple-600 text-white rounded-lg flex items-center justify-center text-sm font-bold shadow-md">
                   {index + 1}
@@ -341,7 +374,6 @@ export default function QuizPanel({
                 </h3>
               </div>
 
-              {/* Danh sách đáp án */}
               <div className="space-y-2 mb-4 ml-11">
                 {q.options.map((option, optIndex) => {
                   const letter = getOptionLetter(option, optIndex);
@@ -388,7 +420,6 @@ export default function QuizPanel({
                 })}
               </div>
 
-              {/* Các nút chức năng & Giải thích */}
               <div className="ml-11">
                 {isTeacher && (
                   <Button
@@ -401,7 +432,6 @@ export default function QuizPanel({
                   </Button>
                 )}
 
-                {/* Giải thích */}
                 {isRevealed && (
                   <div className="mt-3 p-3 bg-blue-50/80 dark:bg-blue-950/30 rounded-xl border border-blue-200/50 dark:border-blue-800/50 animate-in fade-in slide-in-from-top-2 duration-300">
                     <p className="text-sm font-medium text-blue-700 dark:text-blue-300">
@@ -430,7 +460,7 @@ export default function QuizPanel({
         </div>
       )}
 
-      {/* Form Giao bài trắc nghiệm (Chỉ cho Giáo viên khi có câu hỏi đã tạo xong) */}
+      {/* Form Giao bài trắc nghiệm (Chỉ cho Giáo viên) */}
       {isTeacher && onAssignQuiz && (
         availableRooms.length > 0 ? (
           <Card className="p-6 border border-emerald-200 dark:border-emerald-900 shadow-lg bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm animate-fade-in-up">

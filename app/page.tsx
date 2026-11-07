@@ -29,7 +29,15 @@ import {
   Search,
   Plus,
   MessageSquare,
-  Lock
+  Lock,
+  Crown,
+  Zap,
+  Brain,
+  Flame,
+  Star,
+  Shield,
+  Download,
+  KeyRound
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { useCompletion } from 'ai/react';
@@ -47,12 +55,16 @@ const SummaryPanel = dynamic(() => import('@/components/SummaryPanel'), { ssr: f
 const ChatBox = dynamic(() => import('@/components/ChatBox'), { ssr: false });
 const QuizPanel = dynamic(() => import('@/components/QuizPanel'), { ssr: false });
 const EssayPanel = dynamic(() => import('@/components/EssayPanel'), { ssr: false });
+const FlashcardPanel = dynamic(() => import('@/components/FlashcardPanel'), { ssr: false });
+const UpgradeModal = dynamic(() => import('@/components/UpgradeModal'), { ssr: false });
+const AdminPortal = dynamic(() => import('@/components/AdminPortal'), { ssr: false });
 const DocumentLibrary = dynamic(() => import('@/components/DocumentLibrary'), { ssr: false });
 const UserManagement = dynamic(() => import('@/components/UserManagement'), { ssr: false });
 const TeacherClassManagement = dynamic(() => import('@/components/TeacherClassManagement'), { ssr: false });
 
 
-import { FileInfo, QuizQuestion, User, Assignment, QuizHistoryItem, DocumentItem, ChatMessage } from '@/types';
+import { FileInfo, QuizQuestion, User, Assignment, QuizHistoryItem, DocumentItem, ChatMessage, AIModelTier } from '@/types';
+import { FlashcardItem } from '@/types/document';
 
 // Bilingual Dictionary
 const TRANSLATIONS = {
@@ -286,7 +298,17 @@ export default function Home() {
   const [summary, setSummary] = useState('');
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
   const [essay, setEssay] = useState('');
+  const [flashcards, setFlashcards] = useState<FlashcardItem[]>([]);
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
+
+  // Commercial SaaS & AI Model Tier States
+  const [modelTier, setModelTier] = useState<AIModelTier>('flash');
+  const [quizDifficulty, setQuizDifficulty] = useState<'basic' | 'standard' | 'advanced'>('standard');
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [leaderboardUsers, setLeaderboardUsers] = useState<User[]>([]);
+  const [overrideScoreInput, setOverrideScoreInput] = useState('');
+  const [overrideCommentInput, setOverrideCommentInput] = useState('');
+  const [isSavingOverride, setIsSavingOverride] = useState(false);
 
   // Assignments & History
   const [questionCount, setQuestionCount] = useState<number>(5);
@@ -294,7 +316,7 @@ export default function Home() {
   const [quizHistory, setQuizHistory] = useState<QuizHistoryItem[]>([]);
 
   // Redesign Navigation States
-  const [sidebarTab, setSidebarTab] = useState<'dashboard' | 'upload' | 'library' | 'settings' | 'chat' | 'class-management'>('dashboard');
+  const [sidebarTab, setSidebarTab] = useState<'dashboard' | 'upload' | 'library' | 'settings' | 'chat' | 'class-management' | 'admin'>('dashboard');
   const [sidebarSearchQuery, setSidebarSearchQuery] = useState('');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -414,7 +436,8 @@ export default function Home() {
   const [showUserManagement, setShowUserManagement] = useState(false);
 
   // Role helper
-  const isTeacher = user?.role === 'teacher';
+  const isTeacher = user?.role === 'teacher' || user?.role === 'admin';
+  const isSuperAdmin = user ? ['admin', 'tung1', 'anhbau88'].includes(user.username.toLowerCase()) || user.role === 'admin' : false;
 
   // Mouse move blurs effect
   useEffect(() => {
@@ -445,6 +468,7 @@ export default function Home() {
       setSummary(doc.summary || '');
       setQuestions(doc.quiz || []);
       setEssay(doc.essay || '');
+      setFlashcards(doc.flashcards || []);
       
       // Load user isolated document chat history instead of public doc chat history
       const savedDocChat = localStorage.getItem(`docChatHistory_${user?.username}_${doc.id}`);
@@ -460,6 +484,7 @@ export default function Home() {
       setSummary('');
       setQuestions([]);
       setEssay('');
+      setFlashcards([]);
       setChatHistory([]);
     }
   }, [user, setActiveTab]);
@@ -506,6 +531,38 @@ export default function Home() {
     }
   }, []);
 
+  // Sync user subscription plan, expiration, XP, streak & modelTier
+  const syncUserSessionFromServer = useCallback(async (usernameToSync: string) => {
+    try {
+      const res = await fetch(`/api/auth/me?username=${encodeURIComponent(usernameToSync)}`, { cache: 'no-store' });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.user) {
+          setUser(data.user);
+          localStorage.setItem('user', JSON.stringify(data.user));
+          if (data.user.preferredModel) {
+            setModelTier(data.user.preferredModel);
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Lỗi đồng bộ gói tài khoản:', err);
+    }
+  }, []);
+
+  // Fetch leaderboard users
+  const fetchLeaderboardUsers = useCallback(async () => {
+    try {
+      const res = await fetch('/api/users', { cache: 'no-store' });
+      if (res.ok) {
+        const data = (await res.json()) as User[];
+        setLeaderboardUsers(data);
+      }
+    } catch (err) {
+      console.error('Lỗi tải bảng xếp hạng học sinh:', err);
+    }
+  }, []);
+
   // Restore session & settings
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -545,18 +602,22 @@ export default function Home() {
       try {
         const parsedUser = JSON.parse(savedUser) as User;
         setUser(parsedUser);
+        if (parsedUser.preferredModel) {
+          setModelTier(parsedUser.preferredModel);
+        }
         if (parsedUser.room) {
           const rooms = parsedUser.room.split(',').map(r => r.trim()).filter(Boolean);
           if (rooms.length > 0) setDashboardClass(rooms[0]);
         }
         loadLibraryDocuments();
+        syncUserSessionFromServer(parsedUser.username);
       } catch { }
     }
-  }, [loadLibraryDocuments]);
+  }, [loadLibraryDocuments, syncUserSessionFromServer]);
 
   // Cập nhật lớp học mặc định khi danh sách lớp thay đổi hoặc giáo viên đăng nhập
   useEffect(() => {
-    if (user && user.role === 'teacher') {
+    if (user && (user.role === 'teacher' || user.role === 'admin')) {
       const myClasses = classList.filter(c => c.teacherUsername === user.username);
       if (myClasses.length > 0) {
         if (!dashboardClass || !myClasses.some(c => c.code === dashboardClass)) {
@@ -581,7 +642,7 @@ export default function Home() {
       let url = '/api/history';
       if (user.role === 'student') {
         url += `?username=${encodeURIComponent(user.username)}`;
-      } else if (user.role === 'teacher' && dashboardClass) {
+      } else if ((user.role === 'teacher' || user.role === 'admin') && dashboardClass) {
         url += `?roomId=${encodeURIComponent(dashboardClass)}`;
       }
       
@@ -615,7 +676,8 @@ export default function Home() {
     fetchAssignments();
     fetchHistory();
     loadLibraryDocuments();
-  }, [user, fetchAssignments, fetchHistory, loadLibraryDocuments]);
+    fetchLeaderboardUsers();
+  }, [user, fetchAssignments, fetchHistory, loadLibraryDocuments, fetchLeaderboardUsers]);
 
   // Tự động tải lại lịch sử điểm số khi giáo viên chuyển lớp quản lý
   useEffect(() => {
@@ -734,7 +796,9 @@ export default function Home() {
     Promise.all([
       fetchAssignments(),
       fetchHistory(),
-      loadLibraryDocuments()
+      loadLibraryDocuments(),
+      fetchLeaderboardUsers(),
+      syncUserSessionFromServer(user.username)
     ]).finally(() => {
       setLoadingType(null);
       showMessage(t.syncDone, false);
@@ -743,6 +807,9 @@ export default function Home() {
 
   const handleLogin = (newUser: User) => {
     setUser(newUser);
+    if (newUser.preferredModel) {
+      setModelTier(newUser.preferredModel);
+    }
     if (newUser.room) {
       const rooms = newUser.room.split(',').map(r => r.trim()).filter(Boolean);
       if (rooms.length > 0) setDashboardClass(rooms[0]);
@@ -753,11 +820,102 @@ export default function Home() {
     setSidebarTab('dashboard');
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } catch { }
     setUser(null);
     localStorage.removeItem('user');
     syncWorkspaceWithDoc(null);
     setLibraryDocs([]);
+  };
+
+  const handleModelTierChange = async (nextTier: AIModelTier) => {
+    if (!user) return;
+    const activePlan = user.plan || 'free';
+    if (nextTier === 'pro' && activePlan === 'free') {
+      setShowUpgradeModal(true);
+      showMessage('Nâng cấp gói PRO hoặc nhập Mã Code để mở khóa mô hình AI Pro 2.5 Reasoning!', false);
+      return;
+    }
+    if (nextTier === 'ultra' && activePlan !== 'vip') {
+      setShowUpgradeModal(true);
+      showMessage('Nâng cấp gói VIP hoặc nhập Mã Code để mở khóa mô hình AI Ultra Academic!', false);
+      return;
+    }
+    setModelTier(nextTier);
+    try {
+      await fetch('/api/auth/me', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: user.username, preferredModel: nextTier })
+      });
+    } catch { }
+  };
+
+  const handleExportExcelGradebook = async (examTitle: string, submissions: QuizHistoryItem[]) => {
+    try {
+      const XLSX = await import('xlsx');
+      const rows = submissions.map((s, idx) => {
+        const num = parseFloat(s.scale10Score);
+        const rank = num >= 8.0 ? 'Giỏi' : num >= 6.5 ? 'Khá' : num >= 5.0 ? 'Đạt' : num >= 3.0 ? 'Thi lại' : 'Học lại';
+        return {
+          'STT': idx + 1,
+          'Họ và tên': s.fullName || s.username,
+          'Tài khoản': s.username,
+          'Lớp': s.roomId,
+          'Đề kiểm tra': examTitle,
+          'Hình thức': s.type === 'essay' ? 'Tự luận' : 'Trắc nghiệm',
+          'Điểm hệ 10': Number(s.scale10Score),
+          'Số câu đúng': s.type === 'quiz' ? `${s.score}/${s.totalQuestions}` : 'Tự luận AI',
+          'Xếp loại': rank,
+          'Nhận xét GV': s.teacherComment || '',
+          'Thời gian nộp': new Date(s.submittedAt).toLocaleString('vi-VN')
+        };
+      });
+      const ws = XLSX.utils.json_to_sheet(rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'BangDiem');
+      const safeName = examTitle.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 30);
+      XLSX.writeFile(wb, `Bang_Diem_${dashboardClass || 'Lop'}_${safeName}.xlsx`);
+      showMessage('Đã xuất file Excel bảng điểm (.xlsx) thành công!', false);
+    } catch (err) {
+      console.error('Lỗi xuất Excel:', err);
+      showMessage('Không thể xuất file Excel.');
+    }
+  };
+
+  const handleTeacherOverrideGrade = async (submission: QuizHistoryItem) => {
+    if (!user || !isTeacher) return;
+    setIsSavingOverride(true);
+    try {
+      const res = await fetch('/api/history', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          assignmentId: submission.assignmentId,
+          username: submission.username,
+          submittedAt: submission.submittedAt,
+          newScale10Score: overrideScoreInput || submission.scale10Score,
+          teacherComment: overrideCommentInput
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Lỗi cập nhật điểm');
+      setQuizHistory(data.history || []);
+      localStorage.setItem('quizHistory', JSON.stringify(data.history || []));
+      if (selectedEssaySubmission && selectedEssaySubmission.submittedAt === submission.submittedAt) {
+        setSelectedEssaySubmission(data.updatedItem);
+      }
+      if (selectedQuizSubmission && selectedQuizSubmission.submittedAt === submission.submittedAt) {
+        setSelectedQuizSubmission(data.updatedItem);
+      }
+      showMessage('Đã lưu điểm phúc khảo & lời phê của Giáo viên!', false);
+    } catch (err) {
+      showMessage(err instanceof Error ? err.message : 'Lỗi cập nhật điểm');
+    } finally {
+      setIsSavingOverride(false);
+    }
   };
 
   const handleChangePassword = async (e: React.FormEvent) => {
@@ -847,6 +1005,7 @@ export default function Home() {
         setQuizHistory(newHistory);
         localStorage.setItem('quizHistory', JSON.stringify(newHistory));
       }
+      syncUserSessionFromServer(user.username);
     } catch (err) {
       console.error('Lỗi nộp điểm lên server:', err);
       const newHistory = [...quizHistory, newItem];
@@ -856,10 +1015,10 @@ export default function Home() {
 
     syncWorkspaceWithDoc(null);
     setSidebarTab('dashboard');
-    showMessage(language === 'vi' ? `Đã nộp bài! Điểm của bạn là ${scale10Score}/10` : `Exam submitted! Your score is ${scale10Score}/10`, false);
+    showMessage(language === 'vi' ? `Đã nộp bài! Điểm của bạn là ${scale10Score}/10 (+XP)` : `Exam submitted! Your score is ${scale10Score}/10`, false);
   };
 
-  const handleEssaySubmit = async (studentAnswer: string) => {
+  const handleEssaySubmit = async (studentAnswer: string, handwritingImageBase64?: string) => {
     if (!user || !activeAssignment) return;
 
     setLoadingType('grading-essay');
@@ -870,11 +1029,19 @@ export default function Home() {
         body: JSON.stringify({
           essayQuestion: activeAssignment.essay,
           studentAnswer,
-          pdfText: activeAssignment.pdfText
+          pdfText: activeAssignment.pdfText,
+          handwritingImageBase64,
+          modelTier,
+          username: user.username
         })
       });
       const dataGrade = await resGrade.json();
-      if (!resGrade.ok) throw new Error(dataGrade.error || 'Lỗi chấm bài tự động');
+      if (!resGrade.ok) {
+        if (dataGrade.code === 'QUOTA_EXCEEDED' || dataGrade.code === 'MODEL_LOCKED') {
+          setShowUpgradeModal(true);
+        }
+        throw new Error(dataGrade.error || 'Lỗi chấm bài tự động');
+      }
 
       const { score, feedback } = dataGrade;
 
@@ -909,9 +1076,10 @@ export default function Home() {
         setQuizHistory(newHistory);
         localStorage.setItem('quizHistory', JSON.stringify(newHistory));
       }
+      syncUserSessionFromServer(user.username);
       syncWorkspaceWithDoc(null);
       setSidebarTab('dashboard');
-      showMessage(language === 'vi' ? `Đã nộp bài tự luận! AI chấm bài làm của bạn là ${score.toFixed(1)}/10` : `Essay submitted! AI graded your response: ${score.toFixed(1)}/10`, false);
+      showMessage(language === 'vi' ? `Đã nộp bài tự luận! AI chấm bài làm của bạn là ${score.toFixed(1)}/10 (+XP)` : `Essay submitted! AI graded your response: ${score.toFixed(1)}/10`, false);
     } catch (err) {
       console.error('Lỗi khi nộp & chấm bài tự luận:', err);
       showMessage(err instanceof Error ? err.message : 'Lỗi chấm bài tự luận');
@@ -1081,6 +1249,7 @@ export default function Home() {
       pdfUrl: info.pdfUrl,
       textContent: text,
       ownerType: user.role,
+      ownerUsername: user.username,
       status: 'processed'
     };
 
@@ -1189,9 +1358,41 @@ export default function Home() {
         pdfText,
         role: user?.role,
         fileName: activeDoc?.fileName,
-        fileType: 'PDF'
+        fileType: 'PDF',
+        modelTier,
+        username: user?.username
       }
     });
+  };
+
+  const handleGenerateFlashcards = async (forceRegenerate = false) => {
+    if (!pdfText || !activeDoc) return showMessage('Vui lòng mở hoặc tải lên tài liệu trước.');
+    if (activeDoc.flashcards && activeDoc.flashcards.length > 0 && !forceRegenerate) {
+      setFlashcards(activeDoc.flashcards);
+      return;
+    }
+    setLoadingType('flashcards');
+    setActiveTab('flashcards');
+    try {
+      const res = await fetch('/api/flashcards', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pdfText, count: 10, modelTier, username: user?.username })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        if (data.code === 'QUOTA_EXCEEDED' || data.code === 'MODEL_LOCKED') setShowUpgradeModal(true);
+        throw new Error(data.error || 'Lỗi tạo Flashcards');
+      }
+      await updateDocumentOnServer(activeDoc.id, { flashcards: data.flashcards });
+      setFlashcards(data.flashcards || []);
+      if (user) syncUserSessionFromServer(user.username);
+      showMessage('Đã tạo bộ Thẻ ghi nhớ 3D Flashcards thành công!', false);
+    } catch (err) {
+      showMessage(err instanceof Error ? err.message : 'Lỗi tạo Flashcards');
+    } finally {
+      setLoadingType(null);
+    }
   };
 
   const handleGenerateQuiz = async (forceRegenerate = false) => {
@@ -1209,17 +1410,64 @@ export default function Home() {
       const res = await fetch('/api/quiz', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pdfText, questionCount, role: user?.role }),
+        body: JSON.stringify({
+          pdfText,
+          questionCount,
+          role: user?.role,
+          difficultyMatrix: quizDifficulty,
+          modelTier,
+          username: user?.username
+        }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
+      if (!res.ok) {
+        if (data.code === 'QUOTA_EXCEEDED' || data.code === 'MODEL_LOCKED') setShowUpgradeModal(true);
+        throw new Error(data.error);
+      }
 
       await updateDocumentOnServer(activeDoc.id, { quiz: data.questions });
       setQuestions(data.questions);
+      if (user) syncUserSessionFromServer(user.username);
 
       showMessage(language === 'vi' ? 'Tạo câu hỏi trắc nghiệm ôn tập thành công!' : 'Quiz generated successfully!', false);
     } catch (err: unknown) {
       showMessage(err instanceof Error ? err.message : 'Lỗi tạo trắc nghiệm');
+    } finally {
+      setLoadingType(null);
+    }
+  };
+
+  const handleAdaptiveDrill = async (wrongQuestionsInput: string | QuizQuestion[]) => {
+    if (!pdfText) return;
+    setLoadingType('quiz');
+    try {
+      const wrongSummary = typeof wrongQuestionsInput === 'string'
+        ? wrongQuestionsInput
+        : wrongQuestionsInput
+            .map((q, i) => `Câu sai ${i + 1}: ${q.question} (Đáp án đúng: ${q.answer} - ${q.explanation})`)
+            .join('\n');
+      const res = await fetch('/api/quiz', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pdfText,
+          questionCount: 5,
+          role: user?.role,
+          wrongQuestionsSummary: wrongSummary,
+          modelTier,
+          username: user?.username
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        if (data.code === 'QUOTA_EXCEEDED' || data.code === 'MODEL_LOCKED') setShowUpgradeModal(true);
+        throw new Error(data.error || 'Lỗi tạo bài luyện khắc phục lỗi sai');
+      }
+      setQuestions(data.questions);
+      if (user) syncUserSessionFromServer(user.username);
+      showMessage('🎯 Đã tạo 5 câu hỏi khắc phục đúng các lỗ hổng kiến thức bạn vừa làm sai!', false);
+    } catch (err) {
+      showMessage(err instanceof Error ? err.message : 'Lỗi tạo bài luyện thích ứng');
     } finally {
       setLoadingType(null);
     }
@@ -1253,14 +1501,20 @@ export default function Home() {
           subject: metadata?.subject,
           gradeLevel: metadata?.gradeLevel,
           lessonTopic: metadata?.lessonTopic,
-          examTime: metadata?.examTime
+          examTime: metadata?.examTime,
+          modelTier,
+          username: user?.username
         })
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
+      if (!res.ok) {
+        if (data.code === 'QUOTA_EXCEEDED' || data.code === 'MODEL_LOCKED') setShowUpgradeModal(true);
+        throw new Error(data.error);
+      }
 
       await updateDocumentOnServer(activeDoc.id, { essay: data.essay });
       setEssay(data.essay);
+      if (user) syncUserSessionFromServer(user.username);
 
       showMessage(language === 'vi' ? 'AI đã soạn thảo đề tự luận thành công!' : 'AI has drafted the essay successfully!', false);
     } catch (err: unknown) {
@@ -1653,6 +1907,20 @@ export default function Home() {
             </button>
           )}
 
+          {isSuperAdmin && (
+            <button 
+              onClick={() => {
+                syncWorkspaceWithDoc(null);
+                setSidebarTab('admin');
+                setMobileMenuOpen(false);
+              }}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-205 ${sidebarTab === 'admin' && !activeDoc && !activeAssignment ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 font-black border-r-4 border-amber-500' : 'text-foreground hover:bg-gray-200/50 dark:hover:bg-sidebar-accent'}`}
+            >
+              <Shield className="w-5.5 h-5.5 text-amber-500" />
+              <span className="text-sm font-bold">{language === 'vi' ? 'Quản trị SaaS' : 'SaaS Admin'}</span>
+            </button>
+          )}
+
           <button 
             onClick={() => {
               syncWorkspaceWithDoc(null);
@@ -1664,6 +1932,30 @@ export default function Home() {
             <Settings className="w-5.5 h-5.5 text-primary" />
             <span className="text-sm font-bold">{t.settings}</span>
           </button>
+
+          {/* Upgrade / Redeem Code Banner in Sidebar */}
+          <div className="pt-2">
+            <button
+              onClick={() => {
+                setShowUpgradeModal(true);
+                setMobileMenuOpen(false);
+              }}
+              className="w-full p-3 rounded-2xl bg-gradient-to-r from-indigo-600 via-purple-600 to-amber-500 text-white shadow-md hover:brightness-110 transition-all text-left space-y-1"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-black flex items-center gap-1.5">
+                  <Crown className="w-4 h-4 text-amber-300" />
+                  {user.plan === 'vip' ? 'GÓI VIP ULTRA' : user.plan === 'pro' ? 'GÓI PRO AI' : 'NÂNG CẤP PRO / VIP'}
+                </span>
+                <KeyRound className="w-3.5 h-3.5 opacity-90" />
+              </div>
+              <p className="text-[10px] text-white/90 font-semibold leading-snug">
+                {user.planExpiresAt
+                  ? `Hạn dùng: ${new Date(user.planExpiresAt).toLocaleDateString('vi-VN')}`
+                  : 'Nhập Mã Code kích hoạt & Mở khóa AI Pro 2.5 / Ultra'}
+              </p>
+            </button>
+          </div>
         </nav>
 
         {/* Search Feature & Help in Sidebar */}
@@ -1775,7 +2067,84 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
+            {/* Global Multi-Tier AI Model Switcher (Flash / Pro / Ultra) */}
+            <div className="hidden xl:flex items-center gap-1 p-1 rounded-full bg-gray-100 dark:bg-gray-900 border border-gray-200 dark:border-gray-800">
+              <button
+                type="button"
+                onClick={() => handleModelTierChange('flash')}
+                className={`px-2.5 py-1 rounded-full text-[11px] font-black flex items-center gap-1 transition-all ${
+                  modelTier === 'flash'
+                    ? 'bg-white dark:bg-gray-800 text-amber-600 shadow-xs'
+                    : 'text-gray-500 hover:text-foreground'
+                }`}
+                title="AI Flash 2.5 (Tốc độ cao - Miễn phí)"
+              >
+                <Zap className="w-3 h-3 text-amber-500" />
+                <span>Flash 2.5</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleModelTierChange('pro')}
+                className={`px-2.5 py-1 rounded-full text-[11px] font-black flex items-center gap-1 transition-all ${
+                  modelTier === 'pro'
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'text-gray-500 hover:text-indigo-600'
+                }`}
+                title="AI Pro 2.5 Reasoning (Suy luận chuyên sâu - Gói PRO)"
+              >
+                <Brain className="w-3 h-3" />
+                <span>Pro 2.5</span>
+                {(!user.plan || user.plan === 'free') && <Lock className="w-2.5 h-2.5 opacity-70" />}
+              </button>
+              <button
+                type="button"
+                onClick={() => handleModelTierChange('ultra')}
+                className={`px-2.5 py-1 rounded-full text-[11px] font-black flex items-center gap-1 transition-all ${
+                  modelTier === 'ultra'
+                    ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-xs'
+                    : 'text-gray-500 hover:text-amber-600'
+                }`}
+                title="AI Ultra Academic (Chuyên gia Học thuật - Gói VIP)"
+              >
+                <Crown className="w-3 h-3" />
+                <span>Ultra</span>
+                {user.plan !== 'vip' && <Lock className="w-2.5 h-2.5 opacity-70" />}
+              </button>
+            </div>
+
+            {/* Gamification Streak & XP Pill */}
+            <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-50 dark:bg-amber-950/30 border border-amber-200/80 dark:border-amber-800/50 text-xs font-black">
+              <span className="flex items-center gap-1 text-orange-600 dark:text-orange-400" title="Chuỗi ngày học liên tiếp (Streak)">
+                <Flame className="w-3.5 h-3.5 fill-orange-500" />
+                {user.streak || 1}
+              </span>
+              <span className="text-gray-300 dark:text-gray-700">|</span>
+              <span className="flex items-center gap-1 text-amber-600 dark:text-amber-400" title="Điểm kinh nghiệm học tập (XP)">
+                <Star className="w-3.5 h-3.5 fill-amber-400" />
+                {user.xp || 0} XP
+              </span>
+            </div>
+
+            {/* Upgrade / Redeem Code Button */}
+            <button
+              type="button"
+              onClick={() => setShowUpgradeModal(true)}
+              className={`px-3 py-1.5 rounded-full text-xs font-black flex items-center gap-1.5 shadow-sm transition-all hover:scale-105 active:scale-95 ${
+                user.plan === 'vip'
+                  ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white'
+                  : user.plan === 'pro'
+                  ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white'
+                  : 'bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300'
+              }`}
+              title="Nâng cấp gói hoặc Nhập mã Code kích hoạt"
+            >
+              <Crown className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">
+                {user.plan === 'vip' ? 'VIP ULTRA' : user.plan === 'pro' ? 'PRO AI' : 'Nâng cấp / Nhập Code'}
+              </span>
+            </button>
+
             {/* Bilingual and Theme Switcher Pill */}
             <div className="flex items-center gap-3 px-4 py-1.5 rounded-full bg-gray-200/50 dark:bg-surface-variant/20 border border-gray-300/40 dark:border-white/5">
               <button 
@@ -1833,6 +2202,21 @@ export default function Home() {
         </header>
 
         {/* ===== POPUPS & MODALS ===== */}
+        {showUpgradeModal && (
+          <UpgradeModal
+            isOpen={showUpgradeModal}
+            onClose={() => setShowUpgradeModal(false)}
+            user={user}
+            onUpgradeSuccess={(updatedUser, message) => {
+              setUser(updatedUser);
+              localStorage.setItem('user', JSON.stringify(updatedUser));
+              if (updatedUser.preferredModel) {
+                setModelTier(updatedUser.preferredModel);
+              }
+              showMessage(message || `🎉 Đã kích hoạt gói ${updatedUser.plan?.toUpperCase()} thành công!`, false);
+            }}
+          />
+        )}
         {showUserManagement && user?.room && (
           <UserManagement 
             isOpen={showUserManagement} 
@@ -2236,7 +2620,7 @@ export default function Home() {
                         {activeDoc?.pdfUrl && (
                           <TabsTrigger
                             value="document"
-                            className="lg:hidden flex-1 shrink-0 min-w-27.5 rounded-xl px-4 py-2 text-xs font-semibold data-[state=active]:bg-primary data-[state=active]:text-white transition-all"
+                            className="lg:hidden flex-1 shrink-0 min-w-24 rounded-xl px-3 py-2 text-xs font-semibold data-[state=active]:bg-primary data-[state=active]:text-white transition-all"
                           >
                             {t.originalDoc}
                           </TabsTrigger>
@@ -2245,17 +2629,23 @@ export default function Home() {
                         <TabsTrigger
                           value="summary"
                           disabled={!!activeAssignment}
-                          className="flex-1 shrink-0 min-w-27.5 rounded-xl px-4 py-2 text-xs font-semibold data-[state=active]:bg-primary data-[state=active]:text-white transition-all"
+                          className="flex-1 shrink-0 min-w-24 rounded-xl px-3 py-2 text-xs font-semibold data-[state=active]:bg-primary data-[state=active]:text-white transition-all"
                         >
                           {t.docSummary}
                         </TabsTrigger>
 
-
+                        <TabsTrigger
+                          value="flashcards"
+                          disabled={!!activeAssignment}
+                          className="flex-1 shrink-0 min-w-24 rounded-xl px-3 py-2 text-xs font-semibold data-[state=active]:bg-primary data-[state=active]:text-white transition-all"
+                        >
+                          🃏 Flashcards
+                        </TabsTrigger>
 
                         <TabsTrigger
                           value="chat"
                           disabled={!!activeAssignment}
-                          className="flex-1 shrink-0 min-w-27.5 rounded-xl px-4 py-2 text-xs font-semibold data-[state=active]:bg-primary data-[state=active]:text-white transition-all"
+                          className="flex-1 shrink-0 min-w-24 rounded-xl px-3 py-2 text-xs font-semibold data-[state=active]:bg-primary data-[state=active]:text-white transition-all"
                         >
                           {t.chatWithAi}
                         </TabsTrigger>
@@ -2263,7 +2653,7 @@ export default function Home() {
                         <TabsTrigger
                           value="quiz"
                           disabled={activeAssignment?.type === 'essay'}
-                          className="flex-1 shrink-0 min-w-27.5 rounded-xl px-4 py-2 text-xs font-semibold data-[state=active]:bg-primary data-[state=active]:text-white transition-all"
+                          className="flex-1 shrink-0 min-w-24 rounded-xl px-3 py-2 text-xs font-semibold data-[state=active]:bg-primary data-[state=active]:text-white transition-all"
                         >
                           {t.practiceQuiz}
                         </TabsTrigger>
@@ -2271,7 +2661,7 @@ export default function Home() {
                         {(isTeacher || activeAssignment?.type === 'essay') && (
                           <TabsTrigger
                             value="essay"
-                            className="flex-1 shrink-0 min-w-27.5 rounded-xl px-4 py-2 text-xs font-semibold data-[state=active]:bg-primary data-[state=active]:text-white transition-all"
+                            className="flex-1 shrink-0 min-w-24 rounded-xl px-3 py-2 text-xs font-semibold data-[state=active]:bg-primary data-[state=active]:text-white transition-all"
                           >
                             {isTeacher ? (language === 'vi' ? 'Đề thi tự luận' : 'Essay Exam') : t.practiceEssay}
                           </TabsTrigger>
@@ -2309,10 +2699,10 @@ export default function Home() {
                             </TabsContent>
                           )}
 
-                          {/* Tab: Summary */}
+                          {/* Tab: Summary + Mindmap + Podcast + Lesson Plan 5512 */}
                           <TabsContent value="summary" className="mt-0 outline-none">
                             {!summary && !isSummaryStreaming && !isLoading && (
-                              <div className="p-8 text-center bg-white dark:bg-gray-900 rounded-2xl shadow-md flex flex-col items-center border border-gray-300 dark:border-gray-800">
+                              <div className="p-8 text-center bg-white dark:bg-gray-900 rounded-2xl shadow-md flex flex-col items-center border border-gray-300 dark:border-gray-800 mb-4">
                                 <BookOpen className="w-12 h-12 text-primary mb-3" />
                                 <h4 className="text-base font-bold text-foreground">{t.notSummarized}</h4>
                                 <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 mb-4">{t.notSummarizedDesc}</p>
@@ -2321,12 +2711,36 @@ export default function Home() {
                                 </Button>
                               </div>
                             )}
-                            {(streamingSummary || summary || isLoading) && (
-                              <SummaryPanel summary={streamingSummary || summary} isLoading={isSummaryStreaming || loadingType === 'summary'} />
-                            )}
+                            <SummaryPanel
+                              summary={streamingSummary || summary}
+                              isLoading={isSummaryStreaming || loadingType === 'summary'}
+                              pdfText={pdfText}
+                              fileName={activeDoc?.fileName}
+                              userRole={user.role}
+                              modelTier={modelTier}
+                              cachedMindmap={activeDoc?.mindmap}
+                              cachedPodcast={activeDoc?.podcast}
+                              cachedLessonPlan={activeDoc?.lessonPlan || ''}
+                              onUpdateDocumentExtras={(extras) => {
+                                if (activeDoc) {
+                                  updateDocumentOnServer(activeDoc.id, extras);
+                                }
+                              }}
+                              onRequireUpgrade={(msg) => {
+                                showMessage(msg, false);
+                                setShowUpgradeModal(true);
+                              }}
+                            />
                           </TabsContent>
 
-
+                          {/* Tab: 3D Flashcards (Spaced Repetition) */}
+                          <TabsContent value="flashcards" className="mt-0 outline-none">
+                            <FlashcardPanel
+                              flashcards={flashcards}
+                              isLoading={loadingType === 'flashcards'}
+                              onGenerate={(force) => handleGenerateFlashcards(force)}
+                            />
+                          </TabsContent>
 
                           {/* Tab: Chat */}
                           <TabsContent value="chat" className="mt-0 outline-none space-y-4">
@@ -2352,6 +2766,10 @@ export default function Home() {
                               key={(activeDoc?.id || 'chat') + `_${docChatResetCount}`}
                               pdfText={pdfText}
                               userRole={user.role}
+                              userPlan={user.plan || 'free'}
+                              modelTier={modelTier}
+                              onChangeModelTier={handleModelTierChange}
+                              onRequireUpgrade={() => setShowUpgradeModal(true)}
                               onError={showMessage}
                               chatHistory={chatHistory}
                               onSendMessage={handleSendMessage}
@@ -2368,52 +2786,43 @@ export default function Home() {
                               </div>
                             ) : (
                               <div className="space-y-4">
-                                {isTeacher ? (
-                                  <div className="p-5 bg-white dark:bg-gray-900 rounded-2xl shadow-md border border-gray-300 dark:border-gray-800 flex flex-col sm:flex-row justify-between sm:items-center gap-4">
-                                    <div className="flex items-center gap-3">
-                                      <span className="text-xs font-bold text-gray-500 dark:text-gray-400">{t.numQuestions}:</span>
-                                      <input
-                                        type="number"
-                                        min={1}
-                                        max={20}
-                                        value={questionCount}
-                                        onChange={(e) => setQuestionCount(Math.min(20, Math.max(1, Number(e.target.value))))}
-                                        disabled={isLoading}
-                                        className="w-16 h-8 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-center text-xs font-bold focus:outline-none focus:ring-2 focus:ring-primary text-foreground"
-                                      />
+                                {!activeAssignment && (
+                                  <div className="p-4 bg-white dark:bg-gray-900 rounded-2xl shadow-md border border-gray-300 dark:border-gray-800 flex flex-wrap justify-between items-center gap-3">
+                                    <div className="flex flex-wrap items-center gap-3">
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-xs font-bold text-gray-500 dark:text-gray-400">{t.numQuestions}:</span>
+                                        <input
+                                          type="number"
+                                          min={1}
+                                          max={20}
+                                          value={questionCount}
+                                          onChange={(e) => setQuestionCount(Math.min(20, Math.max(1, Number(e.target.value))))}
+                                          disabled={isLoading}
+                                          className="w-14 h-8 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-center text-xs font-bold focus:outline-none focus:ring-2 focus:ring-primary text-foreground"
+                                        />
+                                      </div>
+
+                                      <div className="flex items-center gap-1.5">
+                                        <span className="text-xs font-bold text-gray-500 dark:text-gray-400">Ma trận:</span>
+                                        <select
+                                          value={quizDifficulty}
+                                          onChange={(e) => setQuizDifficulty(e.target.value as 'basic' | 'standard' | 'advanced')}
+                                          disabled={isLoading}
+                                          className="h-8 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-2 text-xs font-bold text-foreground"
+                                        >
+                                          <option value="basic">🟢 Cơ bản (Nắm chắc gốc)</option>
+                                          <option value="standard">🔵 Chuẩn Bộ GD&ĐT (4 mức độ)</option>
+                                          <option value="advanced">🔥 Vận dụng cao (8+ / HSG)</option>
+                                        </select>
+                                      </div>
                                     </div>
 
                                     <Button
                                       onClick={() => handleGenerateQuiz(true)}
                                       disabled={isLoading}
-                                      className="bg-primary hover:brightness-110 text-white rounded-xl text-sm h-10 shadow-sm shrink-0 font-bold px-4"
+                                      className="bg-primary hover:brightness-110 text-white rounded-xl text-xs h-9 shadow-sm shrink-0 font-bold px-4"
                                     >
                                       {questions.length > 0 ? t.regenerateQuiz : t.generateQuiz}
-                                    </Button>
-                                  </div>
-                                ) : (
-                                  !activeAssignment && !questions.length && !isLoading && (
-                                    <div className="p-8 text-center bg-white dark:bg-gray-900 rounded-2xl shadow-md flex flex-col items-center border border-gray-300 dark:border-gray-800">
-                                      <GraduationCap className="w-12 h-12 text-primary mb-3" />
-                                      <h4 className="text-base font-bold text-foreground">{t.noQuizGenerated}</h4>
-                                      <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 mb-4">{t.noQuizGeneratedDesc}</p>
-                                      <Button onClick={() => handleGenerateQuiz(false)} className="bg-primary hover:brightness-115 text-white rounded-xl text-sm h-10 px-6 shadow-md font-bold">
-                                        {t.startQuizPractice}
-                                      </Button>
-                                    </div>
-                                  )
-                                )}
-
-                                {!isTeacher && !activeAssignment && questions.length > 0 && (
-                                  <div className="flex justify-end">
-                                    <Button
-                                      onClick={() => handleGenerateQuiz(true)}
-                                      disabled={isLoading}
-                                      variant="outline"
-                                      size="sm"
-                                      className="rounded-xl text-xs h-9 border-primary/45 text-primary flex items-center gap-1.5 font-bold"
-                                    >
-                                      <RefreshCw className="w-3.5 h-3.5 animate-spin-hover" /> {t.otherQuiz}
                                     </Button>
                                   </div>
                                 )}
@@ -2429,6 +2838,7 @@ export default function Home() {
                                     previousScoreInfo={activeSubmission ? { score: activeSubmission.score, scale10Score: activeSubmission.scale10Score } : undefined}
                                     onAssignQuiz={handleAssignQuiz}
                                     availableRooms={teacherClasses}
+                                    onAdaptiveDrill={!activeAssignment ? handleAdaptiveDrill : undefined}
                                     previousAnswers={activeSubmission?.studentAnswer ? (() => {
                                       try {
                                         return JSON.parse(activeSubmission.studentAnswer) as Record<number, string>;
@@ -2539,6 +2949,21 @@ export default function Home() {
                           </span>
                         </div>
 
+                        <div className="flex justify-between items-center border-t border-gray-300 dark:border-gray-800 pt-3">
+                          <div>
+                            <p className="font-bold text-foreground">Gói cước AI hiện tại</p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                              {user.planExpiresAt ? `Hết hạn: ${new Date(user.planExpiresAt).toLocaleDateString('vi-VN')}` : 'Gói miễn phí mặc định'}
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => setShowUpgradeModal(true)}
+                            className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 text-white text-xs font-black shadow-sm"
+                          >
+                            {(user.plan || 'free').toUpperCase()} • Nâng cấp / Nhập Code
+                          </button>
+                        </div>
+
                         <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-gray-300 dark:border-gray-800">
                           <button
                             onClick={() => setShowChangePasswordModal(true)}
@@ -2589,6 +3014,10 @@ export default function Home() {
                       key={`general-chat-${user.username}-${chatResetCount}`}
                       pdfText=""
                       userRole={user.role}
+                      userPlan={user.plan || 'free'}
+                      modelTier={modelTier}
+                      onChangeModelTier={handleModelTierChange}
+                      onRequireUpgrade={() => setShowUpgradeModal(true)}
                       onError={showMessage}
                       chatHistory={generalChatHistory}
                       onSendMessage={handleSendGeneralMessage}
@@ -2609,6 +3038,13 @@ export default function Home() {
                       onDeleteClass={handleDeleteClass}
                       onError={(msg, isErr) => showMessage(msg, isErr ?? true)}
                     />
+                  </div>
+                )}
+
+                {/* 6. SUPER ADMIN SAAS PORTAL TAB */}
+                {isSuperAdmin && sidebarTab === 'admin' && (
+                  <div className="max-w-6xl mx-auto">
+                    <AdminPortal currentUser={user} onNotify={(msg, isErr) => showMessage(msg, isErr ?? false)} />
                   </div>
                 )}
 
@@ -2978,14 +3414,27 @@ export default function Home() {
                                             )}
                                           </div>
 
-                                          <Button
-                                            onClick={() => handleDeleteAssignment(asm.id)}
-                                            variant="ghost"
-                                            size="sm"
-                                            className="text-xs h-8 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-xl font-bold border border-red-200/50 dark:border-red-900/50"
-                                          >
-                                            {t.deleteAssign}
-                                          </Button>
+                                          <div className="flex flex-wrap items-center gap-2">
+                                            {asmHistory.length > 0 && (
+                                              <Button
+                                                onClick={() => handleExportExcelGradebook(asm.title, asmHistory)}
+                                                variant="outline"
+                                                size="sm"
+                                                className="text-xs h-8 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 rounded-xl font-bold border border-emerald-300 dark:border-emerald-800 flex items-center gap-1.5"
+                                              >
+                                                <Download className="w-3.5 h-3.5" />
+                                                Xuất Excel (.xlsx)
+                                              </Button>
+                                            )}
+                                            <Button
+                                              onClick={() => handleDeleteAssignment(asm.id)}
+                                              variant="ghost"
+                                              size="sm"
+                                              className="text-xs h-8 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-xl font-bold border border-red-200/50 dark:border-red-900/50"
+                                            >
+                                              {t.deleteAssign}
+                                            </Button>
+                                          </div>
                                         </div>
                                       </div>
                                     </div>
@@ -3066,12 +3515,16 @@ export default function Home() {
                                                     ) : (
                                                       <td className="py-2.5 px-4">
                                                         <Button
-                                                          onClick={() => setSelectedEssaySubmission(h)}
+                                                          onClick={() => {
+                                                            setSelectedEssaySubmission(h);
+                                                            setOverrideScoreInput(h.scale10Score);
+                                                            setOverrideCommentInput(h.teacherComment || '');
+                                                          }}
                                                           variant="outline"
                                                           size="sm"
                                                           className="h-7 text-xs px-2.5 rounded-xl border-primary/30 text-primary hover:bg-primary/5 font-bold"
                                                         >
-                                                           {language === 'vi' ? 'Xem bài làm & Nhận xét' : 'View Work & Feedback'}
+                                                           {language === 'vi' ? 'Xem bài làm & Chấm điểm' : 'View Work & Grade'}
                                                         </Button>
                                                       </td>
                                                     )}
@@ -3319,6 +3772,69 @@ export default function Home() {
                         </div>
                       )}
 
+                      {/* GAMIFICATION STUDENT LEADERBOARD (BẢNG XẾP HẠNG THI ĐUA HỌC TẬP 🏆) */}
+                      {leaderboardUsers.filter(u => u.role === 'student').length > 0 && (
+                        <div className="bg-white dark:bg-gray-900 p-6 rounded-2xl shadow-md border border-gray-300 dark:border-gray-800/80">
+                          <div className="flex items-center justify-between mb-4">
+                            <h3 className="text-sm font-black text-foreground uppercase tracking-wider flex items-center gap-2">
+                              <Award className="w-5 h-5 text-amber-500" />
+                              🏆 Bảng Xếp Hạng Học Sinh Tích Cực (Top XP & Streak)
+                            </h3>
+                            <span className="text-[11px] font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-2.5 py-1 rounded-full">
+                              Đua Top Học Tập
+                            </span>
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                            {leaderboardUsers
+                              .filter(u => u.role === 'student')
+                              .sort((a, b) => (b.xp || 0) - (a.xp || 0))
+                              .slice(0, 6)
+                              .map((stu, idx) => (
+                                <div
+                                  key={stu.username}
+                                  className={`p-3.5 rounded-2xl border flex items-center justify-between gap-3 ${
+                                    idx === 0
+                                      ? 'bg-gradient-to-r from-amber-50 to-orange-50/50 dark:from-amber-950/30 dark:to-orange-950/20 border-amber-300 dark:border-amber-800'
+                                      : 'bg-gray-50/60 dark:bg-gray-800/40 border-gray-200 dark:border-gray-800'
+                                  }`}
+                                >
+                                  <div className="flex items-center gap-2.5 min-w-0">
+                                    <span
+                                      className={`w-7 h-7 rounded-xl flex items-center justify-center text-xs font-black shrink-0 ${
+                                        idx === 0
+                                          ? 'bg-amber-500 text-white'
+                                          : idx === 1
+                                          ? 'bg-slate-400 text-white'
+                                          : idx === 2
+                                          ? 'bg-amber-700 text-white'
+                                          : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+                                      }`}
+                                    >
+                                      #{idx + 1}
+                                    </span>
+                                    <div className="min-w-0">
+                                      <p className="text-xs font-black text-foreground truncate">
+                                        {stu.fullName || stu.username}
+                                      </p>
+                                      <p className="text-[10px] text-gray-500 truncate">
+                                        @{stu.username} {stu.room ? `• Lớp ${stu.room}` : ''}
+                                      </p>
+                                    </div>
+                                  </div>
+                                  <div className="text-right shrink-0">
+                                    <p className="text-xs font-black text-amber-600 dark:text-amber-400">
+                                      ⭐ {stu.xp || 0} XP
+                                    </p>
+                                    <p className="text-[10px] font-bold text-orange-500">
+                                      🔥 {stu.streak || 1} ngày
+                                    </p>
+                                  </div>
+                                </div>
+                              ))}
+                          </div>
+                        </div>
+                      )}
+
                     </div>
 
                   </div>
@@ -3394,7 +3910,7 @@ export default function Home() {
                   </span>
                 </div>
 
-                <div className="flex-1 p-4 bg-primary/5 border border-primary/10 rounded-2xl overflow-y-auto min-h-62.5 md:min-h-100
+                <div className="flex-1 p-4 bg-primary/5 border border-primary/10 rounded-2xl overflow-y-auto min-h-52
                   prose prose-sm dark:prose-invert max-w-none
                   prose-headings:text-foreground
                   prose-h2:text-xs prose-h2:mt-3 prose-h2:mb-1.5 prose-h2:font-bold prose-h2:text-primary
@@ -3405,6 +3921,41 @@ export default function Home() {
                 ">
                   <ReactMarkdown>{selectedEssaySubmission.aiFeedback || ''}</ReactMarkdown>
                 </div>
+
+                {/* Teacher Grade Override & Personal Comment Box */}
+                {isTeacher && (
+                  <div className="p-4 rounded-2xl bg-indigo-50/60 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800/60 space-y-2.5 shrink-0">
+                    <p className="text-xs font-black text-indigo-800 dark:text-indigo-300 uppercase tracking-wider">
+                      ✏️ Giáo viên duyệt / Chỉnh sửa điểm & Ghi lời phê
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <label className="text-xs font-bold text-gray-600 dark:text-gray-300 shrink-0">Điểm chốt (Hệ 10):</label>
+                      <input
+                        type="number"
+                        step="0.1"
+                        min={0}
+                        max={10}
+                        value={overrideScoreInput}
+                        onChange={(e) => setOverrideScoreInput(e.target.value)}
+                        className="w-24 h-8 rounded-lg border border-indigo-300 dark:border-indigo-700 bg-white dark:bg-gray-900 px-2.5 text-xs font-black text-indigo-700 dark:text-indigo-300"
+                      />
+                    </div>
+                    <textarea
+                      rows={2}
+                      placeholder="Nhập lời phê của Giáo viên dành cho bài làm này..."
+                      value={overrideCommentInput}
+                      onChange={(e) => setOverrideCommentInput(e.target.value)}
+                      className="w-full rounded-xl border border-indigo-200 dark:border-indigo-800 bg-white dark:bg-gray-900 p-2.5 text-xs font-semibold text-foreground"
+                    />
+                    <Button
+                      onClick={() => handleTeacherOverrideGrade(selectedEssaySubmission)}
+                      disabled={isSavingOverride}
+                      className="w-full h-9 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-black"
+                    >
+                      {isSavingOverride ? 'Đang lưu...' : '💾 Lưu điểm & Lời phê của Giáo viên'}
+                    </Button>
+                  </div>
+                )}
               </div>
             </div>
 

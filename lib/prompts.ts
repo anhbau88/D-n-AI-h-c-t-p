@@ -656,3 +656,155 @@ LƯU Ý:
 - Viết văn phong sư phạm, lịch sự, tích cực và có tính định hướng thực tiễn cao cho giáo viên.
 - Trả về báo cáo trực tiếp bằng Markdown, không viết mở đầu dài dòng hoặc nói "Dưới đây là...".`;
 }
+
+/**
+ * Tạo prompt Sơ đồ tư duy (AI Mindmap) phân cấp từ tài liệu (tương tự NotebookLM / Mindgrasp)
+ */
+export function createMindmapPrompt(pdfText: string, fileName: string = 'Bài học'): string {
+  return `Bạn là một chuyên gia thiết kế Sơ đồ tư duy (Mindmap) giáo dục.
+Hãy đọc kỹ nội dung tài liệu dưới đây ("${fileName}") và tổ chức toàn bộ kiến thức cốt lõi thành một cây Sơ đồ tư duy phân cấp rõ ràng (Root -> Nhánh chính -> Nhánh con).
+
+YÊU CẦU:
+1. Nút gốc (root) là chủ đề tổng quát của bài học.
+2. Có từ 3 đến 6 nhánh chính (children cấp 1), mỗi nhánh chính có tên ngắn gọn, súc tích và một câu tóm tắt (summary) dưới 25 từ.
+3. Mỗi nhánh chính có từ 2 đến 4 nhánh con (children cấp 2) nêu các khái niệm, công thức, luận điểm hoặc ví dụ cụ thể.
+4. Trả về đúng cấu trúc JSON thuần túy (không bọc trong markdown):
+
+{
+  "mindmap": {
+    "id": "root",
+    "label": "Tên chủ đề trung tâm",
+    "summary": "Tóm tắt 1 câu về toàn bộ tài liệu",
+    "children": [
+      {
+        "id": "branch-1",
+        "label": "1. Nhánh chính thứ nhất",
+        "summary": "Ý nghĩa cốt lõi của nhánh 1",
+        "children": [
+          {
+            "id": "sub-1-1",
+            "label": "Khái niệm / Ý chi tiết 1.1",
+            "summary": "Giải thích ngắn gọn hoặc công thức"
+          }
+        ]
+      }
+    ]
+  }
+}
+
+NỘI DUNG TÀI LIỆU:
+---
+${pdfText}
+---`;
+}
+
+/**
+ * Tạo kịch bản AI Audio Podcast đối thoại 2 người (Thầy Minh & Học sinh Lan) giống Google NotebookLM Audio Overview
+ */
+export function createPodcastPrompt(pdfText: string, fileName: string = 'Tài liệu'): string {
+  return `Bạn là biên kịch chương trình Podcast Giáo Dục "NotebookLM Audio Overview" phiên bản tiếng Việt.
+Hãy chuyển hóa nội dung tài liệu học tập ("${fileName}") dưới đây thành một cuộc trò chuyện Podcast cực kỳ tự nhiên, cuốn hút, dí dỏm và dễ hiểu giữa 2 nhân vật:
+- "Thầy Minh" (speaker: "teacher"): Người dẫn dắt ấm áp, thông thái, dùng ví dụ thực tế để giải thích các khái niệm khó.
+- "Bạn Lan" (speaker: "student"): Học sinh thông minh, tò mò, hay đặt những câu hỏi "xoáy" đúng chỗ người học dễ nhầm lẫn.
+
+YÊU CẦU:
+1. Gồm 6 đến 10 lượt thoại (turns) qua lại tự nhiên.
+2. Đi từ giới thiệu chủ đề hấp dẫn -> giải thích các khái niệm/công thức quan trọng nhất trong tài liệu -> chỉ ra mẹo ghi nhớ và các bẫy hay gặp khi đi thi -> kết thúc truyền cảm hứng.
+3. Mỗi lượt thoại dài từ 25 đến 60 từ để khi đọc bằng giọng nói (Text-to-Speech) nghe mượt mà, truyền cảm.
+4. Trả về đúng định dạng JSON thuần túy:
+
+{
+  "podcast": [
+    {
+      "speaker": "teacher",
+      "speakerName": "Thầy Minh",
+      "text": "Chào mừng các bạn quay lại với Podcast Học Nhanh Nhớ Lâu! Hôm nay thầy trò mình sẽ cùng giải mã một chủ đề cực kỳ thú vị..."
+    },
+    {
+      "speaker": "student",
+      "speakerName": "Bạn Lan",
+      "text": "Dạ em chào thầy! Nghe tên bài học hôm nay em cứ thắc mắc mãi là tại sao khái niệm này lại quan trọng đến vậy ạ?"
+    }
+  ]
+}
+
+NỘI DUNG TÀI LIỆU:
+---
+${pdfText}
+---`;
+}
+
+/**
+ * Tạo Kế hoạch bài dạy (Giáo án chuẩn Công văn 5512 của Bộ GD&ĐT Việt Nam) dành cho Giáo viên
+ */
+export function createLessonPlan5512Prompt(pdfText: string, fileName: string = 'Bài giảng'): string {
+  return `Bạn là một Tổ trưởng chuyên môn giàu kinh nghiệm tại trường Phổ thông Việt Nam.
+Hãy phân tích nội dung tài liệu ("${fileName}") dưới đây và biên soạn một KẾ HOẠCH BÀI DẠY (GIÁO ÁN) theo đúng chuẩn Công văn 5512/BGDĐT-GDTrH của Bộ Giáo dục và Đào tạo Việt Nam.
+
+CẤU TRÚC BẮT BUỘC (Trình bày bằng Markdown chuyên nghiệp):
+# KẾ HOẠCH BÀI DẠY (CHUẨN CÔNG VĂN 5512)
+## I. MỤC TIÊU BÀI HỌC
+1. **Về kiến thức:** Nêu rõ các đơn vị kiến thức học sinh cần nắm được từ tài liệu.
+2. **Về năng lực:** Năng lực chung (tự chủ, giao tiếp, giải quyết vấn đề) và Năng lực đặc thù bộ môn.
+3. **Về phẩm chất:** Trách nhiệm, chăm chỉ, trung thực gắn với bài học.
+
+## II. THIẾT BỊ DẠY HỌC VÀ HỌC LIỆU
+- Đối với giáo viên (Giáo án, phiếu học tập, slide, đề Quiz AI...).
+- Đối với học sinh.
+
+## III. TIẾN TRÌNH DẠY HỌC (4 HOẠT ĐỘNG CHUẨN 5512)
+Với mỗi hoạt động (1. Khởi động [5 phút] -> 2. Hình thành kiến thức mới [20 phút] -> 3. Luyện tập [12 phút] -> 4. Vận dụng [8 phút]), hãy trình bày rõ 4 bước:
+- **a) Mục tiêu:**
+- **b) Nội dung:**
+- **c) Sản phẩm:**
+- **d) Tổ chức thực hiện:** (Chuyển giao nhiệm vụ -> Thực hiện nhiệm vụ -> Báo cáo, thảo luận -> Kết luận, nhận định).
+
+## IV. HƯỚNG DẪN VỀ NHÀ & CÂU HỎI CỦNG CỐ
+
+NỘI DUNG TÀI LIỆU:
+---
+${pdfText}
+---`;
+}
+
+/**
+ * Tạo bộ câu hỏi Luyện Tập Thích Ứng (Adaptive Weakness Drill) xoáy sâu vào các câu học sinh vừa làm sai
+ */
+export function createAdaptiveDrillPrompt(
+  pdfText: string,
+  wrongQuestionsSummary: string,
+  questionCount: number = 5
+): string {
+  return `Bạn là Chuyên gia Khắc phục Lỗ hổng Kiến thức (Adaptive Learning AI).
+Học sinh vừa làm bài kiểm tra và trả lời SAI các câu hỏi sau đây:
+====================
+${wrongQuestionsSummary}
+====================
+
+Nhiệm vụ của bạn:
+Hãy đọc lại tài liệu gốc và tạo ra ĐÚNG ${questionCount} câu hỏi trắc nghiệm MỚI HOÀN TOÀN nhưng xoáy sâu đúng vào các khái niệm, công thức và bản chất kiến thức mà học sinh vừa bị hổng ở trên.
+Trong phần "explanation" (Giải thích), hãy chỉ rõ mẹo tư duy để học sinh không bao giờ lặp lại lỗi sai đó nữa.
+
+CẤU TRÚC JSON BẮT BUỘC:
+{
+  "questions": [
+    {
+      "question": "Nội dung câu hỏi khắc phục lỗ hổng?",
+      "options": [
+        "A. Lựa chọn A",
+        "B. Lựa chọn B",
+        "C. Lựa chọn C",
+        "D. Lựa chọn D"
+      ],
+      "answer": "A",
+      "explanation": "Giải thích cặn kẽ bản chất và mẹo tránh bẫy..."
+    }
+  ]
+}
+
+NỘI DUNG TÀI LIỆU GỐC:
+---
+${pdfText}
+---`;
+}
+

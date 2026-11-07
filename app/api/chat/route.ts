@@ -3,45 +3,45 @@ import { NextRequest, NextResponse } from 'next/server';
 import { streamText, CoreMessage } from 'ai';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createChatPrompt, createHintChatPrompt } from '@/lib/prompts';
+import { checkAndConsumeAiQuota } from '@/lib/quota';
+import { getCandidateModelsForTier, enhancePromptForModelTier } from '@/lib/gemini';
+import { AIModelTier } from '@/types';
 
-const getValidGeminiKey = () => {
+function getAllApiKeys(): string[] {
   const keys = [
     process.env.GEMINI_API_KEY_CHAT,
     process.env.GEMINI_API_KEY,
+    process.env.GEMINI_API_KEY_BACKUP,
+    process.env.GEMINI_API_KEY_BACKUP_2,
     process.env.GEMINI_API_KEY_QUIZ,
     process.env.GEMINI_API_KEY_MULTIMODAL,
     process.env.GEMINI_API_KEY_ESSAY,
     process.env.GOOGLE_GENERATIVE_AI_API_KEY
   ].map(k => (k || '').trim()).filter(Boolean);
-
-  const workingKeys = [
-    process.env.GEMINI_API_KEY_QUIZ,
-    process.env.GEMINI_API_KEY_MULTIMODAL,
-    process.env.GEMINI_API_KEY_ESSAY
-  ].map(k => (k || '').trim()).filter(Boolean);
-
-  const foundWorking = keys.find(k => workingKeys.includes(k));
-  if (foundWorking) return foundWorking;
-  if (workingKeys.length > 0) return workingKeys[0];
-  return keys.find(k => k.startsWith('AIzaSy')) || keys[0] || '';
-};
-
-const google = createGoogleGenerativeAI({
-  apiKey: (process.env.GEMINI_API_KEY_ESSAY || '').trim() || getValidGeminiKey(),
-});
+  
+  return Array.from(new Set(keys));
+}
 
 export async function POST(request: NextRequest) {
   let messages: any[] = [];
   try {
     const body = await request.json();
     messages = body.messages || [];
-    const { pdfText, imageAttachment, userRole } = body;
+    const { pdfText, imageAttachment, userRole, modelTier } = body;
+    const requestedTier: AIModelTier = ['flash', 'pro', 'ultra'].includes(modelTier) ? modelTier : 'flash';
 
-    // Lấy tin nhắn cuối cùng của người dùng
+    // Kiểm tra hạn mức Quota và phân quyền Model AI
+    const quota = await checkAndConsumeAiQuota(request, requestedTier, 5);
+    if (!quota.allowed) {
+      return NextResponse.json(
+        { error: quota.error, upgradeRequired: quota.upgradeRequired },
+        { status: 403 }
+      );
+    }
+
     const lastMessage = messages[messages.length - 1];
     const question = lastMessage?.content;
 
-    // Kiểm tra input
     if ((!question || question.trim().length === 0) && !imageAttachment) {
       return NextResponse.json(
         { error: 'Vui lòng nhập câu hỏi hoặc đính kèm ảnh.' },
@@ -49,7 +49,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Cắt bớt text nếu quá dài
     const textToUse = pdfText || '';
     const truncatedText = textToUse.substring(0, 30000);
 
@@ -64,13 +63,12 @@ export async function POST(request: NextRequest) {
         : createChatPrompt(truncatedText, question);
     }
 
-    // Xây dựng lại lịch sử tin nhắn cho mô hình AI
-    const aiMessages = [...messages.slice(0, -1)] as CoreMessage[];
+    prompt = enhancePromptForModelTier(prompt, quota.effectiveModelTier, false);
 
+    const aiMessages = [...messages.slice(0, -1)] as CoreMessage[];
     const userTextContent = (question && question.trim().length > 0) ? question : 'Hãy phân tích hình ảnh đính kèm.';
 
     if (imageAttachment) {
-      // Hỗ trợ xử lý multimodal với ảnh base64
       aiMessages.push({
         role: 'user',
         content: [
@@ -85,14 +83,48 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Gọi Gemini với streaming
-    const result = await streamText({
-      model: google('models/gemini-2.5-flash'),
-      system: prompt,
-      messages: aiMessages,
-    });
+    const keys = getAllApiKeys();
+    if (keys.length === 0) {
+      throw new Error('Không tìm thấy API Key nào trong cấu hình.');
+    }
 
-    return result.toAIStreamResponse();
+    const preferredKey = (process.env.GEMINI_API_KEY_CHAT || process.env.GEMINI_API_KEY_ESSAY || '').trim();
+    const orderedKeys = [...keys];
+    if (preferredKey && orderedKeys.includes(preferredKey)) {
+      const idx = orderedKeys.indexOf(preferredKey);
+      orderedKeys.splice(idx, 1);
+      orderedKeys.unshift(preferredKey);
+    }
+
+    const defaultKey = (process.env.GEMINI_API_KEY || '').trim();
+    if (defaultKey && orderedKeys.includes(defaultKey) && orderedKeys[0] !== defaultKey) {
+      const idx = orderedKeys.indexOf(defaultKey);
+      orderedKeys.splice(idx, 1);
+      orderedKeys.splice(1, 0, defaultKey);
+    }
+
+    const candidateModels = getCandidateModelsForTier(quota.effectiveModelTier);
+    let lastError: any;
+
+    for (const modelName of candidateModels) {
+      for (const key of orderedKeys) {
+        try {
+          console.log(`[Chat API] Đang thử streamText model ${modelName} với key: ${key.substring(0, 8)}...`);
+          const googleClient = createGoogleGenerativeAI({ apiKey: key });
+          const result = await streamText({
+            model: googleClient(`models/${modelName}`),
+            system: prompt,
+            messages: aiMessages,
+          });
+          return result.toAIStreamResponse();
+        } catch (err: any) {
+          console.error(`[Chat API Error] Thất bại model ${modelName} với key ${key.substring(0, 8)}...:`, err.message || err);
+          lastError = err;
+        }
+      }
+    }
+
+    throw lastError;
   } catch (error) {
     console.error('[Gemini API] Lỗi khi gọi Gemini Chat:', error);
     return NextResponse.json(

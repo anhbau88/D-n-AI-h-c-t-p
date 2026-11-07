@@ -17,7 +17,7 @@ interface Student {
 }
 
 interface TeacherClassManagementProps {
-  user: { username: string; role: 'teacher' | 'student'; room?: string };
+  user: { username: string; role: 'teacher' | 'student' | 'admin'; room?: string };
   language: 'vi' | 'en';
   classList: Array<{ code: string; name: string; teacherUsername: string }>;
   onRemoveStudent: (studentUsername: string, classCode: string) => Promise<boolean>;

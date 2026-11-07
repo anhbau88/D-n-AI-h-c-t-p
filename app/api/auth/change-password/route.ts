@@ -1,8 +1,9 @@
 // app/api/auth/change-password/route.ts
-// API Đổi mật khẩu tài khoản người dùng
+// API Đổi mật khẩu tài khoản người dùng (hỗ trợ scrypt hash)
 
 import { NextRequest, NextResponse } from 'next/server';
 import { findUserInExcel, updateUserPasswordInExcel } from '@/lib/excel';
+import { verifyPassword } from '@/lib/auth';
 
 export async function POST(request: NextRequest) {
   try {
@@ -19,19 +20,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Mật khẩu mới không được để trống.' }, { status: 400 });
     }
 
-    // 2. Tìm tài khoản trong Excel
+    // 2. Tìm tài khoản
     const user = await findUserInExcel(username.trim());
     if (!user) {
       return NextResponse.json({ error: 'Tài khoản không tồn tại.' }, { status: 400 });
     }
 
-    // 3. So khớp mật khẩu cũ
-    if (String(user.Password) !== currentPassword.trim()) {
+    // 3. So khớp mật khẩu cũ (hỗ trợ cả mật khẩu đã băm và plain-text)
+    const { valid } = verifyPassword(currentPassword.trim(), String(user.Password));
+    if (!valid) {
       return NextResponse.json({ error: 'Mật khẩu hiện tại không chính xác.' }, { status: 400 });
     }
 
-    // 4. Tiến hành cập nhật mật khẩu mới
-    const success = await updateUserPasswordInExcel(username.trim(), newPassword.trim());
+    // 4. Tiến hành cập nhật mật khẩu mới (tự động băm scrypt)
+    const success = await updateUserPasswordInExcel(user.Username, newPassword.trim());
     if (!success) {
       return NextResponse.json({ error: 'Cập nhật mật khẩu thất bại. Vui lòng thử lại.' }, { status: 500 });
     }
