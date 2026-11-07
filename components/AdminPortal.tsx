@@ -8,7 +8,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { User, LicenseCodeItem, SubscriptionPlan } from '@/types';
+import { User, LicenseCodeItem, SubscriptionOrder, SubscriptionPlan } from '@/types';
 import {
   ShieldCheck,
   Users,
@@ -22,6 +22,9 @@ import {
   Search,
   Sparkles,
   Mail,
+  Building2,
+  CheckCircle2,
+  Clock,
 } from 'lucide-react';
 
 interface AdminPortalProps {
@@ -41,12 +44,22 @@ export default function AdminPortal({ currentUser, onNotify }: AdminPortalProps)
     totalAiCallsToday: 0,
     totalLicenses: 0,
     redeemedLicenses: 0,
+    pendingOrdersCount: 0,
     estimatedRevenueVnd: 0,
   });
 
   const [users, setUsers] = useState<User[]>([]);
   const [licenses, setLicenses] = useState<LicenseCodeItem[]>([]);
+  const [orders, setOrders] = useState<SubscriptionOrder[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Cấu hình Ngân hàng VietQR & Chế độ Duyệt Đơn
+  const [bankId, setBankId] = useState('MB');
+  const [accountNo, setAccountNo] = useState('0988888888');
+  const [accountName, setAccountName] = useState('AI STUDY ASSISTANT');
+  const [approvalMode, setApprovalMode] = useState<'instant' | 'manual_review'>('instant');
+  const [isSavingSettings, setIsSavingSettings] = useState(false);
+  const [approvingOrderId, setApprovingOrderId] = useState<string | null>(null);
 
   // Form phát hành Mã Code mới
   const [genPlan, setGenPlan] = useState<'pro' | 'vip'>('pro');
@@ -67,6 +80,13 @@ export default function AdminPortal({ currentUser, onNotify }: AdminPortalProps)
       if (data.stats) setStats(data.stats);
       if (Array.isArray(data.users)) setUsers(data.users);
       if (Array.isArray(data.licenses)) setLicenses(data.licenses);
+      if (Array.isArray(data.orders)) setOrders(data.orders);
+      if (data.billingSettings) {
+        setBankId(data.billingSettings.bankId || 'MB');
+        setAccountNo(data.billingSettings.accountNo || '0988888888');
+        setAccountName(data.billingSettings.accountName || 'AI STUDY ASSISTANT');
+        setApprovalMode(data.billingSettings.approvalMode || 'instant');
+      }
     } catch (err) {
       onNotify(err instanceof Error ? err.message : 'Lỗi tải dữ liệu Admin', true);
     } finally {
@@ -77,6 +97,56 @@ export default function AdminPortal({ currentUser, onNotify }: AdminPortalProps)
   useEffect(() => {
     fetchAdminData();
   }, [fetchAdminData]);
+
+  const handleSaveBillingSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSavingSettings(true);
+    try {
+      const res = await fetch('/api/billing', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'admin_update_settings',
+          username: currentUser.username,
+          bankId,
+          accountNo,
+          accountName,
+          approvalMode,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Lỗi lưu cấu hình thanh toán.');
+      onNotify(data.message, false);
+      fetchAdminData();
+    } catch (err) {
+      onNotify(err instanceof Error ? err.message : 'Lỗi lưu cấu hình', true);
+    } finally {
+      setIsSavingSettings(false);
+    }
+  };
+
+  const handleApproveOrder = async (orderId: string) => {
+    setApprovingOrderId(orderId);
+    try {
+      const res = await fetch('/api/billing', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'admin_approve_order',
+          username: currentUser.username,
+          orderId,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Lỗi duyệt đơn hàng.');
+      onNotify(data.message, false);
+      fetchAdminData();
+    } catch (err) {
+      onNotify(err instanceof Error ? err.message : 'Lỗi duyệt đơn hàng', true);
+    } finally {
+      setApprovingOrderId(null);
+    }
+  };
 
   const handleGenerateLicenseCodes = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -164,7 +234,7 @@ export default function AdminPortal({ currentUser, onNotify }: AdminPortalProps)
             Trung Tâm Quản Trị Kinh Doanh (Super Admin SaaS)
           </h1>
           <p className="text-xs sm:text-sm text-gray-500 font-semibold mt-1">
-            Quản lý doanh thu, phát hành Mã Code kích hoạt gói Pro/VIP qua Email và phân quyền người dùng toàn hệ thống
+            Quản lý doanh thu, cấu hình tài khoản ngân hàng VietQR, duyệt đơn thanh toán & phát hành Mã Code tự động qua Email
           </p>
         </div>
 
@@ -224,8 +294,164 @@ export default function AdminPortal({ currentUser, onNotify }: AdminPortalProps)
           </div>
           <p className="text-3xl font-black text-purple-600 dark:text-purple-400 mt-2">{stats.totalAiCallsToday}</p>
           <p className="text-xs text-gray-500 mt-1">
-             Tự động xoay vòng API Key & kiểm soát Quota
+            Tự động xoay vòng API Key & kiểm soát Quota
           </p>
+        </Card>
+      </div>
+
+      {/* Khu vực 0: Cấu hình Ngân hàng VietQR & Duyệt Đơn Hàng Chuyển Khoản */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <Card className="p-5 bg-white/85 dark:bg-gray-900/85 border-0 shadow-lg space-y-4 lg:col-span-1">
+          <h3 className="text-sm font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400 flex items-center gap-2">
+            <Building2 className="w-4 h-4" /> Cấu Hình Tài Khoản Nhận Tiền VietQR
+          </h3>
+          <p className="text-xs text-gray-500">
+            Thay đổi trực tiếp Ngân hàng nhận thanh toán và chế độ cấp Mã Code (Không cần sửa code).
+          </p>
+
+          <form onSubmit={handleSaveBillingSettings} className="space-y-3">
+            <div>
+              <label className="text-[11px] font-bold text-gray-500 uppercase block mb-1">Ngân hàng nhận tiền</label>
+              <select
+                value={bankId}
+                onChange={(e) => setBankId(e.target.value)}
+                className="w-full h-10 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 text-xs font-bold"
+              >
+                <option value="MB">MBBank (Ngân hàng Quân Đội)</option>
+                <option value="VCB">Vietcombank (VCB)</option>
+                <option value="TCB">Techcombank (TCB)</option>
+                <option value="ACB">ACB (Á Châu)</option>
+                <option value="BIDV">BIDV</option>
+                <option value="ICB">VietinBank (ICB)</option>
+                <option value="VPB">VPBank</option>
+                <option value="TPB">TPBank</option>
+              </select>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <div>
+                <label className="text-[11px] font-bold text-gray-500 uppercase block mb-1">Số tài khoản</label>
+                <Input
+                  value={accountNo}
+                  onChange={(e) => setAccountNo(e.target.value)}
+                  placeholder="VD: 0988888888"
+                  className="h-10 text-xs font-bold rounded-xl"
+                />
+              </div>
+              <div>
+                <label className="text-[11px] font-bold text-gray-500 uppercase block mb-1">Chủ tài khoản</label>
+                <Input
+                  value={accountName}
+                  onChange={(e) => setAccountName(e.target.value)}
+                  placeholder="VD: NGUYEN VAN A"
+                  className="h-10 text-xs font-bold rounded-xl uppercase"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="text-[11px] font-bold text-gray-500 uppercase block mb-1">
+                Chế độ cấp Mã Code khi khách đăng ký
+              </label>
+              <select
+                value={approvalMode}
+                onChange={(e) => setApprovalMode(e.target.value as 'instant' | 'manual_review')}
+                className="w-full h-10 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 text-xs font-bold"
+              >
+                <option value="instant">⚡ Tự động sinh & gửi Mã Code ngay (Trải nghiệm nhanh)</option>
+                <option value="manual_review">🛡️ Chờ Admin kiểm tra tiền về rồi bấm Duyệt (Thu tiền thật)</option>
+              </select>
+            </div>
+
+            <Button
+              type="submit"
+              disabled={isSavingSettings}
+              className="w-full h-10 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md"
+            >
+              {isSavingSettings ? 'Đang lưu...' : '💾 Lưu Cấu Hình Thanh Toán'}
+            </Button>
+          </form>
+        </Card>
+
+        {/* Bảng Đơn Đăng ký Gói & Duyệt Chuyển Khoản */}
+        <Card className="p-5 bg-white/85 dark:bg-gray-900/85 border-0 shadow-lg lg:col-span-2 flex flex-col">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-black uppercase tracking-wider text-foreground flex items-center gap-2">
+              <Clock className="w-4 h-4 text-amber-500" />
+              Đơn Đăng Ký Gói & Duyệt Thanh Toán ({orders.length})
+            </h3>
+            {stats.pendingOrdersCount > 0 && (
+              <Badge className="bg-amber-500 text-white border-0 font-bold">
+                {stats.pendingOrdersCount} đơn chờ duyệt
+              </Badge>
+            )}
+          </div>
+
+          <div className="overflow-x-auto max-h-72 overflow-y-auto border border-gray-200 dark:border-gray-800 rounded-2xl">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-gray-100/80 dark:bg-gray-950/60 text-gray-500 font-bold border-b border-gray-200 dark:border-gray-800 sticky top-0">
+                <tr>
+                  <th className="px-4 py-3">Mã Đơn / Khách hàng</th>
+                  <th className="px-4 py-3">Gói & Số tiền</th>
+                  <th className="px-4 py-3">Email nhận Code</th>
+                  <th className="px-4 py-3">Trạng thái / Mã Code</th>
+                  <th className="px-4 py-3 text-right">Thao tác</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
+                {orders.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="px-4 py-10 text-center text-gray-400">
+                      Chưa có đơn đăng ký gói nào.
+                    </td>
+                  </tr>
+                ) : (
+                  orders.map((ord) => (
+                    <tr key={ord.id} className="hover:bg-gray-50/60 dark:hover:bg-gray-800/30">
+                      <td className="px-4 py-2.5">
+                        <p className="font-mono font-black text-foreground">{ord.id}</p>
+                        <p className="text-[11px] text-gray-500">@{ord.username}</p>
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <Badge className={ord.plan === 'vip' ? 'bg-amber-500 text-white border-0' : 'bg-indigo-600 text-white border-0'}>
+                          {ord.plan.toUpperCase()} • {ord.durationDays}D
+                        </Badge>
+                        <p className="text-[11px] font-bold text-emerald-600 mt-0.5">
+                          {(ord.amountVnd || 0).toLocaleString('vi-VN')}đ
+                        </p>
+                      </td>
+                      <td className="px-4 py-2.5 text-gray-500">{ord.email}</td>
+                      <td className="px-4 py-2.5">
+                        {ord.status === 'pending' ? (
+                          <span className="text-amber-600 font-bold">⏳ Chờ xác nhận tiền</span>
+                        ) : (
+                          <div>
+                            <span className="text-emerald-600 font-bold block">✅ Đã gửi Code</span>
+                            <span className="font-mono text-[11px] text-indigo-600 font-bold">{ord.licenseCode}</span>
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-4 py-2.5 text-right">
+                        {ord.status === 'pending' ? (
+                          <Button
+                            size="sm"
+                            disabled={approvingOrderId === ord.id}
+                            onClick={() => handleApproveOrder(ord.id)}
+                            className="h-8 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold gap-1"
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            {approvingOrderId === ord.id ? 'Đang gửi...' : 'Duyệt & Gửi Code'}
+                          </Button>
+                        ) : (
+                          <span className="text-[11px] text-gray-400 font-semibold">Hoàn tất</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </Card>
       </div>
 
@@ -236,7 +462,7 @@ export default function AdminPortal({ currentUser, onNotify }: AdminPortalProps)
             <KeyRound className="w-4 h-4" /> Phát Hành Mã Code Kích Hoạt Gói
           </h3>
           <p className="text-xs text-gray-500">
-            Tạo mã Code tự động theo gói và thời hạn để gửi qua Email cho khách hàng đã thanh toán.
+            Tạo mã Code tự động theo gói và thời hạn để gửi qua Email cho khách hàng hoặc bán qua Đại lý.
           </p>
 
           <form onSubmit={handleGenerateLicenseCodes} className="space-y-3">

@@ -9,8 +9,9 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { QuizQuestion } from '@/types';
-import { BookOpen, Target, Printer, RefreshCw } from 'lucide-react';
+import { BookOpen, Target, Printer, RefreshCw, FileDown } from 'lucide-react';
 import QuizSkeleton from '@/components/ui/QuizSkeleton';
+import { exportQuizToWord } from '@/lib/word-export';
 
 interface QuizPanelProps {
   questions: QuizQuestion[];
@@ -314,16 +315,32 @@ export default function QuizPanel({
           <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300">
             📝 {shuffledQuestions.length} câu hỏi trắc nghiệm
           </Badge>
-          {isTeacher && (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => window.print()}
-              className="h-7 px-2.5 rounded-lg text-[11px] font-bold gap-1"
-            >
-              <Printer className="w-3 h-3" /> In Đề A4
-            </Button>
+          {(isTeacher || isSubmitted) && (
+            <>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  exportQuizToWord(shuffledQuestions, {
+                    title: assignTitle || 'ĐỀ KIỂM TRA TRẮC NGHIỆM',
+                    includeAnswers: true,
+                  })
+                }
+                className="h-7 px-2.5 rounded-lg text-[11px] font-bold gap-1 border-indigo-200 text-indigo-600 dark:border-indigo-800 dark:text-indigo-400"
+              >
+                <FileDown className="w-3 h-3" /> Xuất Word (.doc)
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => window.print()}
+                className="h-7 px-2.5 rounded-lg text-[11px] font-bold gap-1"
+              >
+                <Printer className="w-3 h-3" /> In Đề A4
+              </Button>
+            </>
           )}
         </div>
         

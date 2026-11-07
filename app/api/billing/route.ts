@@ -1,11 +1,7 @@
 // app/api/billing/route.ts
-// API quản lý Gói cước (Pro / VIP), Tự động Sinh Mã Code Kích Hoạt (License Key) gửi qua Email & Nhập Code Kích Hoạt
+// API quản lý Gói cước (Pro / VIP), Cấu hình Ngân hàng Động, Duyệt Đơn Thanh Toán, Webhook Ngân hàng SePay/Casso & Tự động Sinh Mã Code gửi qua Email
 
 import { NextRequest, NextResponse } from 'next/server';
-import * as crypto from 'crypto';
-import * as fs from 'fs';
-import * as path from 'path';
-import { db } from '@/lib/firebase';
 import { getSessionFromRequest, attachSessionCookie } from '@/lib/auth';
 import {
   findUserInExcel,
@@ -14,173 +10,49 @@ import {
   isSuperAdminUsername,
 } from '@/lib/excel';
 import { sendLicenseCodeEmail } from '@/lib/mailer';
+import {
+  BillingConfigSettings,
+  PLAN_PRICING_VND,
+  readBillingSettings,
+  saveBillingSettings,
+  generateSignedLicenseCode,
+  parseAndVerifySelfSignedCode,
+  readLicenses,
+  saveLicenseItem,
+  readOrders,
+  saveOrderItem,
+} from '@/lib/billing-store';
 import { LicenseCodeItem, SubscriptionOrder, SubscriptionPlan } from '@/types';
 
 export const dynamic = 'force-dynamic';
-
-const localLicensesPath = process.env.LOCAL_DB_DIR
-  ? path.join(process.env.LOCAL_DB_DIR, 'licenses.json')
-  : 'licenses.json';
-
-const localOrdersPath = process.env.LOCAL_DB_DIR
-  ? path.join(process.env.LOCAL_DB_DIR, 'orders.json')
-  : 'orders.json';
-
-// Bảng giá niêm yết (VND) theo Gói & Kỳ hạn (7 ngày, 30 ngày, 90 ngày, 365 ngày)
-export const PLAN_PRICING_VND: Record<'pro' | 'vip', Record<number, number>> = {
-  pro: {
-    7: 29000,
-    30: 99000,
-    90: 249000,
-    365: 799000,
-  },
-  vip: {
-    7: 79000,
-    30: 299000,
-    90: 749000,
-    365: 2390000,
-  },
-};
-
-const LICENSE_SIGN_SECRET = process.env.AUTH_SECRET || 'aisa-license-secret-key-2026';
-
-/**
- * Tạo Mã Code Kích Hoạt tự sinh có gắn chữ ký chống giả mạo:
- * Định dạng: AISA-<PRO|VIP>-<DAYS>D-<RANDOM4>-<CHECKSUM4>
- * Ví dụ: AISA-PRO-30D-8K4M-F92A
- */
-export function generateSignedLicenseCode(plan: 'pro' | 'vip', durationDays: number): string {
-  const planTag = plan.toUpperCase();
-  const daysTag = `${durationDays}D`;
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  let randPart = '';
-  for (let i = 0; i < 4; i++) {
-    randPart += chars.charAt(crypto.randomInt(0, chars.length));
-  }
-  const core = `AISA-${planTag}-${daysTag}-${randPart}`;
-  const checksum = crypto
-    .createHmac('sha256', LICENSE_SIGN_SECRET)
-    .update(core)
-    .digest('hex')
-    .slice(0, 4)
-    .toUpperCase();
-  return `${core}-${checksum}`;
-}
-
-/**
- * Kiểm tra chữ ký tự thân của Mã Code (trong trường hợp DB chưa kịp sync hoặc mã phát hành nhanh)
- */
-function parseAndVerifySelfSignedCode(code: string): { valid: boolean; plan?: 'pro' | 'vip'; durationDays?: number } {
-  const normalized = code.trim().toUpperCase();
-  const match = normalized.match(/^AISA-(PRO|VIP)-(\d+)D-([A-Z0-9]{4})-([A-F0-9]{4})$/);
-  if (!match) return { valid: false };
-
-  const [, planStr, daysStr, randPart, providedChecksum] = match;
-  const core = `AISA-${planStr}-${daysStr}D-${randPart}`;
-  const expectedChecksum = crypto
-    .createHmac('sha256', LICENSE_SIGN_SECRET)
-    .update(core)
-    .digest('hex')
-    .slice(0, 4)
-    .toUpperCase();
-
-  if (providedChecksum !== expectedChecksum) {
-    return { valid: false };
-  }
-
-  return {
-    valid: true,
-    plan: planStr.toLowerCase() as 'pro' | 'vip',
-    durationDays: parseInt(daysStr, 10),
-  };
-}
-
-async function readLicenses(): Promise<LicenseCodeItem[]> {
-  if (db) {
-    try {
-      const snap = await db.collection('licenses').get();
-      if (!snap.empty) {
-        return snap.docs.map(d => d.data() as LicenseCodeItem);
-      }
-    } catch (err) {
-      console.error('Lỗi đọc licenses từ Firebase:', err);
-    }
-  }
-  if (fs.existsSync(localLicensesPath)) {
-    try {
-      return JSON.parse(fs.readFileSync(localLicensesPath, 'utf-8')) as LicenseCodeItem[];
-    } catch {
-      return [];
-    }
-  }
-  return [];
-}
-
-async function saveLicenseItem(item: LicenseCodeItem) {
-  if (db) {
-    try {
-      await db.collection('licenses').doc(item.code).set(item);
-    } catch (err) {
-      console.error('Lỗi lưu license lên Firebase:', err);
-    }
-  }
-  try {
-    let list: LicenseCodeItem[] = [];
-    if (fs.existsSync(localLicensesPath)) {
-      list = JSON.parse(fs.readFileSync(localLicensesPath, 'utf-8'));
-    }
-    const idx = list.findIndex(x => x.code === item.code);
-    if (idx >= 0) list[idx] = item;
-    else list.push(item);
-    fs.writeFileSync(localLicensesPath, JSON.stringify(list, null, 2), 'utf-8');
-  } catch (err) {
-    console.error('Lỗi lưu license local:', err);
-  }
-}
-
-async function saveOrderItem(order: SubscriptionOrder) {
-  if (db) {
-    try {
-      await db.collection('orders').doc(order.id).set(order);
-    } catch (err) {
-      console.error('Lỗi lưu order lên Firebase:', err);
-    }
-  }
-  try {
-    let list: SubscriptionOrder[] = [];
-    if (fs.existsSync(localOrdersPath)) {
-      list = JSON.parse(fs.readFileSync(localOrdersPath, 'utf-8'));
-    }
-    list.unshift(order);
-    fs.writeFileSync(localOrdersPath, JSON.stringify(list, null, 2), 'utf-8');
-  } catch (err) {
-    console.error('Lỗi lưu order local:', err);
-  }
-}
 
 export async function GET(request: NextRequest) {
   try {
     const session = getSessionFromRequest(request);
     const username = request.nextUrl.searchParams.get('username') || session?.username;
+    const settings = await readBillingSettings();
 
-    // Trả về cấu hình ngân hàng VietQR nhận thanh toán & danh sách mã code đã tạo của user
     const bankConfig = {
-      bankId: process.env.VIETQR_BANK_ID || 'MB',
-      accountNo: process.env.VIETQR_ACCOUNT_NO || '0988888888',
-      accountName: process.env.VIETQR_ACCOUNT_NAME || 'AI STUDY ASSISTANT',
+      bankId: settings.bankId,
+      accountNo: settings.accountNo,
+      accountName: settings.accountName,
+      approvalMode: settings.approvalMode,
       pricing: PLAN_PRICING_VND,
     };
 
     if (!username) {
-      return NextResponse.json({ bankConfig, myCodes: [] });
+      return NextResponse.json({ bankConfig, myCodes: [], myOrders: [] });
     }
 
-    const allLicenses = await readLicenses();
+    const [allLicenses, allOrders] = await Promise.all([readLicenses(), readOrders()]);
     const myCodes = allLicenses.filter(
       c => c.targetUsername?.toLowerCase() === username.toLowerCase()
     );
+    const myOrders = allOrders.filter(
+      o => o.username?.toLowerCase() === username.toLowerCase()
+    );
 
-    return NextResponse.json({ bankConfig, myCodes });
+    return NextResponse.json({ bankConfig, myCodes, myOrders });
   } catch (err) {
     console.error('Lỗi GET /api/billing:', err);
     return NextResponse.json({ error: 'Không thể tải thông tin thanh toán.' }, { status: 500 });
@@ -191,6 +63,52 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { action } = body;
+
+    // =========================================================================
+    // ACTION 0: WEBHOOK NGÂN HÀNG TỰ ĐỘNG (SEPAY / CASSO / PAYOS)
+    // =========================================================================
+    if (action === 'bank_webhook' || body.transferAmount || body.content) {
+      const contentStr = String(body.content || body.description || '').toUpperCase();
+      const allOrders = await readOrders();
+      const pendingOrder = allOrders.find(
+        o => o.status === 'pending' && (contentStr.includes(o.id.toUpperCase()) || contentStr.includes(o.username.toUpperCase()))
+      );
+      if (!pendingOrder) {
+        return NextResponse.json({ success: false, message: 'Không tìm thấy đơn chờ khớp với nội dung chuyển khoản.' });
+      }
+
+      const licenseCode = generateSignedLicenseCode(pendingOrder.plan, pendingOrder.durationDays);
+      const newLicense: LicenseCodeItem = {
+        code: licenseCode,
+        plan: pendingOrder.plan,
+        durationDays: pendingOrder.durationDays,
+        status: 'unused',
+        targetEmail: pendingOrder.email,
+        targetUsername: pendingOrder.username,
+        createdBy: 'bank_webhook',
+        createdAt: new Date().toISOString(),
+        amountVnd: pendingOrder.amountVnd,
+      };
+      pendingOrder.licenseCode = licenseCode;
+      pendingOrder.status = 'code_sent';
+
+      await Promise.all([saveLicenseItem(newLicense), saveOrderItem(pendingOrder)]);
+      await sendLicenseCodeEmail({
+        email: pendingOrder.email,
+        fullName: pendingOrder.fullName,
+        plan: pendingOrder.plan,
+        durationDays: pendingOrder.durationDays,
+        licenseCode,
+      });
+
+      return NextResponse.json({
+        success: true,
+        orderId: pendingOrder.id,
+        licenseCode,
+        message: 'Đã tự động duyệt đơn qua Webhook Ngân hàng và gửi Mã Code qua Email.',
+      });
+    }
+
     const session = getSessionFromRequest(request);
     const username = session?.username || body.username;
 
@@ -204,7 +122,7 @@ export async function POST(request: NextRequest) {
     }
 
     // =========================================================================
-    // ACTION 1: ĐĂNG KÝ GÓI CƯỚC -> TỰ ĐỘNG SINH MÃ CODE & GỬI VỀ EMAIL
+    // ACTION 1: ĐĂNG KÝ GÓI CƯỚC -> SINH MÃ CODE GỬI EMAIL (HOẶC TẠO ĐƠN CHỜ DUYỆT)
     // =========================================================================
     if (action === 'register_plan') {
       const plan: 'pro' | 'vip' = body.plan === 'vip' ? 'vip' : 'pro';
@@ -220,14 +138,42 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // Cập nhật email cho user nếu trước đó chưa có
       if (!rawUser.Email) {
         await updateUserFieldsInExcel(rawUser.Username, { Email: targetEmail, EmailVerified: true });
       }
 
-      const licenseCode = generateSignedLicenseCode(plan, durationDays);
+      const settings = await readBillingSettings();
       const amountVnd = PLAN_PRICING_VND[plan][durationDays] || 99000;
       const nowIso = new Date().toISOString();
+      const orderId = `ORD-${Date.now().toString().slice(-6)}`;
+
+      if (settings.approvalMode === 'manual_review' && !isSuperAdminUsername(rawUser.Username) && rawUser.Role !== 'admin') {
+        const pendingOrder: SubscriptionOrder = {
+          id: orderId,
+          username: rawUser.Username,
+          fullName: rawUser.FullName || rawUser.Username,
+          email: targetEmail,
+          plan,
+          durationDays,
+          amountVnd,
+          licenseCode: '',
+          status: 'pending',
+          createdAt: nowIso,
+        };
+        await saveOrderItem(pendingOrder);
+
+        return NextResponse.json({
+          success: true,
+          pendingApproval: true,
+          orderId,
+          plan,
+          durationDays,
+          email: targetEmail,
+          message: `Đã ghi nhận đơn đăng ký #${orderId} cho gói ${plan.toUpperCase()} (${durationDays} ngày). Ngay sau khi hệ thống xác nhận giao dịch chuyển khoản, Mã Code kích hoạt sẽ được gửi tự động tới email ${targetEmail}!`,
+        });
+      }
+
+      const licenseCode = generateSignedLicenseCode(plan, durationDays);
 
       const newLicense: LicenseCodeItem = {
         code: licenseCode,
@@ -242,7 +188,7 @@ export async function POST(request: NextRequest) {
       };
 
       const newOrder: SubscriptionOrder = {
-        id: `ORD-${Date.now()}`,
+        id: orderId,
         username: rawUser.Username,
         fullName: rawUser.FullName || rawUser.Username,
         email: targetEmail,
@@ -305,13 +251,11 @@ export async function POST(request: NextRequest) {
         targetPlan = foundLicense.plan;
         durationDays = foundLicense.durationDays;
 
-        // Đánh dấu mã đã sử dụng
         foundLicense.status = 'redeemed';
         foundLicense.redeemedBy = rawUser.Username;
         foundLicense.redeemedAt = new Date().toISOString();
         await saveLicenseItem(foundLicense);
       } else {
-        // Kiểm tra chữ ký tự thân của mã code (Self-signed verification)
         const verifiedSelf = parseAndVerifySelfSignedCode(inputCode);
         if (!verifiedSelf.valid || !verifiedSelf.plan || !verifiedSelf.durationDays) {
           return NextResponse.json(
@@ -322,7 +266,6 @@ export async function POST(request: NextRequest) {
         targetPlan = verifiedSelf.plan;
         durationDays = verifiedSelf.durationDays;
 
-        // Lưu lại vào danh sách đã sử dụng để không thể dùng lần 2
         await saveLicenseItem({
           code: inputCode,
           plan: targetPlan,
@@ -336,7 +279,6 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      // Tính toán thời gian hết hạn (cộng dồn nếu gói hiện tại vẫn còn hạn)
       const nowMs = Date.now();
       const existingExpMs = rawUser.PlanExpiresAt ? new Date(rawUser.PlanExpiresAt).getTime() : 0;
       const baseMs = existingExpMs > nowMs ? existingExpMs : nowMs;
@@ -413,6 +355,78 @@ export async function POST(request: NextRequest) {
         success: true,
         codes: generatedCodes,
         message: `Đã phát hành ${generatedCodes.length} mã kích hoạt gói ${plan.toUpperCase()} (${durationDays} ngày).`,
+      });
+    }
+
+    // =========================================================================
+    // ACTION 4: ADMIN DUYỆT ĐƠN CHUYỂN KHOẢN -> TỰ SINH MÃ CODE & GỬI EMAIL KHÁCH
+    // =========================================================================
+    if (action === 'admin_approve_order') {
+      if (!isSuperAdminUsername(rawUser.Username) && rawUser.Role !== 'admin') {
+        return NextResponse.json({ error: 'Chỉ Super Admin mới có quyền duyệt đơn hàng.' }, { status: 403 });
+      }
+
+      const orderId = String(body.orderId || '');
+      const allOrders = await readOrders();
+      const order = allOrders.find(o => o.id === orderId);
+      if (!order) {
+        return NextResponse.json({ error: 'Không tìm thấy đơn hàng.' }, { status: 404 });
+      }
+
+      const licenseCode = order.licenseCode || generateSignedLicenseCode(order.plan, order.durationDays);
+      const newLicense: LicenseCodeItem = {
+        code: licenseCode,
+        plan: order.plan,
+        durationDays: order.durationDays,
+        status: 'unused',
+        targetEmail: order.email,
+        targetUsername: order.username,
+        createdBy: rawUser.Username,
+        createdAt: new Date().toISOString(),
+        amountVnd: order.amountVnd,
+      };
+
+      order.licenseCode = licenseCode;
+      order.status = 'code_sent';
+
+      await Promise.all([saveLicenseItem(newLicense), saveOrderItem(order)]);
+      await sendLicenseCodeEmail({
+        email: order.email,
+        fullName: order.fullName,
+        plan: order.plan,
+        durationDays: order.durationDays,
+        licenseCode,
+      });
+
+      return NextResponse.json({
+        success: true,
+        order,
+        licenseCode,
+        message: `Đã duyệt đơn #${order.id}! Mã kích hoạt ${licenseCode} đã được gửi tới email ${order.email}.`,
+      });
+    }
+
+    // =========================================================================
+    // ACTION 5: ADMIN CẬP NHẬT CẤU HÌNH NGÂN HÀNG VIETQR & CHẾ ĐỘ DUYỆT ĐƠN
+    // =========================================================================
+    if (action === 'admin_update_settings') {
+      if (!isSuperAdminUsername(rawUser.Username) && rawUser.Role !== 'admin') {
+        return NextResponse.json({ error: 'Chỉ Super Admin mới có quyền cấu hình thanh toán.' }, { status: 403 });
+      }
+
+      const current = await readBillingSettings();
+      const updated: BillingConfigSettings = {
+        bankId: String(body.bankId || current.bankId).trim().toUpperCase(),
+        accountNo: String(body.accountNo || current.accountNo).trim(),
+        accountName: String(body.accountName || current.accountName).trim().toUpperCase(),
+        approvalMode: body.approvalMode === 'manual_review' ? 'manual_review' : 'instant',
+      };
+
+      await saveBillingSettings(updated);
+      return NextResponse.json({
+        success: true,
+        settings: updated,
+        message: 'Đã lưu cấu hình Ngân hàng VietQR và chế độ duyệt đơn thành công!',
       });
     }
 

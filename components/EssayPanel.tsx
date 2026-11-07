@@ -11,8 +11,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { QuizHistoryItem } from '@/types';
-import { BookOpen, Send, CheckCircle, FileText, Award, Camera, Printer, X, Sparkles } from 'lucide-react';
+import { BookOpen, Send, CheckCircle, FileText, Award, Camera, Printer, X, Sparkles, FileDown } from 'lucide-react';
 import TextStreamLoader from '@/components/TextStreamLoader';
+import { exportMarkdownDocumentToWord } from '@/lib/word-export';
 
 interface EssayPanelProps {
   essay: string;
@@ -476,7 +477,20 @@ export default function EssayPanel({
           <h3 className="font-semibold text-base text-gray-800 dark:text-gray-200">
             📝 Đề thi tự luận & Thang điểm gợi ý
           </h3>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              onClick={() =>
+                exportMarkdownDocumentToWord(essay, {
+                  docType: 'summary',
+                  fileName: fileName || lessonTopic || 'De_Tu_Luan',
+                })
+              }
+              variant="outline"
+              size="sm"
+              className="rounded-lg text-xs h-8 border-indigo-200 text-indigo-600 dark:border-indigo-800 dark:text-indigo-400 gap-1 font-bold"
+            >
+              <FileDown className="w-3.5 h-3.5" /> Xuất Word (.doc)
+            </Button>
             <Button
               onClick={() => window.print()}
               variant="outline"

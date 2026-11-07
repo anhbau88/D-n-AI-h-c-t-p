@@ -2,9 +2,6 @@
 // API Cổng Quản Trị Tối Cao (Super Admin Portal) dành cho Chủ Sở Hữu Phần Mềm
 
 import { NextRequest, NextResponse } from 'next/server';
-import * as fs from 'fs';
-import * as path from 'path';
-import { db } from '@/lib/firebase';
 import { getSessionFromRequest } from '@/lib/auth';
 import {
   readUsersFromExcel,
@@ -14,7 +11,8 @@ import {
   mapExcelUserToSafeUser,
   isSuperAdminUsername,
 } from '@/lib/excel';
-import { LicenseCodeItem, SubscriptionPlan } from '@/types';
+import { readLicenses, readOrders, readBillingSettings } from '@/lib/billing-store';
+import { SubscriptionPlan } from '@/types';
 
 export const dynamic = 'force-dynamic';
 
@@ -39,32 +37,18 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Truy cập bị từ chối. Chỉ dành cho Super Admin.' }, { status: 403 });
     }
 
-    const allRawUsers = await readUsersFromExcel();
+    const [allRawUsers, licenses, orders, billingSettings] = await Promise.all([
+      readUsersFromExcel(),
+      readLicenses(),
+      readOrders(),
+      readBillingSettings(),
+    ]);
+
     const safeUsers = allRawUsers.map(u => mapExcelUserToSafeUser(u));
 
-    let licenses: LicenseCodeItem[] = [];
-    const localLicensesPath = process.env.LOCAL_DB_DIR
-      ? path.join(process.env.LOCAL_DB_DIR, 'licenses.json')
-      : 'licenses.json';
-
-    if (db) {
-      try {
-        const snap = await db.collection('licenses').get();
-        licenses = snap.docs.map(d => d.data() as LicenseCodeItem);
-      } catch (err) {
-        console.error('Lỗi đọc licenses trong /api/admin:', err);
-      }
-    }
-    if (licenses.length === 0 && fs.existsSync(localLicensesPath)) {
-      try {
-        licenses = JSON.parse(fs.readFileSync(localLicensesPath, 'utf-8'));
-      } catch {
-        licenses = [];
-      }
-    }
-
-    // Sắp xếp mã mới nhất lên đầu
+    // Sắp xếp mã và đơn hàng mới nhất lên đầu
     licenses.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    orders.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
     const stats = {
       totalUsers: safeUsers.length,
@@ -76,6 +60,7 @@ export async function GET(request: NextRequest) {
       totalAiCallsToday: safeUsers.reduce((sum, u) => sum + (u.aiQuotaUsed || 0), 0),
       totalLicenses: licenses.length,
       redeemedLicenses: licenses.filter(l => l.status === 'redeemed').length,
+      pendingOrdersCount: orders.filter(o => o.status === 'pending').length,
       estimatedRevenueVnd: licenses
         .filter(l => l.status === 'redeemed')
         .reduce((sum, l) => sum + (Number(l.amountVnd) || 99000), 0),
@@ -85,6 +70,8 @@ export async function GET(request: NextRequest) {
       stats,
       users: safeUsers,
       licenses,
+      orders,
+      billingSettings,
     });
   } catch (err) {
     console.error('Lỗi GET /api/admin:', err);

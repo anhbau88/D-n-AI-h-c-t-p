@@ -48,11 +48,11 @@ export interface SubscriptionOrder {
   username: string;
   fullName?: string;
   email: string;
-  plan: SubscriptionPlan;
+  plan: 'pro' | 'vip';
   durationDays: number;
   amountVnd: number;
   licenseCode: string;
-  status: 'code_sent' | 'redeemed';
+  status: 'pending' | 'code_sent' | 'redeemed';
   createdAt: string;
   redeemedAt?: string;
 }

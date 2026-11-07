@@ -24,7 +24,9 @@ import {
   ChevronDown,
   Sparkles,
   Volume2,
+  FileDown,
 } from 'lucide-react';
+import { exportMarkdownDocumentToWord } from '@/lib/word-export';
 
 interface SummaryPanelProps {
   summary: string;
@@ -323,8 +325,25 @@ export default function SummaryPanel({
                 </p>
               </div>
             ) : (
-              <div className="prose prose-sm dark:prose-invert max-w-none prose-headings:text-gray-800 dark:prose-headings:text-gray-100 prose-h2:text-base prose-h2:mt-5 prose-h2:mb-2 prose-h2:font-bold prose-p:text-gray-600 dark:prose-p:text-gray-300 prose-p:leading-relaxed prose-li:text-gray-600 dark:prose-li:text-gray-300">
-                <ReactMarkdown>{summary}</ReactMarkdown>
+              <div className="space-y-3">
+                <div className="flex justify-end">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() =>
+                      exportMarkdownDocumentToWord(summary, {
+                        docType: 'summary',
+                        fileName: fileName || 'Tom_Tat_Bai_Giang',
+                      })
+                    }
+                    className="rounded-xl text-xs h-8 px-3 border-indigo-200 text-indigo-600 dark:border-indigo-800 dark:text-indigo-400 font-bold gap-1"
+                  >
+                    <FileDown className="w-3.5 h-3.5" /> Tải Tóm tắt Word (.doc)
+                  </Button>
+                </div>
+                <div className="prose prose-sm dark:prose-invert max-w-none prose-headings:text-gray-800 dark:prose-headings:text-gray-100 prose-h2:text-base prose-h2:mt-5 prose-h2:mb-2 prose-h2:font-bold prose-p:text-gray-600 dark:prose-p:text-gray-300 prose-p:leading-relaxed prose-li:text-gray-600 dark:prose-li:text-gray-300">
+                  <ReactMarkdown>{summary}</ReactMarkdown>
+                </div>
               </div>
             )}
           </>
@@ -498,14 +517,29 @@ export default function SummaryPanel({
               </div>
               <div className="flex items-center gap-2">
                 {lessonPlan && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={handlePrintLessonPlan}
-                    className="rounded-xl text-xs h-9 px-3 border-amber-300 text-amber-700 font-bold gap-1"
-                  >
-                    <Printer className="w-3.5 h-3.5" /> In Giáo Án
-                  </Button>
+                  <>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() =>
+                        exportMarkdownDocumentToWord(lessonPlan, {
+                          docType: 'lesson_plan_5512',
+                          fileName: fileName || 'Giao_An_5512',
+                        })
+                      }
+                      className="rounded-xl text-xs h-9 px-3 border-indigo-300 text-indigo-700 font-bold gap-1"
+                    >
+                      <FileDown className="w-3.5 h-3.5" /> Tải Giáo Án Word (.doc)
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={handlePrintLessonPlan}
+                      className="rounded-xl text-xs h-9 px-3 border-amber-300 text-amber-700 font-bold gap-1"
+                    >
+                      <Printer className="w-3.5 h-3.5" /> In Giáo Án
+                    </Button>
+                  </>
                 )}
                 <Button
                   size="sm"

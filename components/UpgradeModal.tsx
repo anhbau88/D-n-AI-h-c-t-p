@@ -122,8 +122,12 @@ export default function UpgradeModal({
         throw new Error(data.error || 'Lỗi khi đăng ký gói.');
       }
 
-      setGeneratedCode(data.licenseCode);
-      setRedeemCodeInput(data.licenseCode);
+      if (data.licenseCode) {
+        setGeneratedCode(data.licenseCode);
+        setRedeemCodeInput(data.licenseCode);
+      } else {
+        setGeneratedCode('');
+      }
       setStatusMessage(data.message);
     } catch (err) {
       setErrorMessage(err instanceof Error ? err.message : 'Lỗi kết nối máy chủ.');
