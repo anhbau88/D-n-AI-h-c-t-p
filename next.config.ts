@@ -1,7 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  serverExternalPackages: ['firebase-admin', 'pdf-parse', 'xlsx', 'mammoth'],
+  typescript: {
+    ignoreBuildErrors: false,
+  },
 };
 
 export default nextConfig;

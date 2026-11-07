@@ -31,7 +31,49 @@ export default function FileUpload({
   const [isUploading, setIsUploading] = useState(false);
   const [fileInfo, setFileInfo] = useState<FileInfo | null>(null);
   const [lectureName, setLectureName] = useState('');
+  const [uploadMode, setUploadMode] = useState<'file' | 'paste'>('file');
+  const [pastedText, setPastedText] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const handlePasteSubmit = () => {
+    const isStudent = currentRole === 'student';
+    if (!lectureName.trim()) {
+      onError(
+        language === 'vi'
+          ? (isStudent ? 'Vui lòng nhập tên tài liệu / chủ đề.' : 'Vui lòng nhập tên bài giảng / chuyên đề.')
+          : 'Please enter a document/lecture name.'
+      );
+      document.getElementById('lectureNameInput')?.focus();
+      return;
+    }
+
+    if (!pastedText.trim() || pastedText.trim().length < 20) {
+      onError(
+        language === 'vi'
+          ? 'Nội dung bài học dán vào cần tối thiểu 20 ký tự để AI có đủ dữ liệu phân tích.'
+          : 'Please enter at least 20 characters of lecture content.'
+      );
+      return;
+    }
+
+    const cleanText = pastedText.trim();
+    const info: FileInfo = {
+      fileName: `${lectureName.trim()}.txt`,
+      fileSize: new Blob([cleanText]).size,
+      pages: Math.max(1, Math.ceil(cleanText.length / 1500)),
+      textLength: cleanText.length,
+      pdfUrl: undefined,
+    };
+
+    const hash = 'txt_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 6);
+    localStorage.setItem('pdfText', cleanText);
+    localStorage.setItem('fileInfo', JSON.stringify(info));
+
+    onUploadSuccess(cleanText, info, hash);
+    setFileInfo(info);
+    setLectureName('');
+    setPastedText('');
+  };
 
   // Xử lý khi kéo file vào vùng upload
   const handleDragOver = (e: DragEvent) => {
@@ -166,11 +208,35 @@ export default function FileUpload({
 
   return (
     <Card className="p-5 border-0 shadow-lg bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm">
-      <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-4">
-        📄 {language === 'vi' 
-          ? (currentRole === 'student' ? 'Tải lên tài liệu học tập' : 'Tải lên tài liệu giảng dạy') 
-          : (currentRole === 'student' ? 'Upload Study Materials' : 'Upload Teaching Materials')}
-      </h3>
+      <div className="flex items-center justify-between gap-2 mb-4">
+        <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+          📄 {language === 'vi' 
+            ? (currentRole === 'student' ? 'Tài liệu học tập' : 'Tài liệu giảng dạy') 
+            : (currentRole === 'student' ? 'Study Materials' : 'Teaching Materials')}
+        </h3>
+
+        {/* Tab chuyển đổi File vs Dán văn bản */}
+        <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-800 p-1 rounded-xl text-xs font-bold">
+          <button
+            type="button"
+            onClick={() => setUploadMode('file')}
+            className={`px-3 py-1 rounded-lg transition-all ${
+              uploadMode === 'file' ? 'bg-white dark:bg-gray-900 text-primary shadow-xs' : 'text-gray-500 hover:text-foreground'
+            }`}
+          >
+            📁 Tải File PDF/Word
+          </button>
+          <button
+            type="button"
+            onClick={() => setUploadMode('paste')}
+            className={`px-3 py-1 rounded-lg transition-all ${
+              uploadMode === 'paste' ? 'bg-white dark:bg-gray-900 text-indigo-600 dark:text-indigo-400 shadow-xs' : 'text-gray-500 hover:text-foreground'
+            }`}
+          >
+            📝 Dán Bài Học Nhanh
+          </button>
+        </div>
+      </div>
 
       {/* Ô nhập Tên tài liệu / bài giảng bắt buộc */}
       <div className="mb-4">
@@ -192,66 +258,94 @@ export default function FileUpload({
         />
       </div>
 
-      {/* Vùng kéo thả */}
-      <div
-        className={`
-          border-2 border-dashed rounded-xl p-6 text-center cursor-pointer
-          transition-all duration-300 ease-in-out
-          ${isDragging
-            ? 'border-blue-500 bg-blue-50/80 dark:bg-blue-950/50 scale-[1.02]'
-            : 'border-gray-200 dark:border-gray-700 hover:border-blue-400 hover:bg-blue-50/30 dark:hover:bg-blue-950/20'
-          }
-          ${isUploading || isDisabled ? 'opacity-50 pointer-events-none' : ''}
-        `}
-        onDragOver={handleDragOver}
-        onDragLeave={handleDragLeave}
-        onDrop={handleDrop}
-        onClick={() => {
-          if (!lectureName.trim()) {
-            const isStudent = currentRole === 'student';
-            onError(
-              language === 'vi' 
-                ? (isStudent ? 'Vui lòng nhập tên tài liệu trước khi chọn file.' : 'Vui lòng nhập tên bài giảng trước khi chọn file.') 
-                : (isStudent ? 'Please enter a document name before selecting a file.' : 'Please enter a lecture name before selecting a file.')
-            );
-            document.getElementById('lectureNameInput')?.focus();
-            return;
-          }
-          inputRef.current?.click();
-        }}
-      >
-        {isUploading ? (
-          <div className="py-2">
-            <div className="w-8 h-8 border-3 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
-            <p className="text-gray-500 text-sm font-medium">
-              {language === 'vi' ? 'Đang phân tích tài liệu (OCR)...' : 'Analyzing document (OCR)...'}
-            </p>
-          </div>
-        ) : (
-          <>
-            <div className="w-12 h-12 bg-linear-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center mx-auto mb-3 shadow-lg">
-              <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-              </svg>
+      {/* Vùng tải file hoặc dán văn bản tùy theo uploadMode */}
+      {uploadMode === 'file' ? (
+        <div
+          className={`
+            border-2 border-dashed rounded-xl p-6 text-center cursor-pointer
+            transition-all duration-300 ease-in-out
+            ${isDragging
+              ? 'border-blue-500 bg-blue-50/80 dark:bg-blue-950/50 scale-[1.02]'
+              : 'border-gray-200 dark:border-gray-700 hover:border-blue-400 hover:bg-blue-50/30 dark:hover:bg-blue-950/20'
+            }
+            ${isUploading || isDisabled ? 'opacity-50 pointer-events-none' : ''}
+          `}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+          onClick={() => {
+            if (!lectureName.trim()) {
+              const isStudent = currentRole === 'student';
+              onError(
+                language === 'vi' 
+                  ? (isStudent ? 'Vui lòng nhập tên tài liệu trước khi chọn file.' : 'Vui lòng nhập tên bài giảng trước khi chọn file.') 
+                  : (isStudent ? 'Please enter a document name before selecting a file.' : 'Please enter a lecture name before selecting a file.')
+              );
+              document.getElementById('lectureNameInput')?.focus();
+              return;
+            }
+            inputRef.current?.click();
+          }}
+        >
+          {isUploading ? (
+            <div className="py-2">
+              <div className="w-8 h-8 border-3 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+              <p className="text-gray-500 text-sm font-medium">
+                {language === 'vi' ? 'Đang phân tích tài liệu (OCR)...' : 'Analyzing document (OCR)...'}
+              </p>
             </div>
-            <p className="text-gray-700 dark:text-gray-300 font-bold text-sm">
-              {language === 'vi' ? 'Kéo thả file PDF, Word hoặc Hình ảnh vào đây' : 'Drag & drop PDF, Word or Image file here'}
-            </p>
-            <p className="text-gray-400 text-xs mt-1 font-semibold">
-              {language === 'vi' ? 'hoặc click để chọn file (tối đa 50MB)' : 'or click to browse file (max 50MB)'}
-            </p>
-          </>
-        )}
+          ) : (
+            <>
+              <div className="w-12 h-12 bg-linear-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center mx-auto mb-3 shadow-lg">
+                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                </svg>
+              </div>
+              <p className="text-gray-700 dark:text-gray-300 font-bold text-sm">
+                {language === 'vi' ? 'Kéo thả file PDF, Word hoặc Hình ảnh vào đây' : 'Drag & drop PDF, Word or Image file here'}
+              </p>
+              <p className="text-gray-400 text-xs mt-1 font-semibold">
+                {language === 'vi' ? 'hoặc click để chọn file (tối đa 50MB)' : 'or click to browse file (max 50MB)'}
+              </p>
+            </>
+          )}
 
-        {/* Input file ẩn */}
-        <input
-          ref={inputRef}
-          type="file"
-          accept=".pdf,application/pdf,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document,image/*"
-          className="hidden"
-          onChange={handleFileSelect}
-        />
-      </div>
+          {/* Input file ẩn */}
+          <input
+            ref={inputRef}
+            type="file"
+            accept=".pdf,application/pdf,.docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document,image/*"
+            className="hidden"
+            onChange={handleFileSelect}
+          />
+        </div>
+      ) : (
+        <div className="space-y-3">
+          <textarea
+            rows={5}
+            value={pastedText}
+            onChange={(e) => setPastedText(e.target.value)}
+            placeholder={
+              language === 'vi'
+                ? 'Dán nội dung bài học, dàn ý đề cương hoặc đoạn văn bản bài giảng vào đây để AI phân tích tức thì...'
+                : 'Paste your lecture text, syllabus or study notes here...'
+            }
+            className="w-full text-xs font-medium p-3 rounded-xl border border-gray-300 dark:border-gray-800 bg-white/70 dark:bg-gray-950/70 text-foreground placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary resize-y"
+          />
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] text-gray-400 font-semibold">
+              Độ dài: <strong className="text-foreground">{pastedText.length}</strong> ký tự (tối thiểu 20)
+            </span>
+            <button
+              type="button"
+              onClick={handlePasteSubmit}
+              className="px-5 py-2 rounded-xl bg-linear-to-r from-indigo-600 to-purple-600 hover:brightness-110 text-white text-xs font-bold shadow-md shadow-indigo-500/20 flex items-center gap-1.5 transition-all"
+            >
+              🚀 Nạp Bài Học & Bật AI
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Thông tin file đã upload */}
       {fileInfo && (

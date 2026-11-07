@@ -21,6 +21,8 @@ import {
   saveLicenseItem,
   readOrders,
   saveOrderItem,
+  readCoupons,
+  saveCoupon,
 } from '@/lib/billing-store';
 import { LicenseCodeItem, SubscriptionOrder, SubscriptionPlan } from '@/types';
 
@@ -36,6 +38,7 @@ export async function GET(request: NextRequest) {
       bankId: settings.bankId,
       accountNo: settings.accountNo,
       accountName: settings.accountName,
+      hotline: settings.hotline || '0923678668',
       approvalMode: settings.approvalMode,
       pricing: PLAN_PRICING_VND,
     };
@@ -122,6 +125,47 @@ export async function POST(request: NextRequest) {
     }
 
     // =========================================================================
+    // ACTION: KIỂM TRA & ÁP DỤNG MÃ GIẢM GIÁ (COUPON / VOUCHER)
+    // =========================================================================
+    if (action === 'validate_coupon') {
+      const codeInput = String(body.code || '').trim().toUpperCase();
+      const rawAmount = Number(body.amountVnd) || 99000;
+
+      if (!codeInput) {
+        return NextResponse.json({ error: 'Vui lòng nhập mã giảm giá.' }, { status: 400 });
+      }
+
+      const allCoupons = await readCoupons();
+      const coupon = allCoupons.find(c => c.code.toUpperCase() === codeInput);
+
+      if (!coupon) {
+        return NextResponse.json({ error: 'Mã giảm giá không tồn tại hoặc đã hết hạn.' }, { status: 400 });
+      }
+
+      if (coupon.maxUses && coupon.usedCount >= coupon.maxUses) {
+        return NextResponse.json({ error: 'Mã giảm giá này đã vượt quá số lượt sử dụng tối đa.' }, { status: 400 });
+      }
+
+      let discountVnd = 0;
+      if (coupon.discountPercent) {
+        discountVnd = Math.round((rawAmount * coupon.discountPercent) / 100);
+      } else if (coupon.discountAmountVnd) {
+        discountVnd = coupon.discountAmountVnd;
+      }
+
+      const finalAmountVnd = Math.max(10000, rawAmount - discountVnd);
+
+      return NextResponse.json({
+        success: true,
+        code: coupon.code,
+        description: coupon.description,
+        discountVnd,
+        finalAmountVnd,
+        message: `Đã áp dụng mã ${coupon.code}: Giảm ${discountVnd.toLocaleString('vi-VN')}đ!`,
+      });
+    }
+
+    // =========================================================================
     // ACTION 1: ĐĂNG KÝ GÓI CƯỚC -> SINH MÃ CODE GỬI EMAIL (HOẶC TẠO ĐƠN CHỜ DUYỆT)
     // =========================================================================
     if (action === 'register_plan') {
@@ -143,7 +187,24 @@ export async function POST(request: NextRequest) {
       }
 
       const settings = await readBillingSettings();
-      const amountVnd = PLAN_PRICING_VND[plan][durationDays] || 99000;
+      const baseAmountVnd = PLAN_PRICING_VND[plan][durationDays] || 99000;
+      let amountVnd = baseAmountVnd;
+
+      // Áp dụng mã giảm giá nếu có
+      if (body.couponCode) {
+        const allCoupons = await readCoupons();
+        const coupon = allCoupons.find(c => c.code.toUpperCase() === String(body.couponCode).trim().toUpperCase());
+        if (coupon) {
+          let discount = 0;
+          if (coupon.discountPercent) discount = Math.round((baseAmountVnd * coupon.discountPercent) / 100);
+          else if (coupon.discountAmountVnd) discount = coupon.discountAmountVnd;
+          amountVnd = Math.max(10000, baseAmountVnd - discount);
+          coupon.usedCount = (coupon.usedCount || 0) + 1;
+          await saveCoupon(coupon);
+        }
+      } else if (body.amountVnd && Number(body.amountVnd) > 0) {
+        amountVnd = Number(body.amountVnd);
+      }
       const nowIso = new Date().toISOString();
       const orderId = `ORD-${Date.now().toString().slice(-6)}`;
 
@@ -419,6 +480,7 @@ export async function POST(request: NextRequest) {
         bankId: String(body.bankId || current.bankId).trim().toUpperCase(),
         accountNo: String(body.accountNo || current.accountNo).trim(),
         accountName: String(body.accountName || current.accountName).trim().toUpperCase(),
+        hotline: String(body.hotline || current.hotline || '0923678668').trim(),
         approvalMode: body.approvalMode === 'manual_review' ? 'manual_review' : 'instant',
       };
 

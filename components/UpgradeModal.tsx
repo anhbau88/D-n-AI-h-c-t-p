@@ -63,6 +63,13 @@ export default function UpgradeModal({
   const [isRedeeming, setIsRedeeming] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
 
+  // Mã giảm giá (Coupon / Voucher)
+  const [couponInput, setCouponInput] = useState('');
+  const [appliedCoupon, setAppliedCoupon] = useState<string | null>(null);
+  const [discountVnd, setDiscountVnd] = useState(0);
+  const [isCheckingCoupon, setIsCheckingCoupon] = useState(false);
+  const [couponMessage, setCouponMessage] = useState('');
+
   const [bankInfo, setBankInfo] = useState({
     bankId: 'MB',
     accountNo: '0988888888',
@@ -90,9 +97,38 @@ export default function UpgradeModal({
 
   if (!isOpen) return null;
 
-  const currentAmount = PRICING_TABLE[selectedPlan][selectedDays] || 99000;
+  const rawAmount = PRICING_TABLE[selectedPlan][selectedDays] || 99000;
+  const currentAmount = Math.max(10000, rawAmount - discountVnd);
   const transferContent = `AISA ${user.username.toUpperCase()} ${selectedPlan.toUpperCase()}${selectedDays}D`;
   const vietQrUrl = `https://img.vietqr.io/image/${bankInfo.bankId}-${bankInfo.accountNo}-compact2.png?amount=${currentAmount}&addInfo=${encodeURIComponent(transferContent)}&accountName=${encodeURIComponent(bankInfo.accountName)}`;
+
+  const handleApplyCoupon = async () => {
+    setCouponMessage('');
+    if (!couponInput.trim()) return;
+    setIsCheckingCoupon(true);
+    try {
+      const res = await fetch('/api/billing', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'validate_coupon',
+          code: couponInput.trim(),
+          amountVnd: rawAmount,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Mã giảm giá không hợp lệ.');
+      setDiscountVnd(data.discountVnd || 0);
+      setAppliedCoupon(data.code);
+      setCouponMessage(data.message || 'Áp dụng mã thành công!');
+    } catch (err) {
+      setDiscountVnd(0);
+      setAppliedCoupon(null);
+      setCouponMessage(err instanceof Error ? err.message : 'Lỗi kiểm tra mã.');
+    } finally {
+      setIsCheckingCoupon(false);
+    }
+  };
 
   // Đăng ký gói -> Tự động sinh Mã Code gửi về Email
   const handleRegisterAndSendCode = async () => {
@@ -115,6 +151,8 @@ export default function UpgradeModal({
           plan: selectedPlan,
           durationDays: selectedDays,
           email: emailInput.trim(),
+          couponCode: appliedCoupon || undefined,
+          amountVnd: currentAmount,
         }),
       });
       const data = await res.json();
@@ -389,9 +427,39 @@ export default function UpgradeModal({
                     <QrCode className="w-3.5 h-3.5 text-indigo-600" /> Quét VietQR hoặc Nhận Mã Trải Nghiệm:
                   </p>
                   <p className="text-gray-500">Ngân hàng: <strong className="text-foreground">{bankInfo.bankId}</strong> — STK: <strong className="text-foreground font-mono">{bankInfo.accountNo}</strong></p>
-                  <p className="text-gray-500">Số tiền: <strong className="text-indigo-600 font-black">{currentAmount.toLocaleString('vi-VN')} VNĐ</strong> ({selectedDays} ngày)</p>
+                  <p className="text-gray-500">
+                    Số tiền: <strong className="text-indigo-600 font-black text-sm">{currentAmount.toLocaleString('vi-VN')} VNĐ</strong> ({selectedDays} ngày)
+                    {discountVnd > 0 && <span className="ml-1.5 text-[11px] line-through text-gray-400">({rawAmount.toLocaleString('vi-VN')}đ)</span>}
+                  </p>
                   <p className="text-gray-500">Nội dung CK: <code className="bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded font-bold text-indigo-600">{transferContent}</code></p>
                 </div>
+              </div>
+
+              {/* Ô Nhập Mã Giảm Giá (Coupon / Voucher) */}
+              <div className="p-3 bg-white dark:bg-gray-900 rounded-xl border border-dashed border-indigo-200 dark:border-indigo-800 space-y-2">
+                <div className="flex gap-2">
+                  <Input
+                    type="text"
+                    value={couponInput}
+                    onChange={(e) => setCouponInput(e.target.value.toUpperCase())}
+                    placeholder="Nhập mã giảm giá (VD: CHAOHOC2026, VIPPRO50K)..."
+                    className="h-9 text-xs rounded-lg uppercase font-mono font-bold"
+                  />
+                  <Button
+                    type="button"
+                    onClick={handleApplyCoupon}
+                    disabled={isCheckingCoupon}
+                    variant="outline"
+                    className="h-9 px-3 rounded-lg text-xs font-bold border-indigo-300 text-indigo-600 shrink-0"
+                  >
+                    {isCheckingCoupon ? '...' : 'Áp dụng'}
+                  </Button>
+                </div>
+                {couponMessage && (
+                  <p className={`text-[11px] font-bold ${appliedCoupon ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-500'}`}>
+                    {appliedCoupon ? '🏷️ ' : '⚠️ '}{couponMessage}
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -495,6 +563,9 @@ export default function UpgradeModal({
                 <p className="font-bold text-foreground">🔒 Cơ chế Bảo hành & Quản lý Thời hạn tự động:</p>
                 <p>• Nếu tài khoản của bạn đang còn ngày sử dụng, khi nhập mã Code mới hệ thống sẽ <strong>cộng dồn thêm số ngày</strong>.</p>
                 <p>• Mở khóa tức thì <strong>Gemini 2.5 Pro Reasoning</strong> và <strong>Ultra Academic</strong> trên toàn bộ công cụ.</p>
+                <p className="text-emerald-600 dark:text-emerald-400 font-bold pt-1">
+                  🛡️ Cam kết hoàn tiền 100% trong 3 ngày nếu hệ thống gặp sự cố kỹ thuật. Hotline/Zalo hỗ trợ: <a href="https://zalo.me/0923678668" target="_blank" rel="noreferrer" className="underline font-black text-indigo-600">0923678668</a>
+                </p>
               </div>
             </div>
           </div>

@@ -16,7 +16,6 @@ import {
   Headphones,
   GraduationCap,
   Play,
-  Pause,
   Square,
   RefreshCw,
   Printer,

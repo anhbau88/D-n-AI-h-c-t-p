@@ -152,3 +152,34 @@ export async function sendLicenseCodeEmail(params: {
 
   return dispatchEmail(params.email, subject, html);
 }
+
+
+/**
+ * Gửi mã OTP 6 chữ số để lấy lại mật khẩu tài khoản
+ */
+export async function sendForgotPasswordOtpEmail(email: string, otpCode: string, fullName?: string): Promise<EmailSendResult> {
+  const subject = `[AI Study Assistant] Mã xác nhận đặt lại mật khẩu: ${otpCode}`;
+  const html = `
+    <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 560px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 16px; overflow: hidden; background: #ffffff;">
+      <div style="background: linear-gradient(135deg, #e11d48, #be123c); padding: 28px 24px; color: #ffffff; text-align: center;">
+        <h1 style="margin: 0; font-size: 22px; font-weight: 800;">🔒 Đặt Lại Mật Khẩu Tài Khoản</h1>
+        <p style="margin: 6px 0 0; font-size: 13px; opacity: 0.9;">Hệ thống học tập AI Study Assistant</p>
+      </div>
+      <div style="padding: 28px 24px; color: #1e293b;">
+        <p style="font-size: 15px; margin-top: 0;">Xin chào <strong>${fullName || email}</strong>,</p>
+        <p style="font-size: 14px; line-height: 1.6; color: #475569;">
+          Hệ thống nhận được yêu cầu đặt lại mật khẩu cho tài khoản liên kết với email này. Vui lòng nhập mã OTP gồm 6 chữ số dưới đây để tạo mật khẩu mới:
+        </p>
+        <div style="margin: 24px 0; padding: 20px; background: #fff1f2; border: 2px dashed #f43f5e; border-radius: 12px; text-align: center;">
+          <span style="font-size: 32px; font-weight: 900; letter-spacing: 8px; color: #e11d48; font-family: monospace;">${otpCode}</span>
+          <p style="margin: 8px 0 0; font-size: 12px; color: #9f1239;">Mã này có hiệu lực trong 10 phút. Tuyệt đối không chia sẻ mã cho người khác.</p>
+        </div>
+        <p style="font-size: 13px; color: #64748b; line-height: 1.6;">
+          Nếu bạn không thực hiện yêu cầu này, vui lòng bỏ qua email. Mật khẩu hiện tại của bạn vẫn an toàn.
+        </p>
+      </div>
+    </div>
+  `;
+
+  return dispatchEmail(email, subject, html);
+}

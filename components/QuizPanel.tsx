@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { QuizQuestion } from '@/types';
-import { BookOpen, Target, Printer, RefreshCw, FileDown } from 'lucide-react';
+import { BookOpen, Target, Printer, FileDown } from 'lucide-react';
 import QuizSkeleton from '@/components/ui/QuizSkeleton';
 import { exportQuizToWord } from '@/lib/word-export';
 
@@ -95,6 +95,30 @@ export default function QuizPanel({
 
   const [isSubmitted, setIsSubmitted] = useState(hasSubmitted);
   const [isDrilling, setIsDrilling] = useState(false);
+  const isTeacher = userRole === 'teacher' || userRole === 'admin';
+
+  // Anti-cheat proctoring: đếm số lần chuyển tab / mở cửa sổ khác khi làm bài
+  const [tabSwitchCount, setTabSwitchCount] = useState(0);
+  const [cheatWarning, setCheatWarning] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (isTeacher || isSubmitted) return;
+
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        setTabSwitchCount((prev) => {
+          const next = prev + 1;
+          setCheatWarning(`⚠️ Giám sát thi: Bạn vừa chuyển tab/rời màn hình (${next} lần)! Số lần vi phạm sẽ được ghi nhận vào bài nộp.`);
+          return next;
+        });
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [isTeacher, isSubmitted]);
 
   const [assignTitle, setAssignTitle] = useState('');
   const [targetRoom, setTargetRoom] = useState(() => {
@@ -105,8 +129,6 @@ export default function QuizPanel({
   const [assignEnd, setAssignEnd] = useState('');
   const [isAssigning, setIsAssigning] = useState(false);
   const [formError, setFormError] = useState('');
-
-  const isTeacher = userRole === 'teacher' || userRole === 'admin';
 
   const [shuffledQuestions, setShuffledQuestions] = useState<QuizQuestion[]>(() => {
     if (questions.length === 0) return [];
@@ -364,6 +386,14 @@ export default function QuizPanel({
           )}
         </div>
       </div>
+
+      {/* Anti-cheat Proctoring Banner */}
+      {cheatWarning && !isSubmitted && (
+        <div className="p-3 rounded-xl bg-red-50 dark:bg-red-950/40 border-2 border-red-300 dark:border-red-800 text-xs font-bold text-red-600 dark:text-red-300 flex items-center justify-between animate-pulse">
+          <span>{cheatWarning}</span>
+          <span className="px-2 py-0.5 rounded bg-red-600 text-white text-[10px]">Vi phạm: {tabSwitchCount}</span>
+        </div>
+      )}
 
       {/* Danh sách câu hỏi */}
       <div 

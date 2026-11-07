@@ -23,6 +23,7 @@ export interface BillingConfigSettings {
   bankId: string;
   accountNo: string;
   accountName: string;
+  hotline?: string;
   /**
    * 'instant': Khách bấm xác nhận chuyển khoản là tự sinh Code gửi Email ngay (phù hợp trải nghiệm nhanh / Demo).
    * 'manual_review': Tạo đơn chờ duyệt (Pending), chỉ khi Admin bấm "Duyệt & Gửi Code" hoặc Webhook Ngân hàng báo tiền về mới gửi Code.
@@ -54,6 +55,7 @@ export async function readBillingSettings(): Promise<BillingConfigSettings> {
     bankId: process.env.VIETQR_BANK_ID || 'MB',
     accountNo: process.env.VIETQR_ACCOUNT_NO || '0988888888',
     accountName: process.env.VIETQR_ACCOUNT_NAME || 'AI STUDY ASSISTANT',
+    hotline: process.env.SUPPORT_PHONE || '0923678668',
     approvalMode: (process.env.BILLING_APPROVAL_MODE as 'instant' | 'manual_review') || 'instant',
   };
 
@@ -66,6 +68,7 @@ export async function readBillingSettings(): Promise<BillingConfigSettings> {
           bankId: data.bankId || defaultSettings.bankId,
           accountNo: data.accountNo || defaultSettings.accountNo,
           accountName: data.accountName || defaultSettings.accountName,
+          hotline: data.hotline || defaultSettings.hotline,
           approvalMode: data.approvalMode || defaultSettings.approvalMode,
           updatedAt: data.updatedAt,
         };
@@ -232,5 +235,66 @@ export async function saveOrderItem(order: SubscriptionOrder) {
     fs.writeFileSync(localOrdersPath, JSON.stringify(list, null, 2), 'utf-8');
   } catch (err) {
     console.error('Lỗi lưu order local:', err);
+  }
+}
+
+
+export interface DiscountCoupon {
+  code: string;
+  discountPercent?: number; // e.g. 20 (20%)
+  discountAmountVnd?: number; // e.g. 50000 (50.000đ)
+  description?: string;
+  maxUses?: number;
+  usedCount: number;
+  expiresAt?: string;
+}
+
+const localCouponsPath = process.env.LOCAL_DB_DIR
+  ? path.join(process.env.LOCAL_DB_DIR, 'coupons.json')
+  : 'coupons.json';
+
+const DEFAULT_COUPONS: DiscountCoupon[] = [
+  { code: 'CHAOHOC2026', discountPercent: 20, description: 'Ưu đãi năm học mới giảm 20%', usedCount: 0 },
+  { code: 'VIPPRO50K', discountAmountVnd: 50000, description: 'Giảm trực tiếp 50.000đ', usedCount: 0 },
+  { code: 'AISA30', discountPercent: 30, description: 'Tri ân người dùng mới giảm 30%', usedCount: 0 },
+];
+
+export async function readCoupons(): Promise<DiscountCoupon[]> {
+  if (db) {
+    try {
+      const snap = await db.collection('coupons').get();
+      if (!snap.empty) {
+        return snap.docs.map(d => d.data() as DiscountCoupon);
+      }
+    } catch (err) {
+      console.error('Lỗi đọc coupons từ Firebase:', err);
+    }
+  }
+  if (fs.existsSync(localCouponsPath)) {
+    try {
+      return JSON.parse(fs.readFileSync(localCouponsPath, 'utf-8')) as DiscountCoupon[];
+    } catch {
+      return DEFAULT_COUPONS;
+    }
+  }
+  return DEFAULT_COUPONS;
+}
+
+export async function saveCoupon(coupon: DiscountCoupon) {
+  if (db) {
+    try {
+      await db.collection('coupons').doc(coupon.code.toUpperCase()).set(coupon);
+    } catch (err) {
+      console.error('Lỗi lưu coupon Firebase:', err);
+    }
+  }
+  try {
+    const list = await readCoupons();
+    const idx = list.findIndex(c => c.code.toUpperCase() === coupon.code.toUpperCase());
+    if (idx >= 0) list[idx] = coupon;
+    else list.push(coupon);
+    fs.writeFileSync(localCouponsPath, JSON.stringify(list, null, 2), 'utf-8');
+  } catch (err) {
+    console.error('Lỗi lưu coupon local:', err);
   }
 }

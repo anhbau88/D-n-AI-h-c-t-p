@@ -7,7 +7,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { User } from '@/types';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Mail, ShieldCheck, Sparkles, CheckCircle2, Crown, Zap, Brain, Mic, Camera, Headphones, Network, FileSpreadsheet } from 'lucide-react';
+import { Mail, ShieldCheck, Sparkles, CheckCircle2, Crown, Zap, Brain, Mic, Camera, Headphones, Network, FileSpreadsheet, KeyRound, ArrowLeft } from 'lucide-react';
+import ZaloSupportWidget from '@/components/ZaloSupportWidget';
 
 interface AuthScreenProps {
   onLogin: (user: User) => void;
@@ -89,7 +90,7 @@ const AUTH_TRANSLATIONS = {
 };
 
 export default function AuthScreen({ onLogin, language, setLanguage }: AuthScreenProps) {
-  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
+  const [authMode, setAuthMode] = useState<'login' | 'register' | 'forgot_password'>('login');
 
   // Common states
   const [username, setUsername] = useState('');
@@ -109,6 +110,19 @@ export default function AuthScreen({ onLogin, language, setLanguage }: AuthScree
   const [otpCooldown, setOtpCooldown] = useState(0);
   const [sandboxOtpPreview, setSandboxOtpPreview] = useState<string | null>(null);
   const [otpDeliveryInfo, setOtpDeliveryInfo] = useState<string | null>(null);
+
+  // Forgot Password states
+  const [forgotIdentifier, setForgotIdentifier] = useState('');
+  const [forgotStep, setForgotStep] = useState<1 | 2>(1);
+  const [forgotOtp, setForgotOtp] = useState('');
+  const [forgotOtpToken, setForgotOtpToken] = useState('');
+  const [forgotNewPass, setForgotNewPass] = useState('');
+  const [forgotConfirmPass, setForgotConfirmPass] = useState('');
+  const [forgotMaskedEmail, setForgotMaskedEmail] = useState('');
+  const [forgotTargetEmail, setForgotTargetEmail] = useState('');
+  const [forgotTargetUsername, setForgotTargetUsername] = useState('');
+  const [forgotSandboxOtp, setForgotSandboxOtp] = useState<string | null>(null);
+  const [forgotLoading, setForgotLoading] = useState(false);
 
   const t = AUTH_TRANSLATIONS[language];
 
@@ -193,6 +207,81 @@ export default function AuthScreen({ onLogin, language, setLanguage }: AuthScree
       setError(err instanceof Error ? err.message : 'Lỗi kết nối máy chủ');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleRequestForgotOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+    setForgotSandboxOtp(null);
+    if (!forgotIdentifier.trim()) {
+      setError('Vui lòng nhập Tên đăng nhập hoặc Email của bạn.');
+      return;
+    }
+    setForgotLoading(true);
+    try {
+      const res = await fetch('/api/auth/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ identifier: forgotIdentifier.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Lỗi gửi yêu cầu.');
+      setForgotOtpToken(data.otpToken);
+      setForgotMaskedEmail(data.maskedEmail);
+      setForgotTargetEmail(data.email);
+      setForgotTargetUsername(data.username);
+      if (data.sandboxOtp) setForgotSandboxOtp(data.sandboxOtp);
+      setSuccess(data.message);
+      setForgotStep(2);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Lỗi kết nối máy chủ.');
+    } finally {
+      setForgotLoading(false);
+    }
+  };
+
+  const handleResetPasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+    if (!forgotOtp.trim() || forgotOtp.trim().length !== 6) {
+      setError('Vui lòng nhập đúng mã OTP gồm 6 chữ số.');
+      return;
+    }
+    if (!forgotNewPass || forgotNewPass.length < 6) {
+      setError('Mật khẩu mới phải có tối thiểu 6 ký tự.');
+      return;
+    }
+    if (forgotNewPass !== forgotConfirmPass) {
+      setError('Mật khẩu xác nhận không trùng khớp.');
+      return;
+    }
+    setForgotLoading(true);
+    try {
+      const res = await fetch('/api/auth/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: forgotTargetUsername,
+          email: forgotTargetEmail,
+          otp: forgotOtp.trim(),
+          otpToken: forgotOtpToken,
+          newPassword: forgotNewPass,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Lỗi đặt lại mật khẩu.');
+      setSuccess(data.message);
+      setAuthMode('login');
+      setPassword('');
+      setUsername(forgotTargetUsername);
+      setForgotStep(1);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Lỗi cập nhật mật khẩu.');
+    } finally {
+      setForgotLoading(false);
     }
   };
 
@@ -423,9 +512,22 @@ export default function AuthScreen({ onLogin, language, setLanguage }: AuthScree
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider block">
-                    {t.passwordLabel}
-                  </label>
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-gray-600 dark:text-gray-300 uppercase tracking-wider block">
+                      {t.passwordLabel}
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAuthMode('forgot_password');
+                        setError('');
+                        setSuccess('');
+                      }}
+                      className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline"
+                    >
+                      Quên mật khẩu?
+                    </button>
+                  </div>
                   <Input
                     type="password"
                     placeholder={t.passwordPlaceholder}
@@ -455,6 +557,139 @@ export default function AuthScreen({ onLogin, language, setLanguage }: AuthScree
                   {loading ? t.authenticating : t.loginButton}
                 </Button>
               </form>
+            ) : authMode === 'forgot_password' ? (
+              /* ================= FORM QUÊN MẬT KHẨU QUA EMAIL OTP ================= */
+              <div className="space-y-4">
+                <div className="flex items-center justify-between border-b border-gray-100 dark:border-gray-800 pb-2">
+                  <h3 className="text-sm font-black text-foreground flex items-center gap-1.5">
+                    <KeyRound className="w-4 h-4 text-indigo-600" /> Khôi phục mật khẩu tài khoản
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAuthMode('login');
+                      setError('');
+                      setSuccess('');
+                      setForgotStep(1);
+                    }}
+                    className="text-xs font-bold text-gray-500 hover:text-foreground flex items-center gap-1"
+                  >
+                    <ArrowLeft className="w-3.5 h-3.5" /> Quay lại
+                  </button>
+                </div>
+
+                {forgotStep === 1 ? (
+                  <form onSubmit={handleRequestForgotOtp} className="space-y-3">
+                    <p className="text-xs text-gray-500">
+                      Nhập Tên đăng nhập hoặc Email bạn đã đăng ký để nhận mã xác thực OTP 6 chữ số:
+                    </p>
+                    <div className="space-y-1.5">
+                      <label className="text-[11px] font-bold text-gray-600 dark:text-gray-300 uppercase block">
+                        Tên đăng nhập hoặc Email
+                      </label>
+                      <Input
+                        type="text"
+                        value={forgotIdentifier}
+                        onChange={(e) => setForgotIdentifier(e.target.value)}
+                        placeholder="VD: teacher1 hoặc email@gmail.com..."
+                        className="rounded-xl h-10 text-xs font-bold"
+                      />
+                    </div>
+
+                    {error && (
+                      <div className="p-3 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 text-red-600 text-xs font-bold text-center">
+                        ⚠️ {error}
+                      </div>
+                    )}
+                    {success && (
+                      <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 text-emerald-600 text-xs font-bold text-center">
+                        ✅ {success}
+                      </div>
+                    )}
+
+                    <Button
+                      type="submit"
+                      disabled={forgotLoading}
+                      className="w-full h-10 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs"
+                    >
+                      {forgotLoading ? 'Đang gửi mã...' : 'Gửi mã xác nhận OTP qua Email'}
+                    </Button>
+                  </form>
+                ) : (
+                  <form onSubmit={handleResetPasswordSubmit} className="space-y-3">
+                    <div className="p-3 rounded-xl bg-indigo-50/70 dark:bg-indigo-950/30 text-xs text-indigo-700 dark:text-indigo-300 font-semibold">
+                      Mã xác nhận đã được gửi tới: <strong>{forgotMaskedEmail}</strong>
+                    </div>
+
+                    {forgotSandboxOtp && (
+                      <div className="p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 text-[11px] text-amber-700 dark:text-amber-300 flex items-center justify-between">
+                        <span>[Demo OTP]: <strong>{forgotSandboxOtp}</strong></span>
+                        <button
+                          type="button"
+                          onClick={() => setForgotOtp(forgotSandboxOtp)}
+                          className="font-bold underline text-indigo-600"
+                        >
+                          Điền nhanh
+                        </button>
+                      </div>
+                    )}
+
+                    <div className="space-y-1.5">
+                      <label className="text-[11px] font-bold text-gray-600 dark:text-gray-300 uppercase block">
+                        Mã xác nhận OTP (6 số)
+                      </label>
+                      <Input
+                        type="text"
+                        maxLength={6}
+                        value={forgotOtp}
+                        onChange={(e) => setForgotOtp(e.target.value.replace(/[^0-9]/g, ''))}
+                        placeholder="Nhập 6 chữ số..."
+                        className="rounded-xl h-10 text-center font-mono font-bold tracking-widest text-sm"
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-[11px] font-bold text-gray-600 dark:text-gray-300 uppercase block">
+                        Mật khẩu mới
+                      </label>
+                      <Input
+                        type="password"
+                        value={forgotNewPass}
+                        onChange={(e) => setForgotNewPass(e.target.value)}
+                        placeholder="Tối thiểu 6 ký tự..."
+                        className="rounded-xl h-10 text-xs font-bold"
+                      />
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="text-[11px] font-bold text-gray-600 dark:text-gray-300 uppercase block">
+                        Xác nhận mật khẩu mới
+                      </label>
+                      <Input
+                        type="password"
+                        value={forgotConfirmPass}
+                        onChange={(e) => setForgotConfirmPass(e.target.value)}
+                        placeholder="Nhập lại mật khẩu mới..."
+                        className="rounded-xl h-10 text-xs font-bold"
+                      />
+                    </div>
+
+                    {error && (
+                      <div className="p-3 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 text-red-600 text-xs font-bold text-center">
+                        ⚠️ {error}
+                      </div>
+                    )}
+
+                    <Button
+                      type="submit"
+                      disabled={forgotLoading}
+                      className="w-full h-10 rounded-xl bg-linear-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold text-xs shadow-md"
+                    >
+                      {forgotLoading ? 'Đang lưu...' : 'Xác nhận & Đặt lại mật khẩu'}
+                    </Button>
+                  </form>
+                )}
+              </div>
             ) : (
               /* ================= FORM ĐĂNG KÝ + XÁC THỰC EMAIL OTP ================= */
               <form onSubmit={handleRegisterSubmit} className="space-y-3">
@@ -630,6 +865,9 @@ export default function AuthScreen({ onLogin, language, setLanguage }: AuthScree
           </Card>
         </div>
       </div>
+
+      {/* Floating Zalo / Hotline CSKH 24/7 */}
+      <ZaloSupportWidget phone="0923678668" />
     </div>
   );
 }

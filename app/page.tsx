@@ -61,6 +61,7 @@ const AdminPortal = dynamic(() => import('@/components/AdminPortal'), { ssr: fal
 const DocumentLibrary = dynamic(() => import('@/components/DocumentLibrary'), { ssr: false });
 const UserManagement = dynamic(() => import('@/components/UserManagement'), { ssr: false });
 const TeacherClassManagement = dynamic(() => import('@/components/TeacherClassManagement'), { ssr: false });
+const ZaloSupportWidget = dynamic(() => import('@/components/ZaloSupportWidget'), { ssr: false });
 
 
 import { FileInfo, QuizQuestion, User, Assignment, QuizHistoryItem, DocumentItem, ChatMessage, AIModelTier } from '@/types';
@@ -2201,6 +2202,29 @@ export default function Home() {
           </div>
         </header>
 
+        {/* ===== BANNER CẢNH BÁO SẮP HẾT HẠN GÓI CƯỚC ===== */}
+        {user.plan && user.plan !== 'free' && user.planExpiresAt && (() => {
+          // eslint-disable-next-line react-hooks/purity
+          const daysLeft = Math.ceil((new Date(user.planExpiresAt).getTime() - Date.now()) / (1000 * 3600 * 24));
+          if (daysLeft >= 0 && daysLeft <= 3) {
+            return (
+              <div className="bg-gradient-to-r from-amber-500 to-orange-600 text-white px-4 py-2 text-xs font-bold flex items-center justify-between shadow-sm">
+                <span className="flex items-center gap-1.5">
+                  ⏳ Gói {user.plan.toUpperCase()} của bạn chỉ còn {daysLeft === 0 ? 'hôm nay' : `${daysLeft} ngày`} nữa là hết hạn.
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowUpgradeModal(true)}
+                  className="px-3 py-1 bg-white text-orange-700 rounded-lg text-[11px] font-black hover:bg-orange-50 active:scale-95 transition-all shadow-xs"
+                >
+                  Gia hạn ngay để giữ ưu đãi & dữ liệu
+                </button>
+              </div>
+            );
+          }
+          return null;
+        })()}
+
         {/* ===== POPUPS & MODALS ===== */}
         {showUpgradeModal && (
           <UpgradeModal
@@ -4100,6 +4124,9 @@ export default function Home() {
           </div>
         </div>
       )}
+
+      {/* ===== FLOATING ZALO / HOTLINE CSKH ===== */}
+      <ZaloSupportWidget phone="0923678668" />
 
       {/* ===== TOAST NOTIFICATION CONTAINER ===== */}
       <ToastContainer toasts={toasts} onClose={handleCloseToast} />
