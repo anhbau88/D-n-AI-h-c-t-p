@@ -62,10 +62,10 @@ const AdminPortal = dynamic(() => import('@/components/AdminPortal'), { ssr: fal
 const DocumentLibrary = dynamic(() => import('@/components/DocumentLibrary'), { ssr: false });
 const UserManagement = dynamic(() => import('@/components/UserManagement'), { ssr: false });
 const TeacherClassManagement = dynamic(() => import('@/components/TeacherClassManagement'), { ssr: false });
-const ZaloSupportWidget = dynamic(() => import('@/components/ZaloSupportWidget'), { ssr: false });
 const SocialShareModal = dynamic(() => import('@/components/SocialShareModal'), { ssr: false });
 const LeaderboardModal = dynamic(() => import('@/components/LeaderboardModal'), { ssr: false });
 
+import ZaloSupportWidget, { ZaloSupportCard } from '@/components/ZaloSupportWidget';
 import MobileBottomNav from '@/components/MobileBottomNav';
 import PwaInstallPrompt from '@/components/PwaInstallPrompt';
 import ZenFocusMode from '@/components/ZenFocusMode';
@@ -2013,13 +2013,21 @@ export default function Home() {
             />
             <Search className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
           </div>
-          <button 
-            onClick={() => showMessage(t.helpCenterAlert, false)}
-            className="w-full flex items-center gap-3 px-4 py-2.5 text-foreground hover:bg-gray-200/50 dark:hover:bg-sidebar-accent rounded-lg transition-all duration-200 text-left"
+          <a 
+            href="https://zalo.me/0923678668"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-full flex items-center justify-between px-3 py-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/30 rounded-xl transition-all duration-200 text-left text-xs font-bold"
+            title="Chat Zalo hỗ trợ kỹ thuật 24/7"
           >
-            <HelpCircle className="w-5.5 h-5.5 text-primary" />
-            <span className="text-xs font-bold">{t.helpCenter}</span>
-          </button>
+            <span className="flex items-center gap-2">
+              <div className="w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center font-black text-[10px]">
+                Z
+              </div>
+              <span>Hỗ trợ Zalo 24/7</span>
+            </span>
+            <span className="text-[10px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-1.5 py-0.5 rounded font-black">Online</span>
+          </a>
 
           {/* Mobile Profile & Logout */}
           <div className="lg:hidden mt-4 pt-4 border-t border-gray-200 dark:border-white/5 flex items-center justify-between">
@@ -2193,11 +2201,11 @@ export default function Home() {
               />
             </div>
 
-            {/* Upgrade / Redeem Code Button */}
+            {/* Upgrade / Redeem Code Button (Desktop / Tablet Only) */}
             <button
               type="button"
               onClick={() => setShowUpgradeModal(true)}
-              className={`px-2.5 sm:px-3 py-1.5 rounded-full text-xs font-black flex items-center gap-1.5 shadow-sm transition-all hover:scale-105 active:scale-95 ${
+              className={`hidden sm:flex px-2.5 sm:px-3 py-1.5 rounded-full text-xs font-black items-center gap-1.5 shadow-sm transition-all hover:scale-105 active:scale-95 ${
                 user.plan === 'vip'
                   ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white'
                   : user.plan === 'pro'
@@ -2279,8 +2287,8 @@ export default function Home() {
 
               {/* Mobile Quick Dropdown */}
               {mobileProfileMenuOpen && (
-                <div className="absolute right-0 top-11 w-64 p-3 rounded-2xl bg-white/95 dark:bg-[#12141e]/95 backdrop-blur-2xl border border-slate-200 dark:border-white/10 shadow-2xl space-y-3 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
-                  <div className="flex items-center gap-2.5 pb-2 border-b border-slate-200 dark:border-slate-800">
+                <div className="absolute right-0 top-11 w-72 p-3.5 rounded-2xl bg-white/95 dark:bg-[#12141e]/95 backdrop-blur-2xl border border-slate-200 dark:border-white/10 shadow-2xl space-y-3 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+                  <div className="flex items-center gap-2.5 pb-2.5 border-b border-slate-200 dark:border-slate-800">
                     <div className="w-9 h-9 rounded-full bg-primary/10 text-primary font-black flex items-center justify-center text-sm capitalize">
                       {user.username.charAt(0)}
                     </div>
@@ -2289,6 +2297,38 @@ export default function Home() {
                       <p className="text-[10px] text-slate-500 capitalize">{user.role} • Gói: {(user.plan || 'free').toUpperCase()}</p>
                     </div>
                   </div>
+
+                  {/* Nút Nâng cấp gói nổi bật trong menu mobile */}
+                  <button
+                    onClick={() => {
+                      setMobileProfileMenuOpen(false);
+                      setShowUpgradeModal(true);
+                    }}
+                    className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white font-black text-xs flex items-center justify-between shadow-xs active:scale-98 transition-all"
+                  >
+                    <span className="flex items-center gap-1.5">
+                      <Crown className="w-4 h-4" />
+                      <span>{user.plan === 'vip' ? 'Gói VIP ULTRA' : user.plan === 'pro' ? 'Gói PRO AI' : 'Nâng cấp Gói / Nhập Code'}</span>
+                    </span>
+                    <span className="text-[10px] bg-white/20 px-2 py-0.5 rounded-full">Kích hoạt</span>
+                  </button>
+
+                  {/* Nút Chat Zalo CSKH 24/7 trực tiếp trong menu mobile */}
+                  <a
+                    href="https://zalo.me/0923678668"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => setMobileProfileMenuOpen(false)}
+                    className="w-full py-2 px-3 rounded-xl bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 font-bold text-xs flex items-center justify-between border border-blue-200/60 dark:border-blue-900/40 hover:brightness-105 transition-all"
+                  >
+                    <span className="flex items-center gap-2">
+                      <div className="w-4 h-4 rounded-full bg-blue-600 text-white flex items-center justify-center text-[9px] font-black">
+                        Z
+                      </div>
+                      <span>Hỗ trợ Zalo 24/7 (0923678668)</span>
+                    </span>
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  </a>
 
                   <div className="grid grid-cols-2 gap-2 text-xs">
                     <button
@@ -3153,6 +3193,9 @@ export default function Home() {
                         </div>
                       </div>
                     </div>
+
+                    {/* Official Customer Support Card 24/7 */}
+                    <ZaloSupportCard phone="0923678668" />
                   </div>
                 )}
 
@@ -4017,19 +4060,6 @@ export default function Home() {
           </div>
         </main>
       </div>
-
-      {/* ===== MOBILE CONTEXTUAL FAB ===== */}
-      {sidebarTab !== 'upload' && !activeDoc && !activeAssignment && (
-        <button 
-          onClick={() => {
-            syncWorkspaceWithDoc(null);
-            setSidebarTab('upload');
-          }}
-          className="fixed bottom-8 right-8 w-14 h-14 rounded-full primary-pill text-white shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all z-50 lg:hidden border border-white/10"
-        >
-          <Plus className="w-8 h-8" />
-        </button>
-      )}
 
       {/* ===== OVERLAY MODAL: READ ESSAY DETAIL AND FEEDBACK (Teacher only) ===== */}
       {selectedEssaySubmission && (
