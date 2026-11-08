@@ -6,9 +6,27 @@ import { AIModelTier, SubscriptionPlan } from '@/types';
 import { getSessionFromRequest, resolveActivePlan } from './auth';
 import { findUserInExcel, updateUserFieldsInExcel, isSuperAdminUsername, awardUserXpAndStreak } from './excel';
 
+export const PLAN_MONTHLY_AI_POINTS: Record<SubscriptionPlan, number> = {
+  free: 20,
+  hs_basic: 250,
+  hs_plus: 500,
+  gv_basic: 1000,
+  gv_pro: 2000,
+  topup_small: 100,
+  topup_std: 300,
+  pro: 500,
+  vip: 2000,
+};
+
 export const PLAN_DAILY_QUOTA: Record<SubscriptionPlan, number> = {
   free: 12,
-  pro: 200,
+  hs_basic: 50,
+  hs_plus: 150,
+  gv_basic: 300,
+  gv_pro: 9999,
+  topup_small: 50,
+  topup_std: 100,
+  pro: 150,
   vip: 9999,
 };
 
@@ -60,7 +78,8 @@ export async function checkAndConsumeAiQuota(
   const { activePlan } = resolveActivePlan(rawPlan, rawUser.PlanExpiresAt);
 
   // Kiểm tra quyền truy cập Model AI cao cấp (Pro / Ultra)
-  if (requestedTier === 'pro' && activePlan === 'free') {
+  const isProAllowed = ['hs_plus', 'gv_basic', 'gv_pro', 'pro', 'vip'].includes(activePlan);
+  if (requestedTier === 'pro' && !isProAllowed) {
     return {
       allowed: false,
       effectivePlan: activePlan,
@@ -68,11 +87,12 @@ export async function checkAndConsumeAiQuota(
       quotaUsed: Number(rawUser.AiQuotaUsed) || 0,
       quotaLimit: PLAN_DAILY_QUOTA[activePlan],
       upgradeRequired: true,
-      error: 'Mô hình AI Tư Duy Sâu (Gemini 2.5 Pro Reasoning) chỉ dành cho thành viên gói Pro hoặc VIP. Vui lòng nâng cấp gói hoặc nhập Mã Code kích hoạt!',
+      error: 'Mô hình AI Tư Duy Sâu (Gemini 3.5 Pro Reasoning) dành cho thành viên gói HS Plus hoặc Giáo viên. Vui lòng nâng cấp gói hoặc nhập Mã Code kích hoạt!',
     };
   }
 
-  if (requestedTier === 'ultra' && activePlan !== 'vip') {
+  const isUltraAllowed = ['hs_plus', 'gv_basic', 'gv_pro', 'pro', 'vip'].includes(activePlan);
+  if (requestedTier === 'ultra' && !isUltraAllowed) {
     return {
       allowed: false,
       effectivePlan: activePlan,
@@ -80,7 +100,7 @@ export async function checkAndConsumeAiQuota(
       quotaUsed: Number(rawUser.AiQuotaUsed) || 0,
       quotaLimit: PLAN_DAILY_QUOTA[activePlan],
       upgradeRequired: true,
-      error: 'Mô hình AI Học Thuật Chuyên Gia (Ultra Academic) chỉ dành cho gói VIP Center. Vui lòng nâng cấp lên gói VIP!',
+      error: 'Mô hình AI Chuyên Sâu (Gemini 3.8 Flash) dành cho gói HS Plus hoặc Giáo viên Pro. Vui lòng nâng cấp gói!',
     };
   }
 

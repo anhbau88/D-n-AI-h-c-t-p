@@ -13,6 +13,9 @@ import { sendLicenseCodeEmail } from '@/lib/mailer';
 import {
   BillingConfigSettings,
   PLAN_PRICING_VND,
+  PRICING_PLANS_DATA,
+  TASK_AI_POINTS,
+  PRICING_FINANCIAL_MODEL,
   readBillingSettings,
   saveBillingSettings,
   generateSignedLicenseCode,
@@ -41,6 +44,9 @@ export async function GET(request: NextRequest) {
       hotline: settings.hotline || '0923678668',
       approvalMode: settings.approvalMode,
       pricing: PLAN_PRICING_VND,
+      plansData: PRICING_PLANS_DATA,
+      taskPoints: TASK_AI_POINTS,
+      financialModel: PRICING_FINANCIAL_MODEL,
     };
 
     if (!username) {
@@ -169,10 +175,19 @@ export async function POST(request: NextRequest) {
     // ACTION 1: ĐĂNG KÝ GÓI CƯỚC -> SINH MÃ CODE GỬI EMAIL (HOẶC TẠO ĐƠN CHỜ DUYỆT)
     // =========================================================================
     if (action === 'register_plan') {
-      const plan: 'pro' | 'vip' = body.plan === 'vip' ? 'vip' : 'pro';
-      const durationDays = [7, 30, 90, 365].includes(Number(body.durationDays))
+      const validPlans: SubscriptionPlan[] = ['hs_basic', 'hs_plus', 'gv_basic', 'gv_pro', 'topup_small', 'topup_std', 'pro', 'vip'];
+      const rawPlanInput = String(body.plan || '').toLowerCase();
+      const plan: SubscriptionPlan = validPlans.includes(rawPlanInput as SubscriptionPlan)
+        ? (rawPlanInput as SubscriptionPlan)
+        : 'hs_plus';
+
+      const isTopup = plan === 'topup_small' || plan === 'topup_std';
+      const durationDays = isTopup
+        ? 30
+        : [7, 30, 90, 365].includes(Number(body.durationDays))
         ? Number(body.durationDays)
         : 30;
+
       const targetEmail = (body.email || rawUser.Email || '').trim().toLowerCase();
 
       if (!targetEmail || !targetEmail.includes('@')) {
@@ -186,8 +201,8 @@ export async function POST(request: NextRequest) {
         await updateUserFieldsInExcel(rawUser.Username, { Email: targetEmail, EmailVerified: true });
       }
 
-      const settings = await readBillingSettings();
-      const baseAmountVnd = PLAN_PRICING_VND[plan][durationDays] || 99000;
+      const planPrices = PLAN_PRICING_VND[plan] || PLAN_PRICING_VND.hs_plus;
+      const baseAmountVnd = planPrices[durationDays] || 39000;
       let amountVnd = baseAmountVnd;
 
       // Áp dụng mã giảm giá nếu có
@@ -223,6 +238,9 @@ export async function POST(request: NextRequest) {
       };
       await saveOrderItem(pendingOrder);
 
+      const planMeta = PRICING_PLANS_DATA[plan];
+      const planDisplayName = planMeta ? `${planMeta.name} (${planMeta.aiPointsPerMonth} Điểm AI)` : plan.toUpperCase();
+
       return NextResponse.json({
         success: true,
         pendingApproval: true,
@@ -232,7 +250,7 @@ export async function POST(request: NextRequest) {
         durationDays,
         email: targetEmail,
         amountVnd,
-        message: `Đã ghi nhận yêu cầu đăng ký gói #${orderId} (${plan.toUpperCase()} - ${durationDays} ngày). Ngay sau khi Quản trị viên xác nhận đã nhận được tiền chuyển khoản, Mã Code kích hoạt sẽ được gửi tới Email ${targetEmail} và hiển thị tại danh sách đơn của bạn!`,
+        message: `Đã ghi nhận yêu cầu đăng ký #${orderId} - Gói ${planDisplayName} (${durationDays} ngày). Ngay sau khi Quản trị viên xác nhận đã nhận được ${amountVnd.toLocaleString('vi-VN')}đ chuyển khoản, Mã Code kích hoạt sẽ được gửi tới Email ${targetEmail} và hiển thị tại danh sách đơn của bạn!`,
       });
     }
 
@@ -294,8 +312,21 @@ export async function POST(request: NextRequest) {
       const baseMs = existingExpMs > nowMs ? existingExpMs : nowMs;
       const newExpiresAt = new Date(baseMs + durationDays * 24 * 3600 * 1000).toISOString();
 
-      const preferredModel = targetPlan === 'vip' ? 'ultra' : 'pro';
-      const bonusXp = targetPlan === 'vip' ? 200 : 100;
+      const preferredModel = (targetPlan === 'gv_pro' || targetPlan === 'vip')
+        ? 'ultra'
+        : (targetPlan === 'gv_basic' || targetPlan === 'hs_plus' || targetPlan === 'pro')
+        ? 'pro'
+        : 'flash';
+
+      const bonusXp = (targetPlan === 'gv_pro' || targetPlan === 'vip')
+        ? 250
+        : (targetPlan === 'gv_basic' || targetPlan === 'hs_plus' || targetPlan === 'pro')
+        ? 150
+        : 80;
+
+      const planMeta = PRICING_PLANS_DATA[targetPlan];
+      const planPoints = planMeta ? planMeta.aiPointsPerMonth : 250;
+      const planDisplayName = planMeta ? planMeta.name : targetPlan.toUpperCase();
 
       const updatedRaw = await updateUserFieldsInExcel(rawUser.Username, {
         Plan: targetPlan,
@@ -310,13 +341,16 @@ export async function POST(request: NextRequest) {
       }
 
       const safeUser = mapExcelUserToSafeUser(updatedRaw);
+      safeUser.aiPoints = planPoints;
+      safeUser.aiPointsTotal = planPoints;
+
       const response = NextResponse.json({
         success: true,
         user: safeUser,
         plan: targetPlan,
         durationDays,
         expiresAt: newExpiresAt,
-        message: `🎉 Kích hoạt thành công gói ${targetPlan.toUpperCase()} (${durationDays} ngày)! Đã mở khóa Model AI ${targetPlan === 'vip' ? 'Ultra Academic' : 'Pro 2.5 Reasoning'} và tặng +${bonusXp} XP!`,
+        message: `🎉 Kích hoạt thành công gói ${planDisplayName} (${durationDays} ngày)! Đã cấp ${planPoints} Điểm AI/tháng, mở khóa Model AI ${preferredModel.toUpperCase()} và tặng +${bonusXp} XP!`,
       });
 
       return attachSessionCookie(response, safeUser);
@@ -330,12 +364,19 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Chỉ Super Admin mới có quyền phát hành mã kích hoạt.' }, { status: 403 });
       }
 
-      const plan: 'pro' | 'vip' = body.plan === 'vip' ? 'vip' : 'pro';
+      const validPlans: SubscriptionPlan[] = ['hs_basic', 'hs_plus', 'gv_basic', 'gv_pro', 'topup_small', 'topup_std', 'pro', 'vip'];
+      const rawPlanInput = String(body.plan || '').toLowerCase();
+      const plan: SubscriptionPlan = validPlans.includes(rawPlanInput as SubscriptionPlan)
+        ? (rawPlanInput as SubscriptionPlan)
+        : 'hs_plus';
+
       const durationDays = Number(body.durationDays) || 30;
       const count = Math.min(20, Math.max(1, Number(body.count) || 1));
       const recipientEmail = body.recipientEmail ? String(body.recipientEmail).trim().toLowerCase() : '';
 
       const generatedCodes: LicenseCodeItem[] = [];
+      const planPrices = PLAN_PRICING_VND[plan] || PLAN_PRICING_VND.hs_plus;
+
       for (let i = 0; i < count; i++) {
         const code = generateSignedLicenseCode(plan, durationDays);
         const item: LicenseCodeItem = {
@@ -346,7 +387,7 @@ export async function POST(request: NextRequest) {
           targetEmail: recipientEmail || undefined,
           createdBy: rawUser.Username,
           createdAt: new Date().toISOString(),
-          amountVnd: PLAN_PRICING_VND[plan][durationDays] || 99000,
+          amountVnd: planPrices[durationDays] || 39000,
         };
         await saveLicenseItem(item);
         generatedCodes.push(item);
@@ -361,10 +402,13 @@ export async function POST(request: NextRequest) {
         });
       }
 
+      const planMeta = PRICING_PLANS_DATA[plan];
+      const planDisplayName = planMeta ? planMeta.name : plan.toUpperCase();
+
       return NextResponse.json({
         success: true,
         codes: generatedCodes,
-        message: `Đã phát hành ${generatedCodes.length} mã kích hoạt gói ${plan.toUpperCase()} (${durationDays} ngày).`,
+        message: `Đã phát hành ${generatedCodes.length} mã kích hoạt gói ${planDisplayName} (${durationDays} ngày).`,
       });
     }
 

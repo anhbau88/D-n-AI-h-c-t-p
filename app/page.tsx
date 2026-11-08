@@ -2464,7 +2464,15 @@ b) Pha tối / Chu trình Calvin (Diễn ra tại chất nền stroma của lụ
             <span className="flex items-center gap-2">
               <Crown className="w-3.5 h-3.5" />
               <span>
-                {user.plan === 'vip' ? 'Gói VIP ULTRA' : user.plan === 'pro' ? 'Gói PRO AI' : 'Gói dịch vụ / Mã Code'}
+                {user.plan === 'gv_pro' || user.plan === 'vip'
+                  ? 'Gói GV PRO'
+                  : user.plan === 'gv_basic'
+                  ? 'Gói GV CƠ BẢN'
+                  : user.plan === 'hs_plus' || user.plan === 'pro'
+                  ? 'Gói HS PLUS'
+                  : user.plan === 'hs_basic'
+                  ? 'Gói HS CƠ BẢN'
+                  : 'Gói dịch vụ / Mã Code'}
               </span>
             </span>
             <KeyRound className="w-3.5 h-3.5 opacity-80" />
@@ -2586,17 +2594,34 @@ b) Pha tối / Chu trình Calvin (Diễn ra tại chất nền stroma của lụ
               type="button"
               onClick={() => setShowUpgradeModal(true)}
               className={`hidden sm:flex min-h-[40px] px-3 py-1.5 rounded-xl text-xs font-black items-center gap-1.5 transition-all ${
-                user.plan === 'vip'
+                user.plan === 'gv_pro' || user.plan === 'vip'
                   ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white'
-                  : user.plan === 'pro'
+                  : user.plan === 'gv_basic'
+                  ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white'
+                  : user.plan === 'hs_plus' || user.plan === 'pro'
                   ? 'bg-[#6545D8] text-white'
+                  : user.plan === 'hs_basic'
+                  ? 'bg-indigo-600 text-white'
                   : 'bg-[#EFEAFC] dark:bg-indigo-950/60 text-[#6545D8] dark:text-indigo-300'
               }`}
             >
               <Crown className="w-3.5 h-3.5" />
               <span className="hidden md:inline">
-                {user.plan === 'vip' ? 'VIP ULTRA' : user.plan === 'pro' ? 'PRO AI' : 'Gói dịch vụ'}
+                {user.plan === 'gv_pro' || user.plan === 'vip'
+                  ? 'GV PRO'
+                  : user.plan === 'gv_basic'
+                  ? 'GV CƠ BẢN'
+                  : user.plan === 'hs_plus' || user.plan === 'pro'
+                  ? 'HS PLUS'
+                  : user.plan === 'hs_basic'
+                  ? 'HS CƠ BẢN'
+                  : 'Gói dịch vụ'}
               </span>
+              {user.aiPoints !== undefined && (
+                <span className="bg-white/20 px-1.5 py-0.5 rounded text-[10px] font-bold">
+                  ⚡ {user.aiPoints}
+                </span>
+              )}
             </button>
 
             {/* Desktop Only: Language (SVG Globe) and Theme Switcher */}
@@ -3902,9 +3927,25 @@ b) Pha tối / Chu trình Calvin (Diễn ra tại chất nền stroma của lụ
                           </div>
                           <button
                             onClick={() => setShowUpgradeModal(true)}
-                            className="min-h-[40px] px-4 py-1.5 rounded-xl bg-[#6545D8] hover:bg-[#5436C2] text-white text-xs font-black shadow-xs"
+                            className="min-h-[40px] px-4 py-1.5 rounded-xl bg-[#6545D8] hover:bg-[#5436C2] text-white text-xs font-black shadow-xs flex items-center gap-1.5"
                           >
-                            {(user.plan || 'free').toUpperCase()} · Nâng cấp / Nhập Mã
+                            <span>
+                              {user.plan === 'gv_pro' || user.plan === 'vip'
+                                ? 'GV PRO'
+                                : user.plan === 'gv_basic'
+                                ? 'GV CƠ BẢN'
+                                : user.plan === 'hs_plus' || user.plan === 'pro'
+                                ? 'HS PLUS'
+                                : user.plan === 'hs_basic'
+                                ? 'HS CƠ BẢN'
+                                : 'MIỄN PHÍ'}
+                            </span>
+                            {user.aiPoints !== undefined && (
+                              <span className="bg-white/20 px-1.5 py-0.5 rounded text-[10px]">
+                                {user.aiPoints} Điểm
+                              </span>
+                            )}
+                            <span>· Nâng cấp</span>
                           </button>
                         </div>
 

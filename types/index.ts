@@ -20,6 +20,9 @@ export interface User {
   plan?: SubscriptionPlan;
   planActivatedAt?: string;
   planExpiresAt?: string;
+  aiPoints?: number; // Số Điểm AI còn lại trong chu kỳ
+  aiPointsTotal?: number; // Hạn mức Điểm AI được cấp mỗi tháng (hoặc nạp thêm)
+  aiPointsResetDate?: string;
   aiQuotaUsed?: number;
   aiQuotaDate?: string;
   preferredModel?: AIModelTier;
@@ -48,7 +51,7 @@ export interface SubscriptionOrder {
   username: string;
   fullName?: string;
   email: string;
-  plan: 'pro' | 'vip';
+  plan: SubscriptionPlan;
   durationDays: number;
   amountVnd: number;
   licenseCode: string;

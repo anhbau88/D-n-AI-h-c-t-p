@@ -116,11 +116,21 @@ export async function sendRegistrationOtpEmail(email: string, otpCode: string, f
 export async function sendLicenseCodeEmail(params: {
   email: string;
   fullName?: string;
-  plan: 'pro' | 'vip';
+  plan: string;
   durationDays: number;
   licenseCode: string;
 }): Promise<EmailSendResult> {
-  const planName = params.plan === 'vip' ? 'VIP Center (AI Ultra Academic)' : 'Pro Reasoning (AI Pro 2.5)';
+  const planMap: Record<string, string> = {
+    hs_basic: 'Học Sinh Cơ Bản (250 Điểm AI)',
+    hs_plus: 'Học Sinh Plus (500 Điểm AI & Audio)',
+    gv_basic: 'Giáo Viên Cơ Bản (1.000 Điểm AI)',
+    gv_pro: 'Giáo Viên Pro (2.000 Điểm AI)',
+    topup_small: 'Nạp Thêm Nhỏ (+100 Điểm AI)',
+    topup_std: 'Nạp Thêm Tiêu Chuẩn (+300 Điểm AI)',
+    pro: 'Học Sinh Plus (500 Điểm AI)',
+    vip: 'Giáo Viên Pro (2.000 Điểm AI)',
+  };
+  const planName = planMap[params.plan] || params.plan.toUpperCase();
   const subject = `[AI Study Assistant] Mã kích hoạt gói ${planName} (${params.durationDays} ngày): ${params.licenseCode}`;
   const html = `
     <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 580px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 16px; overflow: hidden; background: #ffffff;">

@@ -95,7 +95,8 @@ export async function PUT(request: NextRequest) {
     }
 
     const updates: Record<string, unknown> = {};
-    if (plan && ['free', 'pro', 'vip'].includes(plan)) {
+    const validPlans = ['free', 'hs_basic', 'hs_plus', 'gv_basic', 'gv_pro', 'topup_small', 'topup_std', 'pro', 'vip'];
+    if (plan && validPlans.includes(plan)) {
       updates.Plan = plan as SubscriptionPlan;
       if (plan === 'free') {
         updates.PlanExpiresAt = '';
@@ -104,7 +105,11 @@ export async function PUT(request: NextRequest) {
         const days = Number(durationDays) || 30;
         updates.PlanActivatedAt = new Date().toISOString();
         updates.PlanExpiresAt = new Date(Date.now() + days * 24 * 3600 * 1000).toISOString();
-        updates.PreferredModel = plan === 'vip' ? 'ultra' : 'pro';
+        updates.PreferredModel = (plan === 'gv_pro' || plan === 'vip')
+          ? 'ultra'
+          : (plan === 'gv_basic' || plan === 'hs_plus' || plan === 'pro')
+          ? 'pro'
+          : 'flash';
       }
     }
 

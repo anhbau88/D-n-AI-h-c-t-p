@@ -96,7 +96,7 @@ export default function AdminPortal({
   const [processingOrderId, setProcessingOrderId] = useState<string | null>(null);
 
   // Form phát hành Mã Code mới
-  const [genPlan, setGenPlan] = useState<'pro' | 'vip'>('pro');
+  const [genPlan, setGenPlan] = useState<SubscriptionPlan>('hs_plus');
   const [genDays, setGenDays] = useState<number>(30);
   const [genCount, setGenCount] = useState<number>(1);
   const [genEmail, setGenEmail] = useState<string>('');
@@ -858,14 +858,18 @@ export default function AdminPortal({
 
               <form onSubmit={handleGenerateLicenseCodes} className="space-y-3">
                 <div>
-                  <label className="text-xs font-bold text-gray-600 block mb-1">Gói dịch vụ</label>
+                  <label className="text-xs font-bold text-gray-600 block mb-1">Gói dịch vụ (Niêm yết 08/11/2026)</label>
                   <select
                     value={genPlan}
-                    onChange={(e) => setGenPlan(e.target.value as 'pro' | 'vip')}
+                    onChange={(e) => setGenPlan(e.target.value as SubscriptionPlan)}
                     className="w-full h-10 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 text-xs font-bold"
                   >
-                    <option value="pro">Gói PRO (Học sinh chuyên sâu)</option>
-                    <option value="vip">Gói VIP ULTRA (Giáo viên & Trung tâm)</option>
+                    <option value="hs_basic">Học Sinh Cơ Bản (39.000đ · 250 Điểm AI)</option>
+                    <option value="hs_plus">Học Sinh Plus (69.000đ · 500 Điểm AI)</option>
+                    <option value="gv_basic">Giáo Viên Cơ Bản (129.000đ · 1.000 Điểm AI)</option>
+                    <option value="gv_pro">Giáo Viên Pro (249.000đ · 2.000 Điểm AI)</option>
+                    <option value="topup_small">Gói Nạp Thêm Nhỏ (19.000đ · 100 Điểm AI)</option>
+                    <option value="topup_std">Gói Nạp Thêm Tiêu Chuẩn (49.000đ · 300 Điểm AI)</option>
                   </select>
                 </div>
 

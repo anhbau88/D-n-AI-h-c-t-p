@@ -1,11 +1,12 @@
 // lib/billing-store.ts
 // Lưu trữ và quản lý Mã Code Kích Hoạt (License Keys), Đơn Hàng (Subscription Orders) & Cấu Hình Ngân Hàng VietQR
+// Bảng giá niêm yết (VND) theo Gói & Kỳ hạn ngày 08/11/2026
 
 import * as crypto from 'crypto';
 import * as fs from 'fs';
 import * as path from 'path';
 import { db } from '@/lib/firebase';
-import { LicenseCodeItem, SubscriptionOrder } from '@/types';
+import { LicenseCodeItem, SubscriptionOrder, SubscriptionPlan, AITaskType } from '@/types';
 
 const localLicensesPath = process.env.LOCAL_DB_DIR
   ? path.join(process.env.LOCAL_DB_DIR, 'licenses.json')
@@ -32,21 +33,18 @@ export interface BillingConfigSettings {
   updatedAt?: string;
 }
 
-// Bảng giá niêm yết (VND) theo Gói & Kỳ hạn (7 ngày, 30 ngày, 90 ngày, 365 ngày)
-export const PLAN_PRICING_VND: Record<'pro' | 'vip', Record<number, number>> = {
-  pro: {
-    7: 29000,
-    30: 99000,
-    90: 249000,
-    365: 799000,
-  },
-  vip: {
-    7: 79000,
-    30: 299000,
-    90: 749000,
-    365: 2390000,
-  },
-};
+// =========================================================================
+// MÔ HÌNH KINH TẾ & ĐỊNH GIÁ GÓI THEO BẢNG TÍNH 08/11/2026 (Client-Safe Re-export)
+// =========================================================================
+
+export * from './pricing-data';
+import {
+  PRICING_PLANS_DATA,
+  TASK_AI_POINTS,
+  PRICING_FINANCIAL_MODEL,
+  PLAN_PRICING_VND,
+  PlanMetadata,
+} from './pricing-data';
 
 const LICENSE_SIGN_SECRET = process.env.AUTH_SECRET || 'aisa-license-secret-key-2026';
 
@@ -109,8 +107,53 @@ export async function saveBillingSettings(settings: BillingConfigSettings): Prom
   }
 }
 
-export function generateSignedLicenseCode(plan: 'pro' | 'vip', durationDays: number): string {
-  const planTag = plan.toUpperCase();
+// Chuyển mã gói sang định dạng tag ngắn gọn để in lên Mã kích hoạt
+export function normalizePlanToTag(plan: SubscriptionPlan | string): string {
+  const lower = String(plan || '').toLowerCase();
+  switch (lower) {
+    case 'hs_basic':
+      return 'HSB';
+    case 'hs_plus':
+    case 'pro':
+      return 'HSP';
+    case 'gv_basic':
+      return 'GVB';
+    case 'gv_pro':
+    case 'vip':
+      return 'GVP';
+    case 'topup_small':
+      return 'TPS';
+    case 'topup_std':
+      return 'TPM';
+    default:
+      return 'GEN';
+  }
+}
+
+export function tagToPlan(tag: string): SubscriptionPlan {
+  const upper = String(tag || '').toUpperCase();
+  switch (upper) {
+    case 'HSB':
+      return 'hs_basic';
+    case 'HSP':
+    case 'PRO':
+      return 'hs_plus';
+    case 'GVB':
+      return 'gv_basic';
+    case 'GVP':
+    case 'VIP':
+      return 'gv_pro';
+    case 'TPS':
+      return 'topup_small';
+    case 'TPM':
+      return 'topup_std';
+    default:
+      return 'hs_plus';
+  }
+}
+
+export function generateSignedLicenseCode(plan: SubscriptionPlan | string, durationDays: number): string {
+  const planTag = normalizePlanToTag(plan);
   const daysTag = `${durationDays}D`;
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   let randPart = '';
@@ -127,13 +170,14 @@ export function generateSignedLicenseCode(plan: 'pro' | 'vip', durationDays: num
   return `${core}-${checksum}`;
 }
 
-export function parseAndVerifySelfSignedCode(code: string): { valid: boolean; plan?: 'pro' | 'vip'; durationDays?: number } {
+export function parseAndVerifySelfSignedCode(code: string): { valid: boolean; plan?: SubscriptionPlan; durationDays?: number } {
   const normalized = code.trim().toUpperCase();
-  const match = normalized.match(/^AISA-(PRO|VIP)-(\d+)D-([A-Z0-9]{4})-([A-F0-9]{4})$/);
+  // Khớp định dạng AISA-TAG-DAYS-RAND-CHECK
+  const match = normalized.match(/^AISA-([A-Z0-9]+)-(\d+)D-([A-Z0-9]{4})-([A-F0-9]{4})$/);
   if (!match) return { valid: false };
 
-  const [, planStr, daysStr, randPart, providedChecksum] = match;
-  const core = `AISA-${planStr}-${daysStr}D-${randPart}`;
+  const [, tagStr, daysStr, randPart, providedChecksum] = match;
+  const core = `AISA-${tagStr}-${daysStr}D-${randPart}`;
   const expectedChecksum = crypto
     .createHmac('sha256', LICENSE_SIGN_SECRET)
     .update(core)
@@ -147,7 +191,7 @@ export function parseAndVerifySelfSignedCode(code: string): { valid: boolean; pl
 
   return {
     valid: true,
-    plan: planStr.toLowerCase() as 'pro' | 'vip',
+    plan: tagToPlan(tagStr),
     durationDays: parseInt(daysStr, 10),
   };
 }

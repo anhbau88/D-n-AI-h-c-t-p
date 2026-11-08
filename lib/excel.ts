@@ -47,16 +47,36 @@ const SEED_USERS: ExcelUser[] = [];
  * Chuyển đổi bản ghi ExcelUser thô sang đối tượng User an toàn cho Client (tự động kiểm tra hết hạn gói)
  */
 export function mapExcelUserToSafeUser(raw: ExcelUser): User {
-  const rawPlan = (raw.Plan as SubscriptionPlan) || (isSuperAdminUsername(raw.Username) ? 'vip' : 'free');
+  const rawPlan = (raw.Plan as SubscriptionPlan) || (isSuperAdminUsername(raw.Username) ? 'gv_pro' : 'free');
   const { activePlan } = resolveActivePlan(rawPlan, raw.PlanExpiresAt);
   const todayStr = new Date().toISOString().slice(0, 10);
   const aiQuotaUsed = raw.AiQuotaDate === todayStr ? (Number(raw.AiQuotaUsed) || 0) : 0;
+
+  const planPointsMap: Record<string, number> = {
+    free: 20,
+    hs_basic: 250,
+    hs_plus: 500,
+    gv_basic: 1000,
+    gv_pro: 2000,
+    pro: 500,
+    vip: 2000,
+    topup_small: 100,
+    topup_std: 300,
+  };
+  const totalPoints = planPointsMap[activePlan] || 20;
+  const remainingPoints = Math.max(0, totalPoints - aiQuotaUsed);
 
   let role: UserRole = (raw.Role as UserRole) || 'student';
   if (isSuperAdminUsername(raw.Username) && role !== 'student') {
     // Cho phép tài khoản chủ hệ thống truy cập cả quyền giáo viên và admin
     role = raw.Role === 'admin' ? 'admin' : (raw.Role as UserRole);
   }
+
+  const defaultModel: AIModelTier = (activePlan === 'gv_pro' || activePlan === 'vip')
+    ? 'ultra'
+    : (activePlan === 'gv_basic' || activePlan === 'hs_plus' || activePlan === 'pro')
+    ? 'pro'
+    : 'flash';
 
   return {
     username: raw.Username,
@@ -65,12 +85,14 @@ export function mapExcelUserToSafeUser(raw: ExcelUser): User {
     emailVerified: raw.EmailVerified !== undefined ? Boolean(raw.EmailVerified) : true,
     role,
     room: raw.Room || '',
-    plan: isSuperAdminUsername(raw.Username) ? 'vip' : activePlan,
+    plan: isSuperAdminUsername(raw.Username) ? 'gv_pro' : activePlan,
     planActivatedAt: raw.PlanActivatedAt || '',
     planExpiresAt: raw.PlanExpiresAt || '',
+    aiPoints: remainingPoints,
+    aiPointsTotal: totalPoints,
     aiQuotaUsed,
     aiQuotaDate: todayStr,
-    preferredModel: (raw.PreferredModel as AIModelTier) || (activePlan === 'vip' ? 'ultra' : activePlan === 'pro' ? 'pro' : 'flash'),
+    preferredModel: (raw.PreferredModel as AIModelTier) || defaultModel,
     xp: Number(raw.Xp) || 0,
     streak: Number(raw.Streak) || 1,
     lastActiveDate: raw.LastActiveDate || todayStr,
