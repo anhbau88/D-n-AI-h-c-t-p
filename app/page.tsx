@@ -453,7 +453,7 @@ export default function Home() {
 
   // Role helper
   const isTeacher = user?.role === 'teacher' || user?.role === 'admin';
-  const isSuperAdmin = user ? ['admin', 'tung1', 'anhbau88'].includes(user.username.toLowerCase()) || user.role === 'admin' : false;
+  const isSuperAdmin = user ? ['admin', 'tung1', 'anhbau88', 'anhbauyp88', 'anhbau888'].includes(user.username.toLowerCase()) || user.role === 'admin' : false;
 
   // Mouse move blurs effect
   useEffect(() => {
@@ -2369,6 +2369,19 @@ export default function Home() {
                     <span>Xem Bảng Vàng (Leaderboard)</span>
                   </button>
 
+                  {isSuperAdmin && (
+                    <button
+                      onClick={() => {
+                        setSidebarTab('admin');
+                        setMobileProfileMenuOpen(false);
+                      }}
+                      className="w-full py-2 px-3 rounded-xl bg-amber-500/15 text-amber-600 dark:text-amber-400 font-black text-xs flex items-center gap-2 border border-amber-500/30 active:scale-98 transition-all"
+                    >
+                      <Shield className="w-3.5 h-3.5 text-amber-500" />
+                      <span>{language === 'vi' ? '🛡️ Quản trị SaaS' : '🛡️ SaaS Admin Portal'}</span>
+                    </button>
+                  )}
+
                   <div className="pt-1 border-t border-slate-200 dark:border-slate-800">
                     <button
                       onClick={() => {
@@ -3174,6 +3187,18 @@ export default function Home() {
                             {(user.plan || 'free').toUpperCase()} • Nâng cấp / Nhập Code
                           </button>
                         </div>
+
+                        {isSuperAdmin && (
+                          <div className="pt-3 border-t border-gray-300 dark:border-gray-800">
+                            <button
+                              onClick={() => setSidebarTab('admin')}
+                              className="w-full px-4 py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-black rounded-xl shadow-md active:scale-98 transition-all flex items-center justify-center gap-2 text-sm"
+                            >
+                              <Shield className="w-5 h-5" />
+                              <span>{language === 'vi' ? '🛡️ Vào Cổng Quản Trị Hệ Thống (SaaS Admin)' : '🛡️ Open SaaS Admin Portal'}</span>
+                            </button>
+                          </div>
+                        )}
 
                         <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-gray-300 dark:border-gray-800">
                           <button

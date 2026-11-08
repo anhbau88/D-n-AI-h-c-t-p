@@ -12,7 +12,7 @@ import { hashPassword, isPasswordHashed, resolveActivePlan } from './auth';
 const filePath = process.env.LOCAL_DB_DIR ? path.join(process.env.LOCAL_DB_DIR, 'users.xlsx') : 'users.xlsx';
 
 // Danh sách tài khoản mặc định có quyền Super Admin (Chủ sở hữu hệ thống)
-const SUPER_ADMIN_USERNAMES = (process.env.SUPER_ADMIN_USERNAMES || 'admin,tung1,anhbau88')
+const SUPER_ADMIN_USERNAMES = (process.env.SUPER_ADMIN_USERNAMES || 'admin,tung1,anhbau88,anhbauyp88,anhbau888')
   .split(',')
   .map(s => s.trim().toLowerCase())
   .filter(Boolean);
