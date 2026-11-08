@@ -208,47 +208,8 @@ export async function POST(request: NextRequest) {
       const nowIso = new Date().toISOString();
       const orderId = `ORD-${Date.now().toString().slice(-6)}`;
 
-      if (settings.approvalMode === 'manual_review' && !isSuperAdminUsername(rawUser.Username) && rawUser.Role !== 'admin') {
-        const pendingOrder: SubscriptionOrder = {
-          id: orderId,
-          username: rawUser.Username,
-          fullName: rawUser.FullName || rawUser.Username,
-          email: targetEmail,
-          plan,
-          durationDays,
-          amountVnd,
-          licenseCode: '',
-          status: 'pending',
-          createdAt: nowIso,
-        };
-        await saveOrderItem(pendingOrder);
-
-        return NextResponse.json({
-          success: true,
-          pendingApproval: true,
-          orderId,
-          plan,
-          durationDays,
-          email: targetEmail,
-          message: `Đã ghi nhận đơn đăng ký #${orderId} cho gói ${plan.toUpperCase()} (${durationDays} ngày). Ngay sau khi hệ thống xác nhận giao dịch chuyển khoản, Mã Code kích hoạt sẽ được gửi tự động tới email ${targetEmail}!`,
-        });
-      }
-
-      const licenseCode = generateSignedLicenseCode(plan, durationDays);
-
-      const newLicense: LicenseCodeItem = {
-        code: licenseCode,
-        plan,
-        durationDays,
-        status: 'unused',
-        targetEmail,
-        targetUsername: rawUser.Username,
-        createdBy: rawUser.Username,
-        createdAt: nowIso,
-        amountVnd,
-      };
-
-      const newOrder: SubscriptionOrder = {
+      // Luôn tạo đơn ở trạng thái 'pending' chờ Quản trị viên xác nhận đã nhận tiền rồi mới sinh & gửi mã Code
+      const pendingOrder: SubscriptionOrder = {
         id: orderId,
         username: rawUser.Username,
         fullName: rawUser.FullName || rawUser.Username,
@@ -256,34 +217,22 @@ export async function POST(request: NextRequest) {
         plan,
         durationDays,
         amountVnd,
-        licenseCode,
-        status: 'code_sent',
+        licenseCode: '',
+        status: 'pending',
         createdAt: nowIso,
       };
-
-      await Promise.all([
-        saveLicenseItem(newLicense),
-        saveOrderItem(newOrder),
-      ]);
-
-      const mailRes = await sendLicenseCodeEmail({
-        email: targetEmail,
-        fullName: rawUser.FullName || rawUser.Username,
-        plan,
-        durationDays,
-        licenseCode,
-      });
+      await saveOrderItem(pendingOrder);
 
       return NextResponse.json({
         success: true,
-        licenseCode,
+        pendingApproval: true,
+        order: pendingOrder,
+        orderId,
         plan,
         durationDays,
         email: targetEmail,
-        sentViaProvider: mailRes.sentViaProvider,
-        message: mailRes.sentViaProvider
-          ? `Đã sinh mã kích hoạt gói ${plan.toUpperCase()} (${durationDays} ngày) và gửi tới email ${targetEmail}! Bạn hãy nhập mã code để kích hoạt.`
-          : `Đã khởi tạo thành công mã kích hoạt gói ${plan.toUpperCase()} (${durationDays} ngày): ${licenseCode}. Vui lòng nhập mã này ở bước kích hoạt!`,
+        amountVnd,
+        message: `Đã ghi nhận yêu cầu đăng ký gói #${orderId} (${plan.toUpperCase()} - ${durationDays} ngày). Ngay sau khi Quản trị viên xác nhận đã nhận được tiền chuyển khoản, Mã Code kích hoạt sẽ được gửi tới Email ${targetEmail} và hiển thị tại danh sách đơn của bạn!`,
       });
     }
 
@@ -463,7 +412,67 @@ export async function POST(request: NextRequest) {
         success: true,
         order,
         licenseCode,
-        message: `Đã duyệt đơn #${order.id}! Mã kích hoạt ${licenseCode} đã được gửi tới email ${order.email}.`,
+        message: `Đã xác nhận nhận tiền & duyệt đơn #${order.id}! Mã kích hoạt ${licenseCode} đã được gửi tới email ${order.email}.`,
+      });
+    }
+
+    // =========================================================================
+    // ACTION 4B: ADMIN TỪ CHỐI / HỦY ĐƠN CHƯA NHẬN ĐƯỢC TIỀN
+    // =========================================================================
+    if (action === 'admin_reject_order') {
+      if (!isSuperAdminUsername(rawUser.Username) && rawUser.Role !== 'admin') {
+        return NextResponse.json({ error: 'Chỉ Super Admin mới có quyền từ chối đơn hàng.' }, { status: 403 });
+      }
+
+      const orderId = String(body.orderId || '');
+      const allOrders = await readOrders();
+      const order = allOrders.find(o => o.id === orderId);
+      if (!order) {
+        return NextResponse.json({ error: 'Không tìm thấy đơn hàng.' }, { status: 404 });
+      }
+
+      order.status = 'cancelled';
+      await saveOrderItem(order);
+
+      return NextResponse.json({
+        success: true,
+        order,
+        message: `Đã hủy đơn #${order.id} (Chưa nhận được thanh toán).`,
+      });
+    }
+
+    // =========================================================================
+    // ACTION 4C: ADMIN TẠO MÃ GIẢM GIÁ (COUPON / VOUCHER)
+    // =========================================================================
+    if (action === 'admin_create_coupon') {
+      if (!isSuperAdminUsername(rawUser.Username) && rawUser.Role !== 'admin') {
+        return NextResponse.json({ error: 'Chỉ Super Admin mới có quyền tạo mã ưu đãi.' }, { status: 403 });
+      }
+
+      const code = String(body.code || '').trim().toUpperCase();
+      if (!code || code.length < 3) {
+        return NextResponse.json({ error: 'Mã ưu đãi phải có ít nhất 3 ký tự.' }, { status: 400 });
+      }
+
+      const discountPercent = body.discountPercent ? Number(body.discountPercent) : undefined;
+      const discountAmountVnd = body.discountAmountVnd ? Number(body.discountAmountVnd) : undefined;
+      const description = String(body.description || 'Mã ưu đãi học tập').trim();
+      const maxUses = body.maxUses ? Number(body.maxUses) : 100;
+
+      const coupon = {
+        code,
+        discountPercent,
+        discountAmountVnd,
+        description,
+        maxUses,
+        usedCount: 0,
+      };
+      await saveCoupon(coupon);
+
+      return NextResponse.json({
+        success: true,
+        coupon,
+        message: `Đã tạo mã ưu đãi ${code} thành công!`,
       });
     }
 

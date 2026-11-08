@@ -52,7 +52,7 @@ export interface SubscriptionOrder {
   durationDays: number;
   amountVnd: number;
   licenseCode: string;
-  status: 'pending' | 'code_sent' | 'redeemed';
+  status: 'pending' | 'code_sent' | 'redeemed' | 'cancelled';
   createdAt: string;
   redeemedAt?: string;
 }

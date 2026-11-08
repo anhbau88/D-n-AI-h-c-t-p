@@ -11,7 +11,7 @@ import {
   mapExcelUserToSafeUser,
   isSuperAdminUsername,
 } from '@/lib/excel';
-import { readLicenses, readOrders, readBillingSettings } from '@/lib/billing-store';
+import { readLicenses, readOrders, readBillingSettings, readCoupons } from '@/lib/billing-store';
 import { SubscriptionPlan } from '@/types';
 
 export const dynamic = 'force-dynamic';
@@ -37,11 +37,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Truy cập bị từ chối. Chỉ dành cho Super Admin.' }, { status: 403 });
     }
 
-    const [allRawUsers, licenses, orders, billingSettings] = await Promise.all([
+    const [allRawUsers, licenses, orders, billingSettings, coupons] = await Promise.all([
       readUsersFromExcel(),
       readLicenses(),
       readOrders(),
       readBillingSettings(),
+      readCoupons(),
     ]);
 
     const safeUsers = allRawUsers.map(u => mapExcelUserToSafeUser(u));
@@ -72,6 +73,7 @@ export async function GET(request: NextRequest) {
       licenses,
       orders,
       billingSettings,
+      coupons,
     });
   } catch (err) {
     console.error('Lỗi GET /api/admin:', err);

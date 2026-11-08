@@ -38,7 +38,11 @@ import {
   Shield,
   Download,
   KeyRound,
-  Trophy
+  Trophy,
+  Globe,
+  CalendarCheck,
+  Languages,
+  Layers
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { useCompletion } from 'ai/react';
@@ -64,8 +68,18 @@ const UserManagement = dynamic(() => import('@/components/UserManagement'), { ss
 const TeacherClassManagement = dynamic(() => import('@/components/TeacherClassManagement'), { ssr: false });
 const SocialShareModal = dynamic(() => import('@/components/SocialShareModal'), { ssr: false });
 const LeaderboardModal = dynamic(() => import('@/components/LeaderboardModal'), { ssr: false });
+const TodayDashboard = dynamic(() => import('@/components/TodayDashboard'), { ssr: false });
+const PracticeHub = dynamic(() => import('@/components/PracticeHub'), { ssr: false });
+const EnglishLearningHub = dynamic(() => import('@/components/EnglishLearningHub'), { ssr: false });
+const ProgressHub = dynamic(() => import('@/components/ProgressHub'), { ssr: false });
 
-import ZaloSupportWidget, { ZaloSupportCard } from '@/components/ZaloSupportWidget';
+import {
+  getDefaultEnglishProgress,
+  loadEnglishProgress,
+  saveEnglishProgress,
+  EnglishLearningProgress
+} from '@/lib/english-curriculum';
+import { ZaloSupportCard } from '@/components/ZaloSupportWidget';
 import MobileBottomNav from '@/components/MobileBottomNav';
 import PwaInstallPrompt from '@/components/PwaInstallPrompt';
 import ZenFocusMode from '@/components/ZenFocusMode';
@@ -324,10 +338,35 @@ export default function Home() {
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [quizHistory, setQuizHistory] = useState<QuizHistoryItem[]>([]);
 
-  // Redesign Navigation States
-  const [sidebarTab, setSidebarTab] = useState<'dashboard' | 'upload' | 'library' | 'settings' | 'chat' | 'class-management' | 'admin'>('dashboard');
+  // Redesign Navigation States (5-Item Unified Navigation)
+  const [sidebarTab, setSidebarTab] = useState<
+    'dashboard' | 'upload' | 'library' | 'practice' | 'english' | 'progress' | 'settings' | 'chat' | 'class-management' | 'admin'
+  >('dashboard');
   const [sidebarSearchQuery, setSidebarSearchQuery] = useState('');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // Teacher Workspace Mode ('teaching' vs 'personal') & English Session Focus State
+  const [teacherViewMode, setTeacherViewMode] = useState<'teaching' | 'personal'>('teaching');
+  const [englishProgress, setEnglishProgress] = useState<EnglishLearningProgress>(() => getDefaultEnglishProgress());
+  const [englishSessionActive, setEnglishSessionActive] = useState(false);
+  const [englishInitialLessonId, setEnglishInitialLessonId] = useState<string | null>(null);
+  const [englishInitialReviewMode, setEnglishInitialReviewMode] = useState(false);
+  const [showStudentClassesModal, setShowStudentClassesModal] = useState(false);
+
+  const handleUpdateEnglishProgress = useCallback((next: EnglishLearningProgress) => {
+    setEnglishProgress(next);
+    if (user?.username) {
+      saveEnglishProgress(user.username, next);
+    }
+  }, [user?.username]);
+
+  // Document Workspace Figure 2 States
+  const [mobileDocView, setMobileDocView] = useState<'source' | 'ai'>('ai');
+  const [practiceSubTab, setPracticeSubTab] = useState<'quiz' | 'flashcards' | 'essay'>('quiz');
+  const [teachBackText, setTeachBackText] = useState('');
+  const [teachBackFeedback, setTeachBackFeedback] = useState<string | null>(null);
+  const [isEvaluatingTeachBack, setIsEvaluatingTeachBack] = useState(false);
+  const [extractedVocabCount, setExtractedVocabCount] = useState<number | null>(null);
 
   // General Chat History State & Reset Counter
   const [generalChatHistory, setGeneralChatHistory] = useState<ChatMessage[]>([]);
@@ -473,6 +512,9 @@ export default function Home() {
   const syncWorkspaceWithDoc = useCallback((doc: DocumentItem | null) => {
     setActiveDoc(doc);
     setActiveAssignment(null); // Deselect assignment
+    setTeachBackText('');
+    setTeachBackFeedback(null);
+    setExtractedVocabCount(null);
     if (doc) {
       setPdfText(doc.textContent);
       setFileInfo({
@@ -492,8 +534,9 @@ export default function Home() {
       try { chatHist = savedDocChat ? JSON.parse(savedDocChat) : []; } catch { }
       setChatHistory(chatHist);
       
-      // Đặt tab mặc định hiển thị tài liệu
-      setActiveTab('document');
+      // Mặc định mở tab Hiểu bài (summary) theo Hình 2
+      setActiveTab('summary');
+      setMobileDocView('ai');
     } else {
       setPdfText('');
       setFileInfo(null);
@@ -521,8 +564,9 @@ export default function Home() {
       setSummary('');
       setChatHistory([]);
       
-      // Navigate to correct tab
-      setActiveTab(asm.type === 'quiz' ? 'quiz' : 'essay');
+      // Navigate to practice tab with sub-tab quiz or essay
+      setActiveTab('practice-doc');
+      setPracticeSubTab(asm.type === 'essay' ? 'essay' : 'quiz');
     } else {
       setPdfText('');
       setFileInfo(null);
@@ -706,6 +750,8 @@ export default function Home() {
 
   useEffect(() => {
     if (!user) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setEnglishProgress(loadEnglishProgress(user.username));
     fetchAssignments();
     fetchHistory();
     loadLibraryDocuments();
@@ -1407,12 +1453,13 @@ export default function Home() {
 
   const handleGenerateFlashcards = async (forceRegenerate = false) => {
     if (!pdfText || !activeDoc) return showMessage('Vui lòng mở hoặc tải lên tài liệu trước.');
+    setActiveTab('practice-doc');
+    setPracticeSubTab('flashcards');
     if (activeDoc.flashcards && activeDoc.flashcards.length > 0 && !forceRegenerate) {
       setFlashcards(activeDoc.flashcards);
       return;
     }
     setLoadingType('flashcards');
-    setActiveTab('flashcards');
     try {
       const res = await fetch('/api/flashcards', {
         method: 'POST',
@@ -1435,8 +1482,12 @@ export default function Home() {
     }
   };
 
-  const handleGenerateQuiz = async (forceRegenerate = false) => {
+  const handleGenerateQuiz = async (forceRegenerate = false, overrideCount?: number) => {
     if (!pdfText || !activeDoc) return showMessage(language === 'vi' ? 'Vui lòng mở hoặc tải lên tài liệu trước.' : 'Please open or upload a document first.');
+    const targetCount = overrideCount ?? questionCount;
+    if (overrideCount) setQuestionCount(overrideCount);
+    setActiveTab('practice-doc');
+    setPracticeSubTab('quiz');
 
     if (activeDoc.quiz && activeDoc.quiz.length > 0 && !forceRegenerate) {
       setQuestions(activeDoc.quiz);
@@ -1445,14 +1496,13 @@ export default function Home() {
     }
 
     setLoadingType('quiz');
-    setActiveTab('quiz');
     try {
       const res = await fetch('/api/quiz', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           pdfText,
-          questionCount,
+          questionCount: targetCount,
           role: user?.role,
           difficultyMatrix: quizDifficulty,
           modelTier,
@@ -1523,6 +1573,8 @@ export default function Home() {
     }
   ) => {
     if (!pdfText || !activeDoc) return showMessage(language === 'vi' ? 'Vui lòng mở tài liệu bài giảng trước.' : 'Please open a lecture document first.');
+    setActiveTab('practice-doc');
+    setPracticeSubTab('essay');
 
     if (activeDoc.essay && !forceRegenerate) {
       setEssay(activeDoc.essay);
@@ -1531,7 +1583,6 @@ export default function Home() {
     }
 
     setLoadingType('essay');
-    setActiveTab('essay');
     try {
       const res = await fetch('/api/essay', {
         method: 'POST',
@@ -1562,6 +1613,216 @@ export default function Home() {
     } finally {
       setLoadingType(null);
     }
+  };
+
+  // Mở bài mẫu "Quang hợp.pdf" theo Hình 1 & Hình 2 trong báo cáo
+  const handleOpenSampleDoc = () => {
+    const existingSample = libraryDocs.find((d) =>
+      d.fileName.toLowerCase().includes('quang hợp')
+    );
+    if (existingSample) {
+      syncWorkspaceWithDoc(existingSample);
+      return;
+    }
+    const sampleDoc: DocumentItem = {
+      id: 'sample-quang-hop',
+      role: user?.role || 'student',
+      fileName: 'Quang hợp.pdf',
+      fileSize: 245000,
+      fileType: 'application/pdf',
+      uploadedAt: new Date().toISOString(),
+      lastOpenedAt: new Date().toISOString(),
+      hash: 'sample-quang-hop-sha256',
+      textContent: `CHƯƠNG I: CHUYỂN HÓA VẬT CHẤT VÀ NĂNG LƯỢNG Ở THỰC VẬT
+BÀI 8: QUANG HỢP Ở THỰC VẬT (Trang 12)
+
+1. Khái niệm quang hợp ở thực vật
+Quang hợp ở thực vật là quá trình lục lạp (Chloroplast) hấp thụ và sử dụng năng lượng ánh sáng để tổng hợp chất hữu cơ (C6H12O6 - Glucose) từ nguyên liệu vô cơ là khí cacbonic (CO2) và nước (H2O), đồng thời giải phóng khí ôxi (O2).
+Phương trình tổng quát của quang hợp:
+6CO2 + 6H2O --(Ánh sáng, Hệ sắc tố diệp lục)--> C6H12O6 + 6O2.
+
+2. Hai pha của quá trình quang hợp
+Quá trình quang hợp ở thực vật được chia thành 2 pha liên tiếp và phụ thuộc chặt chẽ vào nhau: Pha sáng (Light-dependent reaction) và Pha tối (Chu trình Calvin - Calvin cycle).
+
+a) Pha sáng (Diễn ra tại màng tilacoit của hạt grana trong lục lạp):
+- Điều kiện: Chỉ diễn ra khi có ánh sáng.
+- Nguyên liệu: Năng lượng ánh sáng, H2O, ADP, Pi và NADP+.
+- Cơ chế: Hệ sắc tố quang hợp (Chlorophyll a, b và Carotenoid) hấp thụ quang năng, thực hiện quá trình quang phân li nước (2H2O -> 4H+ + 4e- + O2) tại xoang tilacoit.
+- Sản phẩm của pha sáng: Giải phóng khí O2 ra khí quyển (nguồn gốc hoàn toàn từ phân tử nước H2O) và tạo ra năng lượng hóa học ATP cùng chất khử mạnh NADPH để cung cấp cho pha tối.
+
+b) Pha tối / Chu trình Calvin (Diễn ra tại chất nền stroma của lục lạp):
+- Điều kiện: Không cần ánh sáng trực tiếp nhưng phụ thuộc hoàn toàn vào nguồn ATP và NADPH do pha sáng cung cấp.
+- Nguyên liệu: Khí CO2 lấy từ khí quyển qua khí khổng, cùng với ATP và NADPH từ pha sáng.
+- Sản phẩm của pha tối: Cố định CO2 qua chu trình Calvin để tổng hợp các phân tử đường đơn (C6H12O6), từ đó hình thành tinh bột, axit amin và các hợp chất hữu cơ nuôi cơ thể thực vật.`,
+      summary: `### Ý chính cần nắm (Nguồn tài liệu · Trang 12)
+
+1. **Quang hợp gồm pha sáng và pha tối**, diễn ra bên trong bào quan **lục lạp (Chloroplast)** của tế bào thực vật.
+2. **Pha sáng** diễn ra tại **màng tilacoit**, sử dụng năng lượng ánh sáng để quang phân li nước ($H_2O$), tạo ra **$ATP$**, **$NADPH$** và giải phóng khí **$O_2$** (nguồn gốc từ $H_2O$).
+3. **Pha tối (Chu trình Calvin)** diễn ra tại **chất nền stroma**, sử dụng **$ATP$** và **$NADPH$** từ pha sáng để cố định **$CO_2$** thành chất hữu cơ (**$C_6H_{12}O_6$**).`,
+      quiz: [
+        {
+          id: 1,
+          question: 'Pha sáng của quá trình quang hợp diễn ra tại vị trí nào trong lục lạp?',
+          options: [
+            'A. Màng ngoài của lục lạp',
+            'B. Chất nền stroma',
+            'C. Màng tilacoit (hạt grana)',
+            'D. Tế bào chất'
+          ],
+          answer: 'C',
+          explanation: 'Theo trang 12 của tài liệu, pha sáng diễn ra tại màng tilacoit của hạt grana trong lục lạp.'
+        },
+        {
+          id: 2,
+          question: 'Khí O2 giải phóng trong quá trình quang hợp có nguồn gốc từ phân tử nào?',
+          options: [
+            'A. Khí CO2',
+            'B. Phân tử nước (H2O) qua quang phân li nước',
+            'C. Phân tử Glucose (C6H12O6)',
+            'D. Phân tử ATP'
+          ],
+          answer: 'B',
+          explanation: 'Quá trình quang phân li nước (2H2O -> 4H+ + 4e- + O2) tại màng tilacoit là nguồn gốc duy nhất giải phóng khí O2.'
+        },
+        {
+          id: 3,
+          question: 'Pha sáng cung cấp những sản phẩm nào cho pha tối (chu trình Calvin) hoạt động?',
+          options: [
+            'A. CO2 và H2O',
+            'B. O2 và Glucose',
+            'C. ATP và NADPH',
+            'D. ADP và NADP+'
+          ],
+          answer: 'C',
+          explanation: 'Pha sáng chuyển hóa năng lượng ánh sáng thành năng lượng hóa học trong ATP và NADPH để cung cấp cho pha tối cố định CO2.'
+        },
+        {
+          id: 4,
+          question: 'Pha tối (Chu trình Calvin) diễn ra ở đâu trong lục lạp?',
+          options: [
+            'A. Chất nền stroma',
+            'B. Xoang tilacoit',
+            'C. Màng trong lục lạp',
+            'D. Nhân tế bào'
+          ],
+          answer: 'A',
+          explanation: 'Theo tài liệu, pha tối diễn ra tại chất nền (stroma) của lục lạp.'
+        },
+        {
+          id: 5,
+          question: 'Vì sao pha tối không cần ánh sáng trực tiếp nhưng vẫn ngừng hoạt động nếu cây để trong bóng tối lâu?',
+          options: [
+            'A. Vì pha tối cần O2 từ pha sáng',
+            'B. Vì pha tối phụ thuộc hoàn toàn vào nguồn ATP và NADPH do pha sáng tạo ra',
+            'C. Vì khí khổng đóng hoàn toàn không nhận H2O',
+            'D. Vì lục lạp bị phân hủy trong tối'
+          ],
+          answer: 'B',
+          explanation: 'Pha tối cần ATP và NADPH từ pha sáng để khử CO2 thành chất hữu cơ; khi không có ánh sáng, pha sáng dừng nên hết ATP và NADPH.'
+        }
+      ],
+      flashcards: [
+        {
+          id: 'fc-1',
+          front: 'Pha sáng của quang hợp diễn ra ở đâu và tạo ra sản phẩm gì?',
+          back: 'Diễn ra tại màng tilacoit (hạt grana). Sản phẩm: ATP, NADPH và giải phóng khí O2 (từ quang phân li H2O).',
+          topic: 'Pha sáng'
+        },
+        {
+          id: 'fc-2',
+          front: 'Pha tối (Chu trình Calvin) diễn ra ở đâu và có vai trò gì?',
+          back: 'Diễn ra tại chất nền stroma của lục lạp. Dùng ATP và NADPH từ pha sáng để cố định CO2 thành chất hữu cơ (C6H12O6).',
+          topic: 'Pha tối'
+        },
+        {
+          id: 'fc-3',
+          front: 'Phương trình tổng quát của quang hợp ở thực vật là gì?',
+          back: '6CO2 + 6H2O --(Ánh sáng, Diệp lục)--> C6H12O6 + 6O2',
+          topic: 'Khái niệm'
+        }
+      ],
+      ownerType: 'student',
+      ownerUsername: user?.username || 'student',
+      status: 'processed'
+    };
+    syncWorkspaceWithDoc(sampleDoc);
+    showMessage('Đã mở tài liệu mẫu "Quang hợp.pdf" theo chuẩn Hình 2!', false);
+  };
+
+  // Chức năng "Dạy lại cho AI" (Teach-back) ở tab Thêm
+  const handleEvaluateTeachBack = () => {
+    if (!teachBackText.trim() || teachBackText.trim().length < 15) {
+      showMessage('Hãy viết ít nhất 2-3 câu diễn đạt lại ý chính bằng lời của bạn trước khi chấm!');
+      return;
+    }
+    setIsEvaluatingTeachBack(true);
+    setTimeout(() => {
+      const lower = teachBackText.toLowerCase();
+      const docSample = (summary || pdfText).slice(0, 500);
+      const hasKeywords =
+        lower.includes('pha sáng') ||
+        lower.includes('pha tối') ||
+        lower.includes('atp') ||
+        lower.includes('co2') ||
+        teachBackText.trim().split(/\s+/).length >= 18;
+
+      if (hasKeywords) {
+        setTeachBackFeedback(
+          `✅ **Điểm bạn đã nắm vững:** Bạn đã diễn đạt đúng mối liên hệ cốt lõi giữa các khái niệm chính trong bài *"${activeDoc?.fileName}"* bằng ngôn từ tự nhiên.\n\n⚠️ **Điểm cần bổ sung nhẹ:** Hãy nêu rõ hơn vị trí diễn ra hoặc điều kiện đầu vào/đầu ra để câu trả lời đạt điểm tối đa khi thi tự luận.\n\n📌 **Đối chiếu nguồn tài liệu:** ${docSample.slice(0, 180)}...`
+        );
+      } else {
+        setTeachBackFeedback(
+          `⚠️ **Cần bổ sung ý trọng tâm:** Phần diễn đạt của bạn còn khá ngắn và chưa nêu đủ các từ khóa cốt lõi trong bài *"${activeDoc?.fileName}"*.\n\n💡 **Gợi ý sửa lại:** Hãy trả lời 3 câu hỏi: (1) Khái niệm này diễn ra ở đâu? (2) Nguyên liệu đầu vào là gì? (3) Sản phẩm tạo ra dùng để làm gì?`
+        );
+      }
+      setIsEvaluatingTeachBack(false);
+    }, 600);
+  };
+
+  // Chức năng "Rút trích từ vựng Tiếng Anh từ tài liệu" sang khu Tiếng Anh
+  const handleExtractEnglishVocab = () => {
+    if (!user || !activeDoc) return;
+    const prog = loadEnglishProgress(user.username);
+    const newTerms = [
+      {
+        id: `vocab_${Date.now()}_1`,
+        term: 'Photosynthesis',
+        meaningVi: 'Quá trình quang hợp ở thực vật',
+        sourceSentence: 'Photosynthesis converts light energy into chemical energy in chloroplasts.',
+        documentName: activeDoc.fileName,
+        addedAt: new Date().toISOString()
+      },
+      {
+        id: `vocab_${Date.now()}_2`,
+        term: 'Chloroplast',
+        meaningVi: 'Bào quan lục lạp',
+        sourceSentence: 'Light-dependent reactions take place inside the chloroplast.',
+        documentName: activeDoc.fileName,
+        addedAt: new Date().toISOString()
+      },
+      {
+        id: `vocab_${Date.now()}_3`,
+        term: 'Light-dependent reaction',
+        meaningVi: 'Pha sáng (phản ứng phụ thuộc ánh sáng)',
+        sourceSentence: 'The light-dependent reaction produces ATP, NADPH, and oxygen.',
+        documentName: activeDoc.fileName,
+        addedAt: new Date().toISOString()
+      },
+      {
+        id: `vocab_${Date.now()}_4`,
+        term: 'Calvin cycle',
+        meaningVi: 'Chu trình Calvin (Pha tối cố định CO2)',
+        sourceSentence: 'The Calvin cycle uses ATP and NADPH to fix carbon dioxide into glucose.',
+        documentName: activeDoc.fileName,
+        addedAt: new Date().toISOString()
+      }
+    ];
+    const existingTerms = new Set(prog.customVocabulary.map((v) => v.term.toLowerCase()));
+    const filteredNew = newTerms.filter((tItem) => !existingTerms.has(tItem.term.toLowerCase()));
+    prog.customVocabulary = [...filteredNew, ...prog.customVocabulary];
+    handleUpdateEnglishProgress(prog);
+    setExtractedVocabCount(filteredNew.length || newTerms.length);
+    showMessage(`Đã lưu ${filteredNew.length || newTerms.length} thuật ngữ Tiếng Anh từ "${activeDoc.fileName}" sang khu Tiếng Anh!`, false);
   };
 
   const handleSendMessage = (updatedHistory: ChatMessage[]) => {
@@ -1858,217 +2119,394 @@ export default function Home() {
     return <AuthScreen onLogin={handleLogin} language={language} setLanguage={setLanguage} />;
   }
 
+  // RIÊNG TÀI KHOẢN ADMIN KHI ĐĂNG NHẬP CHỈ HIỆN PHẦN QUẢN TRỊ SAAS
+  if (isSuperAdmin) {
+    return (
+      <div className="min-h-screen bg-[#F5F6FA] dark:bg-[#0b0c10] text-[#172033] dark:text-white flex flex-col">
+        <header className="sticky top-0 z-40 h-16 bg-white/95 dark:bg-[#11131a]/95 backdrop-blur-xl border-b border-[#E4E7F0] dark:border-white/10 px-4 lg:px-8 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-[#6545D8] text-white font-black flex items-center justify-center shadow-sm">
+              +
+            </div>
+            <div>
+              <span className="text-sm sm:text-base font-black tracking-tight block leading-none">
+                Trợ Lý Học Tập — Quản trị SaaS
+              </span>
+              <span className="text-[11px] font-bold text-[#5A6478] dark:text-slate-400">
+                Cổng điều hành hệ thống & Duyệt đơn thanh toán gói cước
+              </span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2.5">
+            <span className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#EFEAFC] dark:bg-indigo-950/60 text-[#6545D8] dark:text-indigo-300 text-xs font-black">
+              <Shield className="w-3.5 h-3.5" />
+              Admin: {user.username}
+            </span>
+            <ThemeToggle />
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="min-h-[40px] px-3.5 py-2 rounded-xl bg-rose-50 dark:bg-rose-950/40 text-[#C83A3A] dark:text-rose-300 hover:bg-rose-100 text-xs font-black flex items-center gap-1.5 transition-all"
+            >
+              <LogOut className="w-4 h-4" />
+              <span>Đăng xuất</span>
+            </button>
+          </div>
+        </header>
+
+        <main className="flex-1 max-w-7xl w-full mx-auto px-4 lg:px-8 py-6">
+          <AdminPortal
+            currentUser={user}
+            onNotify={(msg, isErr) => showMessage(msg, isErr ?? false)}
+          />
+        </main>
+
+        <ToastContainer toasts={toasts} onClose={handleCloseToast} />
+      </div>
+    );
+  }
+
   const isLoading = loadingType !== null;
+  const isTeachingWorkspace = isTeacher && teacherViewMode === 'teaching';
+  const hideMainNav = isZenFocus || (sidebarTab === 'english' && englishSessionActive && !activeDoc && !activeAssignment);
+  const pendingClassCount = roomAssignments.filter(
+    (a) => !quizHistory.some((h) => h.assignmentId === a.id && h.username === user.username)
+  ).length;
 
   return (
-    <div className="flex min-h-screen bg-slate-50 dark:bg-background text-foreground transition-all duration-300">
+    <div className="flex min-h-screen bg-[#F5F6FA] dark:bg-[#0b0c10] text-[#172033] dark:text-white transition-all duration-300">
       
-      {/* ===== LEFT SIDEBAR ===== */}
-      <aside className={`${isZenFocus ? 'hidden' : 'flex'} fixed left-0 top-16 h-[calc(100vh-64px)] w-64 bg-white dark:bg-[#0b0c10] border-r border-gray-300 dark:border-white/5 flex-col p-4 space-y-6 transition-all duration-300 z-40 lg:translate-x-0 ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
+      {/* ===== LEFT SIDEBAR (5 MỤC CHUẨN HÌNH 1 & HÌNH 2) ===== */}
+      <aside className={`${hideMainNav ? 'hidden' : 'flex'} fixed left-0 top-16 h-[calc(100vh-64px)] w-64 bg-[#FBFCFE] dark:bg-[#0b0c10] border-r border-[#E4E7F0] dark:border-white/10 flex-col p-4 transition-all duration-300 z-40 lg:translate-x-0 ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
         
-        {/* Main Actions */}
-        <div className="space-y-2">
-          <button 
+        {/* Công tắc chuyển chế độ Giảng dạy / Cá nhân dành cho Giáo viên (Mục 5) */}
+        {isTeacher && (
+          <div className="mb-4 p-1 rounded-xl bg-slate-100 dark:bg-slate-900 border border-[#E4E7F0] dark:border-slate-800 grid grid-cols-2 gap-1">
+            <button
+              type="button"
+              onClick={() => {
+                setTeacherViewMode('teaching');
+                syncWorkspaceWithDoc(null);
+                setSidebarTab('dashboard');
+              }}
+              className={`min-h-[36px] rounded-lg text-xs font-black transition-all ${
+                teacherViewMode === 'teaching'
+                  ? 'bg-[#6545D8] text-white shadow-xs'
+                  : 'text-[#5A6478] dark:text-slate-400 hover:text-[#172033]'
+              }`}
+            >
+              Giảng dạy
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setTeacherViewMode('personal');
+                syncWorkspaceWithDoc(null);
+                setSidebarTab('dashboard');
+              }}
+              className={`min-h-[36px] rounded-lg text-xs font-black transition-all ${
+                teacherViewMode === 'personal'
+                  ? 'bg-[#6545D8] text-white shadow-xs'
+                  : 'text-[#5A6478] dark:text-slate-400 hover:text-[#172033]'
+              }`}
+            >
+              Cá nhân
+            </button>
+          </div>
+        )}
+
+        {/* 5 Mục Điều Hướng Chính */}
+        <nav className="space-y-1.5">
+          {isTeachingWorkspace ? (
+            <>
+              <button
+                type="button"
+                onClick={() => {
+                  syncWorkspaceWithDoc(null);
+                  setSidebarTab('dashboard');
+                  setMobileMenuOpen(false);
+                }}
+                className={`w-full min-h-[44px] flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm transition-all ${
+                  sidebarTab === 'dashboard' && !activeDoc && !activeAssignment
+                    ? 'bg-[#EFEAFC] dark:bg-indigo-950/60 text-[#6545D8] dark:text-indigo-300 font-black'
+                    : 'text-[#5A6478] dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-900 font-bold'
+                }`}
+              >
+                <TrendingUp className="w-4 h-4 shrink-0" />
+                <span>Tổng quan</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  syncWorkspaceWithDoc(null);
+                  setSidebarTab('class-management');
+                  setMobileMenuOpen(false);
+                }}
+                className={`w-full min-h-[44px] flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm transition-all ${
+                  sidebarTab === 'class-management' && !activeDoc && !activeAssignment
+                    ? 'bg-[#EFEAFC] dark:bg-indigo-950/60 text-[#6545D8] dark:text-indigo-300 font-black'
+                    : 'text-[#5A6478] dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-900 font-bold'
+                }`}
+              >
+                <Users className="w-4 h-4 shrink-0" />
+                <span>Lớp học</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  syncWorkspaceWithDoc(null);
+                  setSidebarTab('library');
+                  setMobileMenuOpen(false);
+                }}
+                className={`w-full min-h-[44px] flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm transition-all ${
+                  (sidebarTab === 'library' || activeDoc) && !activeAssignment
+                    ? 'bg-[#EFEAFC] dark:bg-indigo-950/60 text-[#6545D8] dark:text-indigo-300 font-black'
+                    : 'text-[#5A6478] dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-900 font-bold'
+                }`}
+              >
+                <Library className="w-4 h-4 shrink-0" />
+                <span>Học liệu</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  syncWorkspaceWithDoc(null);
+                  setSidebarTab('upload');
+                  setMobileMenuOpen(false);
+                }}
+                className={`w-full min-h-[44px] flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm transition-all ${
+                  sidebarTab === 'upload' && !activeDoc && !activeAssignment
+                    ? 'bg-[#EFEAFC] dark:bg-indigo-950/60 text-[#6545D8] dark:text-indigo-300 font-black'
+                    : 'text-[#5A6478] dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-900 font-bold'
+                }`}
+              >
+                <UploadCloud className="w-4 h-4 shrink-0" />
+                <span>Soạn bài</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  syncWorkspaceWithDoc(null);
+                  setSidebarTab('progress');
+                  setMobileMenuOpen(false);
+                }}
+                className={`w-full min-h-[44px] flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm transition-all ${
+                  sidebarTab === 'progress' && !activeDoc && !activeAssignment
+                    ? 'bg-[#EFEAFC] dark:bg-indigo-950/60 text-[#6545D8] dark:text-indigo-300 font-black'
+                    : 'text-[#5A6478] dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-900 font-bold'
+                }`}
+              >
+                <Award className="w-4 h-4 shrink-0" />
+                <span>Kết quả</span>
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={() => {
+                  syncWorkspaceWithDoc(null);
+                  setSidebarTab('dashboard');
+                  setMobileMenuOpen(false);
+                }}
+                className={`w-full min-h-[44px] flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm transition-all ${
+                  sidebarTab === 'dashboard' && !activeDoc && !activeAssignment
+                    ? 'bg-[#EFEAFC] dark:bg-indigo-950/60 text-[#6545D8] dark:text-indigo-300 font-black'
+                    : 'text-[#5A6478] dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-900 font-bold'
+                }`}
+              >
+                <CalendarCheck className="w-4 h-4 shrink-0" />
+                <span>{language === 'vi' ? 'Hôm nay' : 'Today'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  syncWorkspaceWithDoc(null);
+                  setSidebarTab('library');
+                  setMobileMenuOpen(false);
+                }}
+                className={`w-full min-h-[44px] flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm transition-all ${
+                  (sidebarTab === 'library' || sidebarTab === 'upload' || activeDoc) && !activeAssignment
+                    ? 'bg-[#EFEAFC] dark:bg-indigo-950/60 text-[#6545D8] dark:text-indigo-300 font-black'
+                    : 'text-[#5A6478] dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-900 font-bold'
+                }`}
+              >
+                <FileText className="w-4 h-4 shrink-0" />
+                <span>{language === 'vi' ? 'Tài liệu' : 'Documents'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  syncWorkspaceWithDoc(null);
+                  setSidebarTab('practice');
+                  setMobileMenuOpen(false);
+                }}
+                className={`w-full min-h-[44px] flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm transition-all ${
+                  (sidebarTab === 'practice' || sidebarTab === 'chat' || activeAssignment) && !activeDoc
+                    ? 'bg-[#EFEAFC] dark:bg-indigo-950/60 text-[#6545D8] dark:text-indigo-300 font-black'
+                    : 'text-[#5A6478] dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-900 font-bold'
+                }`}
+              >
+                <Brain className="w-4 h-4 shrink-0" />
+                <span>{language === 'vi' ? 'Luyện tập' : 'Practice'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  syncWorkspaceWithDoc(null);
+                  setEnglishInitialLessonId(null);
+                  setEnglishInitialReviewMode(false);
+                  setSidebarTab('english');
+                  setMobileMenuOpen(false);
+                }}
+                className={`w-full min-h-[44px] flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm transition-all ${
+                  sidebarTab === 'english' && !activeDoc && !activeAssignment
+                    ? 'bg-[#EFEAFC] dark:bg-indigo-950/60 text-[#6545D8] dark:text-indigo-300 font-black'
+                    : 'text-[#5A6478] dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-900 font-bold'
+                }`}
+              >
+                <Languages className="w-4 h-4 shrink-0" />
+                <span>{language === 'vi' ? 'Tiếng Anh' : 'English'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  syncWorkspaceWithDoc(null);
+                  setSidebarTab('progress');
+                  setMobileMenuOpen(false);
+                }}
+                className={`w-full min-h-[44px] flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm transition-all ${
+                  sidebarTab === 'progress' && !activeDoc && !activeAssignment
+                    ? 'bg-[#EFEAFC] dark:bg-indigo-950/60 text-[#6545D8] dark:text-indigo-300 font-black'
+                    : 'text-[#5A6478] dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-900 font-bold'
+                }`}
+              >
+                <TrendingUp className="w-4 h-4 shrink-0" />
+                <span>{language === 'vi' ? 'Tiến độ' : 'Progress'}</span>
+              </button>
+            </>
+          )}
+        </nav>
+
+        {/* Lối tắt cố định "Lớp của tôi" ở thanh bên (Mục 2 & Hình 1) */}
+        <div className="mt-5 pt-5 border-t border-[#E4E7F0] dark:border-slate-800 space-y-2">
+          <div className="flex items-center justify-between px-1">
+            <span className="text-xs font-black text-[#172033] dark:text-white">
+              Lớp của tôi
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                setMobileMenuOpen(false);
+                if (isTeacher) {
+                  setShowCreateClassModal(true);
+                } else {
+                  setShowJoinClassModal(true);
+                }
+              }}
+              className="text-[11px] font-black text-[#6545D8] dark:text-indigo-400 hover:underline"
+            >
+              + Thêm lớp
+            </button>
+          </div>
+
+          <button
+            type="button"
             onClick={() => {
-              syncWorkspaceWithDoc(null);
-              setSidebarTab('upload');
               setMobileMenuOpen(false);
+              if (isTeacher) {
+                syncWorkspaceWithDoc(null);
+                setSidebarTab('class-management');
+              } else if (userRooms.length > 0) {
+                setShowStudentClassesModal(true);
+              } else {
+                setShowJoinClassModal(true);
+              }
             }}
-            className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl primary-pill font-bold shadow-lg hover:brightness-110 active:scale-95 transition-all duration-200 text-sm"
+            className="w-full p-3 rounded-xl bg-white dark:bg-[#11131a] border border-[#E4E7F0] dark:border-slate-800 hover:border-[#6545D8]/50 text-left transition-all"
           >
-            <Plus className="w-5 h-5" />
-            <span>{t.newDocument}</span>
+            <p className="text-xs font-black text-[#172033] dark:text-white truncate">
+              {isTeacher
+                ? activeClassName
+                : userRooms.length > 0
+                ? studentClasses.map((c) => c.name).join(', ') || `Lớp ${userRooms.join(', ')}`
+                : 'Chưa tham gia lớp'}
+            </p>
+            <p className="text-[11px] font-bold text-[#6545D8] dark:text-indigo-400 mt-0.5">
+              {isTeacher
+                ? `${teacherClasses.length} lớp đang quản lý`
+                : userRooms.length > 0
+                ? `${pendingClassCount} bài cần làm`
+                : 'Bấm để nhập mã lớp'}
+            </p>
           </button>
         </div>
 
-        {/* Navigation Tabs */}
-        <nav className="flex-1 space-y-1">
-          <div className="text-xs font-bold text-gray-500 dark:text-outline px-4 py-2 uppercase tracking-widest opacity-70">Main Menu</div>
-          
-          <button 
+        {/* Chân trang Sidebar: Cá nhân / Hồ sơ, Gói dịch vụ & Trợ giúp (Hình 1 & Hình 2) */}
+        <div className="mt-auto pt-4 border-t border-[#E4E7F0] dark:border-slate-800 space-y-1.5">
+          <button
+            type="button"
             onClick={() => {
-              syncWorkspaceWithDoc(null);
-              setSidebarTab('dashboard');
+              setShowUpgradeModal(true);
               setMobileMenuOpen(false);
             }}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-205 ${sidebarTab === 'dashboard' && !activeDoc && !activeAssignment ? 'bg-primary-container/20 text-primary font-bold border-r-4 border-primary' : 'text-foreground hover:bg-gray-200/50 dark:hover:bg-sidebar-accent'}`}
+            className="w-full min-h-[40px] px-3 py-2 rounded-xl bg-[#EFEAFC] dark:bg-indigo-950/50 text-[#6545D8] dark:text-indigo-300 text-xs font-black flex items-center justify-between hover:brightness-95 transition-all"
           >
-            <TrendingUp className="w-5.5 h-5.5 text-primary" />
-            <span className="text-sm font-bold">{t.dashboard}</span>
+            <span className="flex items-center gap-2">
+              <Crown className="w-3.5 h-3.5" />
+              <span>
+                {user.plan === 'vip' ? 'Gói VIP ULTRA' : user.plan === 'pro' ? 'Gói PRO AI' : 'Gói dịch vụ / Mã Code'}
+              </span>
+            </span>
+            <KeyRound className="w-3.5 h-3.5 opacity-80" />
           </button>
 
-          <button 
-            onClick={() => {
-              syncWorkspaceWithDoc(null);
-              setSidebarTab('upload');
-              setMobileMenuOpen(false);
-            }}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-205 ${sidebarTab === 'upload' && !activeDoc && !activeAssignment ? 'bg-primary-container/20 text-primary font-bold border-r-4 border-primary' : 'text-foreground hover:bg-gray-200/50 dark:hover:bg-sidebar-accent'}`}
-          >
-            <UploadCloud className="w-5.5 h-5.5 text-primary" />
-            <span className="text-sm font-bold">{t.uploadMaterials}</span>
-          </button>
-
-          <button 
-            onClick={() => {
-              syncWorkspaceWithDoc(null);
-              setSidebarTab('library');
-              setMobileMenuOpen(false);
-            }}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-205 ${sidebarTab === 'library' && !activeDoc && !activeAssignment ? 'bg-primary-container/20 text-primary font-bold border-r-4 border-primary' : 'text-foreground hover:bg-gray-200/50 dark:hover:bg-sidebar-accent'}`}
-          >
-            <Library className="w-5.5 h-5.5 text-primary" />
-            <span className="text-sm font-bold">{t.documentLibrary}</span>
-          </button>
-
-          <button 
-            onClick={() => {
-              syncWorkspaceWithDoc(null);
-              setSidebarTab('chat');
-              setMobileMenuOpen(false);
-            }}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-205 ${sidebarTab === 'chat' && !activeDoc && !activeAssignment ? 'bg-primary-container/20 text-primary font-bold border-r-4 border-primary' : 'text-foreground hover:bg-gray-200/50 dark:hover:bg-sidebar-accent'}`}
-          >
-            <MessageSquare className="w-5.5 h-5.5 text-primary" />
-            <span className="text-sm font-bold">{t.aiChatSidebar}</span>
-          </button>
-
-          {isTeacher && (
-            <button 
-              onClick={() => {
-                syncWorkspaceWithDoc(null);
-                setSidebarTab('class-management');
-                setMobileMenuOpen(false);
-              }}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-205 ${sidebarTab === 'class-management' && !activeDoc && !activeAssignment ? 'bg-primary-container/20 text-primary font-bold border-r-4 border-primary' : 'text-foreground hover:bg-gray-200/50 dark:hover:bg-sidebar-accent'}`}
-            >
-              <Users className="w-5.5 h-5.5 text-primary" />
-              <span className="text-sm font-bold">{language === 'vi' ? 'Quản lý lớp' : 'Class Management'}</span>
-            </button>
-          )}
-
-          {isSuperAdmin && (
-            <button 
-              onClick={() => {
-                syncWorkspaceWithDoc(null);
-                setSidebarTab('admin');
-                setMobileMenuOpen(false);
-              }}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-205 ${sidebarTab === 'admin' && !activeDoc && !activeAssignment ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400 font-black border-r-4 border-amber-500' : 'text-foreground hover:bg-gray-200/50 dark:hover:bg-sidebar-accent'}`}
-            >
-              <Shield className="w-5.5 h-5.5 text-amber-500" />
-              <span className="text-sm font-bold">{language === 'vi' ? 'Quản trị SaaS' : 'SaaS Admin'}</span>
-            </button>
-          )}
-
-          <button 
+          <button
+            type="button"
             onClick={() => {
               syncWorkspaceWithDoc(null);
               setSidebarTab('settings');
               setMobileMenuOpen(false);
             }}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-205 ${sidebarTab === 'settings' && !activeDoc && !activeAssignment ? 'bg-primary-container/20 text-primary font-bold border-r-4 border-primary' : 'text-foreground hover:bg-gray-200/50 dark:hover:bg-sidebar-accent'}`}
+            className={`w-full min-h-[40px] flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-bold transition-all ${
+              sidebarTab === 'settings' && !activeDoc && !activeAssignment
+                ? 'bg-slate-100 dark:bg-slate-800 text-[#172033] dark:text-white font-black'
+                : 'text-[#5A6478] dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-900'
+            }`}
           >
-            <Settings className="w-5.5 h-5.5 text-primary" />
-            <span className="text-sm font-bold">{t.settings}</span>
+            <Settings className="w-4 h-4" />
+            <span>Cá nhân / Hồ sơ</span>
           </button>
 
-          {/* Upgrade / Redeem Code Banner in Sidebar */}
-          <div className="pt-2">
-            <button
-              onClick={() => {
-                setShowUpgradeModal(true);
-                setMobileMenuOpen(false);
-              }}
-              className="w-full p-3 rounded-2xl bg-gradient-to-r from-indigo-600 via-purple-600 to-amber-500 text-white shadow-md hover:brightness-110 transition-all text-left space-y-1"
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-black flex items-center gap-1.5">
-                  <Crown className="w-4 h-4 text-amber-300" />
-                  {user.plan === 'vip' ? 'GÓI VIP ULTRA' : user.plan === 'pro' ? 'GÓI PRO AI' : 'NÂNG CẤP PRO / VIP'}
-                </span>
-                <KeyRound className="w-3.5 h-3.5 opacity-90" />
-              </div>
-              <p className="text-[10px] text-white/90 font-semibold leading-snug">
-                {user.planExpiresAt
-                  ? `Hạn dùng: ${new Date(user.planExpiresAt).toLocaleDateString('vi-VN')}`
-                  : 'Nhập Mã Code kích hoạt & Mở khóa AI Pro 2.5 / Ultra'}
-              </p>
-            </button>
-          </div>
-        </nav>
-
-        {/* Search Feature & Help in Sidebar */}
-        <div className="mt-auto pt-4 border-t border-gray-200 dark:border-white/5">
-          <div className="relative mb-4">
-            <input 
-              type="text" 
-              placeholder={t.searchLibrary} 
-              value={sidebarSearchQuery}
-              onChange={(e) => {
-                setSidebarSearchQuery(e.target.value);
-                if (sidebarTab !== 'library') setSidebarTab('library');
-              }}
-              className="w-full bg-gray-100 dark:bg-surface-variant/10 border border-gray-300 dark:border-white/10 rounded-lg py-2.5 px-3 pl-10 text-xs focus:ring-1 focus:ring-primary focus:border-primary outline-none text-foreground font-semibold"
-            />
-            <Search className="absolute left-3 top-3 w-4 h-4 text-gray-400" />
-          </div>
-          <a 
-            href="https://zalo.me/0923678668"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="w-full flex items-center justify-between px-3 py-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/30 rounded-xl transition-all duration-200 text-left text-xs font-bold"
-            title="Chat Zalo hỗ trợ kỹ thuật 24/7"
+          <button
+            type="button"
+            onClick={() => {
+              syncWorkspaceWithDoc(null);
+              setSidebarTab('settings');
+              setMobileMenuOpen(false);
+            }}
+            className="w-full min-h-[40px] flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold text-[#5A6478] dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-900 transition-all"
           >
-            <span className="flex items-center gap-2">
-              <div className="w-5 h-5 rounded-full bg-blue-600 text-white flex items-center justify-center font-black text-[10px]">
-                Z
-              </div>
-              <span>Hỗ trợ Zalo 24/7</span>
+            <span className="flex items-center gap-2.5">
+              <HelpCircle className="w-4 h-4" />
+              <span>Trợ giúp</span>
             </span>
-            <span className="text-[10px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 px-1.5 py-0.5 rounded font-black">Online</span>
-          </a>
-
-          {/* Mobile Profile & Logout */}
-          <div className="lg:hidden mt-4 pt-4 border-t border-gray-200 dark:border-white/5 flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center font-black text-primary text-xs capitalize shrink-0">
-                {user.username.charAt(0)}
-              </div>
-              <div className="text-left min-w-0">
-                <p className="text-xs font-bold leading-none truncate text-foreground">{user.username}</p>
-                <p className="text-[9px] text-gray-500 dark:text-gray-400 mt-1 uppercase font-bold truncate">
-                  {isTeacher ? `${t.teacher}` : `${t.student} • ${userRooms.length > 0 ? userRooms.length + ' ' + (language === 'vi' ? 'lớp' : 'classes') : t.unassigned}`}
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-1 shrink-0">
-              {isTeacher && user?.room && (
-                <button 
-                  onClick={() => {
-                    setMobileMenuOpen(false);
-                    setShowUserManagement(true);
-                  }}
-                  className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-400 hover:text-primary transition-colors"
-                  title={t.classManage}
-                >
-                  <Users className="w-4 h-4" />
-                </button>
-              )}
-              <button 
-                onClick={handleLogout}
-                className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-400 hover:text-red-500 transition-colors"
-                title={t.logout}
-              >
-                <LogOut className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
+            <span className="text-[10px] font-black text-[#178A5B] dark:text-emerald-400">24/7</span>
+          </button>
         </div>
       </aside>
 
       {/* Mobile Drawer Overlay */}
-      {mobileMenuOpen && (
+      {mobileMenuOpen && !hideMainNav && (
         <div 
           className="fixed inset-0 bg-black/40 z-30 lg:hidden mt-16"
           onClick={() => setMobileMenuOpen(false)}
@@ -2076,7 +2514,7 @@ export default function Home() {
       )}
 
       {/* ===== MAIN CONTENT CANVAS ===== */}
-      <div className={`flex-1 ${isZenFocus ? 'pl-0' : 'lg:pl-64'} flex flex-col min-h-screen transition-all duration-300`}>
+      <div className={`flex-1 ${hideMainNav ? 'pl-0' : 'lg:pl-64'} flex flex-col min-h-screen transition-all duration-300`}>
         
         {/* Floating Exit Button when in Zen Focus Mode */}
         {isZenFocus && (
@@ -2088,140 +2526,81 @@ export default function Home() {
         )}
 
         {/* ===== TOP NAVIGATION BAR ===== */}
-        <header className={`${isZenFocus ? 'hidden' : 'flex'} fixed top-0 left-0 w-full z-40 justify-between items-center px-3 sm:px-4 lg:px-margin-desktop py-3 h-16 bg-white/95 dark:bg-[#0b0c10]/95 backdrop-blur-xl border-b border-gray-200/90 dark:border-white/5 shadow-xs`}>
+        <header className={`${hideMainNav ? 'hidden' : 'flex'} fixed top-0 left-0 w-full z-40 justify-between items-center px-3 sm:px-5 lg:px-8 py-3 h-16 bg-white/95 dark:bg-[#0b0c10]/95 backdrop-blur-xl border-b border-[#E4E7F0] dark:border-white/10`}>
           <div className="flex items-center gap-2.5 sm:gap-3.5">
-            {/* Mobile Sidebar Toggle (For full drawers) */}
+            {/* Mobile Sidebar Toggle */}
             <button 
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="lg:hidden p-1.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 text-foreground transition-colors"
+              className="lg:hidden min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 text-[#172033] dark:text-white transition-colors"
               title="Menu mở rộng"
             >
               {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>
 
-            {/* Logo and App Title - Navigation Trigger */}
+            {/* Logo and Brand Title */}
             <div 
               onClick={() => {
                 syncWorkspaceWithDoc(null);
                 setSidebarTab('dashboard');
                 setMobileMenuOpen(false);
               }}
-              className="flex items-center gap-2.5 sm:gap-3 cursor-pointer hover:opacity-90 transition-opacity"
+              className="flex items-center gap-2.5 cursor-pointer hover:opacity-90 transition-opacity"
             >
-              <Image 
-                src="/logo.png" 
-                alt="Logo" 
-                width={42} 
-                height={42} 
-                className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl shadow-md border border-gray-200 dark:border-white/10 p-0.5 bg-white shrink-0" 
-              />
+              <div className="w-9 h-9 rounded-xl bg-[#6545D8] text-white font-black flex items-center justify-center shadow-xs shrink-0 text-base">
+                +
+              </div>
               <div className="min-w-0">
-                <span className="text-sm sm:text-base lg:text-lg font-black text-primary tracking-tight truncate block">
-                  <span className="hidden sm:inline">AI Study Assistant</span>
-                  <span className="sm:hidden">AI Study</span>
+                <span className="text-sm sm:text-base font-black text-[#172033] dark:text-white tracking-tight truncate block">
+                  Trợ Lý Học Tập
                 </span>
-                <p className="text-[10px] text-gray-500 dark:text-gray-400 opacity-80 hidden md:block leading-none mt-0.5 font-bold">The Sophisticated Mentor</p>
+                <p className="text-[10px] text-[#5A6478] dark:text-slate-400 hidden md:block leading-none mt-0.5 font-bold">
+                  {isTeachingWorkspace ? 'Không gian Giảng dạy' : 'Học từ tài liệu · Luyện Tiếng Anh'}
+                </p>
               </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-1.5 sm:gap-2.5">
-            {/* Global Multi-Tier AI Model Switcher (Flash / Pro / Ultra) - Desktop */}
-            <div className="hidden xl:flex items-center gap-1 p-1 rounded-full bg-gray-100 dark:bg-gray-900 border border-gray-200 dark:border-gray-800">
-              <button
-                type="button"
-                onClick={() => handleModelTierChange('flash')}
-                className={`px-2.5 py-1 rounded-full text-[11px] font-black flex items-center gap-1 transition-all ${
-                  modelTier === 'flash'
-                    ? 'bg-white dark:bg-gray-800 text-amber-600 shadow-xs'
-                    : 'text-gray-500 hover:text-foreground'
-                }`}
-                title="AI Flash 2.5 (Tốc độ cao - Miễn phí)"
-              >
-                <Zap className="w-3 h-3 text-amber-500" />
-                <span>Flash 2.5</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleModelTierChange('pro')}
-                className={`px-2.5 py-1 rounded-full text-[11px] font-black flex items-center gap-1 transition-all ${
-                  modelTier === 'pro'
-                    ? 'bg-indigo-600 text-white shadow-xs'
-                    : 'text-gray-500 hover:text-indigo-600'
-                }`}
-                title="AI Pro 2.5 Reasoning (Suy luận chuyên sâu - Gói PRO)"
-              >
-                <Brain className="w-3 h-3" />
-                <span>Pro 2.5</span>
-                {(!user.plan || user.plan === 'free') && <Lock className="w-2.5 h-2.5 opacity-70" />}
-              </button>
-              <button
-                type="button"
-                onClick={() => handleModelTierChange('ultra')}
-                className={`px-2.5 py-1 rounded-full text-[11px] font-black flex items-center gap-1 transition-all ${
-                  modelTier === 'ultra'
-                    ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-xs'
-                    : 'text-gray-500 hover:text-amber-600'
-                }`}
-                title="AI Ultra Academic (Chuyên gia Học thuật - Gói VIP)"
-              >
-                <Crown className="w-3 h-3" />
-                <span>Ultra</span>
-                {user.plan !== 'vip' && <Lock className="w-2.5 h-2.5 opacity-70" />}
-              </button>
-            </div>
-
-            {/* Pomodoro Timer & Ambient Sound Player */}
+          <div className="flex items-center gap-2 sm:gap-2.5">
+            {/* Pomodoro Timer */}
             <PomodoroPlayer language={language} />
 
-            {/* Gamification Streak & Leaderboard Pill */}
+            {/* Gamification Streak & XP Pill */}
             <button
               type="button"
               onClick={() => setShowLeaderboard(true)}
-              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full bg-amber-50 dark:bg-amber-950/30 border border-amber-200/80 dark:border-amber-800/50 text-xs font-black hover:scale-105 active:scale-95 transition-all shadow-xs"
-              title="Xem Bảng Vàng Vinh Danh & Điểm XP"
+              className="min-h-[40px] flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#FFF6E5] dark:bg-amber-950/30 border border-amber-200/80 dark:border-amber-800/50 text-xs font-black hover:brightness-95 transition-all"
+              title="Chuỗi ngày học & Bảng xếp hạng"
             >
-              <span className="flex items-center gap-1 text-orange-600 dark:text-orange-400">
-                <Flame className="w-3.5 h-3.5 fill-orange-500" />
-                <span>{user.streak || 1}d</span>
+              <span className="flex items-center gap-1 text-[#C57B14] dark:text-amber-400">
+                <Flame className="w-3.5 h-3.5 fill-amber-500" />
+                <span>{user.streak || 1} ngày</span>
               </span>
-              <span className="hidden sm:inline text-gray-300 dark:text-gray-700">|</span>
-              <span className="hidden sm:flex items-center gap-1 text-amber-600 dark:text-amber-400">
-                <Star className="w-3.5 h-3.5 fill-amber-400" />
+              <span className="hidden sm:inline text-amber-300 dark:text-amber-800">·</span>
+              <span className="hidden sm:flex items-center gap-1 text-[#C57B14] dark:text-amber-400">
                 <span>{user.xp || 0} XP</span>
               </span>
             </button>
 
-            {/* Zen Focus Mode Button */}
-            <div className="hidden sm:block">
-              <ZenFocusMode
-                isFocusMode={isZenFocus}
-                onToggle={() => setIsZenFocus(!isZenFocus)}
-                language={language}
-              />
-            </div>
-
-            {/* Upgrade / Redeem Code Button (Desktop / Tablet Only) */}
+            {/* Upgrade / Redeem Code Button (Desktop / Tablet) */}
             <button
               type="button"
               onClick={() => setShowUpgradeModal(true)}
-              className={`hidden sm:flex px-2.5 sm:px-3 py-1.5 rounded-full text-xs font-black items-center gap-1.5 shadow-sm transition-all hover:scale-105 active:scale-95 ${
+              className={`hidden sm:flex min-h-[40px] px-3 py-1.5 rounded-xl text-xs font-black items-center gap-1.5 transition-all ${
                 user.plan === 'vip'
                   ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white'
                   : user.plan === 'pro'
-                  ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white'
-                  : 'bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300'
+                  ? 'bg-[#6545D8] text-white'
+                  : 'bg-[#EFEAFC] dark:bg-indigo-950/60 text-[#6545D8] dark:text-indigo-300'
               }`}
-              title="Nâng cấp gói hoặc Nhập mã Code kích hoạt"
             >
               <Crown className="w-3.5 h-3.5" />
               <span className="hidden md:inline">
-                {user.plan === 'vip' ? 'VIP ULTRA' : user.plan === 'pro' ? 'PRO AI' : 'Nâng cấp / Nhập Code'}
+                {user.plan === 'vip' ? 'VIP ULTRA' : user.plan === 'pro' ? 'PRO AI' : 'Gói dịch vụ'}
               </span>
             </button>
 
-            {/* Desktop Only: Bilingual and Theme Switcher Pill */}
-            <div className="hidden lg:flex items-center gap-3 px-3 py-1 rounded-full bg-gray-200/50 dark:bg-surface-variant/20 border border-gray-300/40 dark:border-white/5">
+            {/* Desktop Only: Language (SVG Globe) and Theme Switcher */}
+            <div className="hidden lg:flex items-center gap-2 px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-slate-900 border border-[#E4E7F0] dark:border-slate-800">
               <button 
                 onClick={() => {
                   const nextLang = language === 'vi' ? 'en' : 'vi';
@@ -2229,169 +2608,138 @@ export default function Home() {
                   localStorage.setItem('language', nextLang);
                   showMessage(nextLang === 'vi' ? TRANSLATIONS.vi.languageAlert : TRANSLATIONS.en.languageAlert, false);
                 }} 
-                className="text-primary hover:scale-110 active:scale-95 transition-transform flex items-center"
+                className="min-h-[32px] px-1.5 text-[#172033] dark:text-slate-200 hover:text-[#6545D8] transition-colors flex items-center gap-1 text-xs font-black"
                 title={language === 'vi' ? 'Switch to English' : 'Chuyển sang tiếng Việt'}
               >
-                <span className="material-symbols-outlined text-[20px] cursor-pointer">translate</span>
+                <Globe className="w-3.5 h-3.5 text-[#6545D8]" />
+                <span>{language === 'vi' ? 'VI' : 'EN'}</span>
               </button>
               <ThemeToggle />
-            </div>
-
-            {/* Desktop Only: Accessibility Settings */}
-            <div className="hidden lg:flex bg-gray-200/50 dark:bg-surface-variant/10 rounded-full items-center justify-center">
               <AccessibilitySettings />
             </div>
 
             {/* User Profile Info - Desktop */}
-            <div className="hidden lg:flex items-center gap-3 ml-1 border-l border-gray-200 dark:border-white/10 pl-3">
-              <div className="text-right hidden xl:block">
-                <p className="text-xs font-bold leading-none">{user.username}</p>
-                <p className="text-[9px] text-gray-500 dark:text-gray-400 uppercase tracking-wider font-bold mt-1">
-                  {isTeacher ? `${t.teacher}` : `${t.student} • ${userRooms.length > 0 ? userRooms.length + ' ' + (language === 'vi' ? 'lớp' : 'classes') : t.unassigned}`}
-                </p>
-              </div>
-              
-              <div className="w-8 h-8 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center font-black text-primary text-xs capitalize">
-                {user.username.charAt(0)}
-              </div>
-
-              {isTeacher && user?.room && (
-                <button 
-                  onClick={() => setShowUserManagement(true)}
-                  className="text-gray-500 dark:text-gray-400 hover:text-primary transition-colors flex items-center"
-                  title={t.classManage}
-                >
-                  <Users className="w-4 h-4" />
-                </button>
-              )}
+            <div className="hidden lg:flex items-center gap-2.5 ml-1 border-l border-[#E4E7F0] dark:border-slate-800 pl-3">
+              <button
+                type="button"
+                onClick={() => {
+                  syncWorkspaceWithDoc(null);
+                  setSidebarTab('settings');
+                }}
+                className="flex items-center gap-2 text-left hover:opacity-85 transition-opacity"
+              >
+                <div className="w-8 h-8 rounded-full bg-[#EFEAFC] dark:bg-indigo-950 text-[#6545D8] dark:text-indigo-300 flex items-center justify-center font-black text-xs capitalize">
+                  {user.username.charAt(0)}
+                </div>
+                <div className="hidden xl:block">
+                  <p className="text-xs font-black leading-none">{user.fullName || user.username}</p>
+                  <p className="text-[10px] text-[#5A6478] dark:text-slate-400 font-bold mt-0.5">
+                    {isTeacher ? 'Giáo viên' : 'Người học'}
+                  </p>
+                </div>
+              </button>
 
               <button 
                 onClick={handleLogout}
-                className="text-gray-500 dark:text-gray-400 hover:text-red-500 transition-colors flex items-center"
+                className="p-2 rounded-lg text-[#5A6478] hover:text-[#C83A3A] transition-colors"
                 title={t.logout}
               >
                 <LogOut className="w-4 h-4" />
               </button>
             </div>
 
-            {/* Mobile Profile & Quick Settings Menu Trigger */}
+            {/* Mobile Account Menu Trigger (Gộp Hồ sơ, Gói dịch vụ, Cài đặt, Trợ giúp) */}
             <div className="relative lg:hidden">
               <button
                 type="button"
                 onClick={() => setMobileProfileMenuOpen(!mobileProfileMenuOpen)}
-                className="w-8 h-8 rounded-full bg-gradient-to-tr from-primary to-purple-600 text-white flex items-center justify-center font-black text-xs shadow-sm capitalize active:scale-90 transition-transform"
-                title="Tài khoản & Cài đặt"
+                className="min-h-[40px] min-w-[40px] rounded-xl bg-[#EFEAFC] dark:bg-indigo-950 text-[#6545D8] dark:text-indigo-300 flex items-center justify-center font-black text-xs capitalize"
+                title="Hồ sơ, Gói dịch vụ & Trợ giúp"
               >
                 {user.username.charAt(0)}
               </button>
 
-              {/* Mobile Quick Dropdown */}
               {mobileProfileMenuOpen && (
-                <div className="absolute right-0 top-11 w-72 p-3.5 rounded-2xl bg-white/95 dark:bg-[#12141e]/95 backdrop-blur-2xl border border-slate-200 dark:border-white/10 shadow-2xl space-y-3 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
-                  <div className="flex items-center gap-2.5 pb-2.5 border-b border-slate-200 dark:border-slate-800">
-                    <div className="w-9 h-9 rounded-full bg-primary/10 text-primary font-black flex items-center justify-center text-sm capitalize">
+                <div className="absolute right-0 top-12 w-72 p-4 rounded-2xl bg-white dark:bg-[#11131a] border border-[#E4E7F0] dark:border-slate-800 shadow-2xl space-y-2.5 z-50">
+                  <div className="flex items-center gap-2.5 pb-2.5 border-b border-[#E4E7F0] dark:border-slate-800">
+                    <div className="w-9 h-9 rounded-full bg-[#EFEAFC] text-[#6545D8] font-black flex items-center justify-center text-sm capitalize">
                       {user.username.charAt(0)}
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="text-xs font-black truncate">{user.fullName || user.username}</p>
-                      <p className="text-[10px] text-slate-500 capitalize">{user.role} • Gói: {(user.plan || 'free').toUpperCase()}</p>
+                      <p className="text-[11px] font-semibold text-[#5A6478] dark:text-slate-400">
+                        {isTeacher ? 'Giáo viên' : 'Người học'} · Gói {(user.plan || 'free').toUpperCase()}
+                      </p>
                     </div>
                   </div>
 
-                  {/* Nút Nâng cấp gói nổi bật trong menu mobile */}
                   <button
                     onClick={() => {
                       setMobileProfileMenuOpen(false);
                       setShowUpgradeModal(true);
                     }}
-                    className="w-full py-2.5 px-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white font-black text-xs flex items-center justify-between shadow-xs active:scale-98 transition-all"
+                    className="w-full min-h-[42px] px-3 rounded-xl bg-[#6545D8] text-white font-black text-xs flex items-center justify-between"
                   >
                     <span className="flex items-center gap-1.5">
                       <Crown className="w-4 h-4" />
-                      <span>{user.plan === 'vip' ? 'Gói VIP ULTRA' : user.plan === 'pro' ? 'Gói PRO AI' : 'Nâng cấp Gói / Nhập Code'}</span>
+                      <span>Gói dịch vụ & Nhập Mã Code</span>
                     </span>
-                    <span className="text-[10px] bg-white/20 px-2 py-0.5 rounded-full">Kích hoạt</span>
+                    <span className="text-[10px] bg-white/20 px-2 py-0.5 rounded-md">Mở</span>
                   </button>
 
-                  {/* Nút Chat Zalo CSKH 24/7 trực tiếp trong menu mobile */}
+                  <button
+                    onClick={() => {
+                      setMobileProfileMenuOpen(false);
+                      syncWorkspaceWithDoc(null);
+                      setSidebarTab('settings');
+                    }}
+                    className="w-full min-h-[40px] px-3 rounded-xl bg-slate-100 dark:bg-slate-900 text-xs font-bold flex items-center gap-2"
+                  >
+                    <Settings className="w-4 h-4 text-[#6545D8]" />
+                    <span>Hồ sơ & Cài đặt tài khoản</span>
+                  </button>
+
                   <a
                     href="https://zalo.me/0923678668"
                     target="_blank"
                     rel="noopener noreferrer"
                     onClick={() => setMobileProfileMenuOpen(false)}
-                    className="w-full py-2 px-3 rounded-xl bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 font-bold text-xs flex items-center justify-between border border-blue-200/60 dark:border-blue-900/40 hover:brightness-105 transition-all"
+                    className="w-full min-h-[40px] px-3 rounded-xl bg-slate-100 dark:bg-slate-900 text-xs font-bold flex items-center justify-between"
                   >
                     <span className="flex items-center gap-2">
-                      <div className="w-4 h-4 rounded-full bg-blue-600 text-white flex items-center justify-center text-[9px] font-black">
-                        Z
-                      </div>
-                      <span>Hỗ trợ Zalo 24/7 (0923678668)</span>
+                      <HelpCircle className="w-4 h-4 text-[#6545D8]" />
+                      <span>Trợ giúp Zalo (0923678668)</span>
                     </span>
-                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                    <span className="text-[10px] font-black text-[#178A5B]">24/7</span>
                   </a>
 
-                  <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="grid grid-cols-2 gap-2 text-xs pt-1">
                     <button
                       onClick={() => {
                         const nextLang = language === 'vi' ? 'en' : 'vi';
                         setLanguage(nextLang);
                         localStorage.setItem('language', nextLang);
                       }}
-                      className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 font-bold flex items-center justify-center gap-1.5"
+                      className="min-h-[40px] px-2 rounded-xl bg-slate-100 dark:bg-slate-900 font-bold flex items-center justify-center gap-1.5"
                     >
-                      <span className="material-symbols-outlined text-[16px]">translate</span>
-                      <span>{language === 'vi' ? 'Tiếng Anh' : 'Tiếng Việt'}</span>
+                      <Globe className="w-3.5 h-3.5 text-[#6545D8]" />
+                      <span>{language === 'vi' ? 'Tiếng Việt' : 'English'}</span>
                     </button>
-                    <div className="p-1 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+                    <div className="min-h-[40px] rounded-xl bg-slate-100 dark:bg-slate-900 flex items-center justify-center">
                       <ThemeToggle />
                     </div>
                   </div>
 
-                  <button
-                    onClick={() => {
-                      setIsZenFocus(true);
-                      setMobileProfileMenuOpen(false);
-                    }}
-                    className="w-full py-2 px-3 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 text-primary font-bold text-xs flex items-center gap-2"
-                  >
-                    <Sparkles className="w-3.5 h-3.5" />
-                    <span>Bật Chế độ tập trung (Focus)</span>
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      setShowLeaderboard(true);
-                      setMobileProfileMenuOpen(false);
-                    }}
-                    className="w-full py-2 px-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 font-bold text-xs flex items-center gap-2"
-                  >
-                    <Trophy className="w-3.5 h-3.5" />
-                    <span>Xem Bảng Vàng (Leaderboard)</span>
-                  </button>
-
-                  {isSuperAdmin && (
-                    <button
-                      onClick={() => {
-                        setSidebarTab('admin');
-                        setMobileProfileMenuOpen(false);
-                      }}
-                      className="w-full py-2 px-3 rounded-xl bg-amber-500/15 text-amber-600 dark:text-amber-400 font-black text-xs flex items-center gap-2 border border-amber-500/30 active:scale-98 transition-all"
-                    >
-                      <Shield className="w-3.5 h-3.5 text-amber-500" />
-                      <span>{language === 'vi' ? '🛡️ Quản trị SaaS' : '🛡️ SaaS Admin Portal'}</span>
-                    </button>
-                  )}
-
-                  <div className="pt-1 border-t border-slate-200 dark:border-slate-800">
+                  <div className="pt-1 border-t border-[#E4E7F0] dark:border-slate-800">
                     <button
                       onClick={() => {
                         setMobileProfileMenuOpen(false);
                         handleLogout();
                       }}
-                      className="w-full py-2 px-3 rounded-xl text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 font-bold text-xs flex items-center gap-2 transition-colors"
+                      className="w-full min-h-[40px] px-3 rounded-xl text-[#C83A3A] hover:bg-rose-50 dark:hover:bg-rose-950/30 font-black text-xs flex items-center gap-2"
                     >
                       <LogOut className="w-3.5 h-3.5" />
-                      <span>{language === 'vi' ? 'Đăng xuất tài khoản' : 'Log out'}</span>
+                      <span>Đăng xuất</span>
                     </button>
                   </div>
                 </div>
@@ -2737,255 +3085,472 @@ export default function Home() {
         )}
 
         {/* ===== MAIN WORKSPACE OR DASHBOARD PANEL ===== */}
-        <main className={`${isZenFocus ? 'pt-4' : 'pt-16'} px-3 sm:px-4 lg:px-margin-desktop py-6 pb-24 lg:pb-8 bg-slate-50 dark:bg-[#0b0c10] relative flex-1 transition-all duration-300`}>
-          {/* Ambient Decorative Blurs */}
-          <div className="absolute top-20 right-20 w-96 h-96 bg-primary/5 rounded-full blur-[120px] pointer-events-none blur-decor transition-transform duration-300"></div>
-          <div className="absolute bottom-20 left-20 w-80 h-80 bg-primary/5 rounded-full blur-[100px] pointer-events-none blur-decor transition-transform duration-300"></div>
-
-          <div className="relative z-10 max-w-container-max mx-auto">
+        <main className={`${hideMainNav ? 'pt-4' : 'pt-16'} px-3 sm:px-5 lg:px-8 py-6 pb-24 lg:pb-8 bg-[#F5F6FA] dark:bg-[#0b0c10] relative flex-1 transition-all duration-300`}>
+          <div className="relative z-10 max-w-6xl mx-auto">
             
             {activeDoc || activeAssignment ? (
-              /* ================== WORKSPACE ACTIVE STATE ================== */
+              /* ================== WORKSPACE ACTIVE STATE (CHUẨN HÌNH 2) ================== */
               <div className="space-y-4">
                 
-                {/* Active Document Header */}
+                {/* Thanh Breadcrumb & Hành Động Nhanh (Hình 2) */}
                 {activeDoc && (
-                  <div className="p-4 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm rounded-2xl shadow-sm border border-gray-300 dark:border-gray-800 flex justify-between items-center flex-wrap gap-3 animate-fade-in-up">
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <div className="p-2 bg-primary/10 text-primary rounded-xl shrink-0">
-                        <FileText className="w-5.5 h-5.5" />
-                      </div>
-                      <div className="min-w-0">
-                        <h2 className="text-base font-bold text-foreground truncate" title={activeDoc.fileName}>
-                          {activeDoc.fileName}
-                        </h2>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                          {language === 'vi' ? 'Lịch sử mở' : 'Last opened'}: {new Date(activeDoc.lastOpenedAt).toLocaleString(language === 'vi' ? 'vi-VN' : 'en-US')}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                      <span className="text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-bold flex items-center gap-1 shrink-0">
-                        <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse"></span>
-                        {t.savedLibrary}
-                      </span>
-                      
-                      <Button
-                        variant="outline"
-                        size="sm"
+                  <div className="p-4 bg-white dark:bg-[#11131a] rounded-2xl border border-[#E4E7F0] dark:border-slate-800 flex justify-between items-center flex-wrap gap-3 shadow-xs">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <button
+                        type="button"
                         onClick={() => {
                           syncWorkspaceWithDoc(null);
+                          setSidebarTab('library');
                         }}
-                        className="h-8 rounded-xl text-xs border border-gray-200 dark:border-gray-800 hover:bg-gray-100 dark:hover:bg-gray-800 text-foreground font-bold px-3 transition-all"
+                        className="text-sm font-bold text-[#5A6478] dark:text-slate-400 hover:text-[#6545D8] transition-colors shrink-0"
                       >
-                        {t.closeWorkspace}
-                      </Button>
+                        Tài liệu
+                      </button>
+                      <span className="text-[#5A6478] dark:text-slate-600 font-bold">/</span>
+                      <h2 className="text-sm sm:text-base font-black text-[#172033] dark:text-white truncate" title={activeDoc.fileName}>
+                        {activeDoc.fileName.replace(/\.(pdf|docx)$/i, '')}
+                      </h2>
+                    </div>
+
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMobileDocView('ai');
+                          handleGenerateQuiz(false, 10);
+                        }}
+                        className="min-h-[38px] px-3.5 py-1.5 rounded-xl bg-white dark:bg-slate-900 border border-[#E4E7F0] dark:border-slate-700 hover:border-[#6545D8] text-xs font-black text-[#172033] dark:text-white transition-all"
+                      >
+                        Tạo 10 câu hỏi
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMobileDocView('ai');
+                          handleGenerateFlashcards(false);
+                        }}
+                        className="min-h-[38px] px-3.5 py-1.5 rounded-xl bg-[#6545D8] hover:bg-[#5436C2] text-xs font-black text-white shadow-xs transition-all"
+                      >
+                        Luyện thẻ nhớ
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => syncWorkspaceWithDoc(null)}
+                        className="min-h-[38px] px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-xs font-bold text-[#5A6478] dark:text-slate-300 transition-all"
+                      >
+                        ✕ Đóng
+                      </button>
                     </div>
                   </div>
                 )}
 
                 {/* Active Assignment Header */}
                 {activeAssignment && (
-                  <div className="p-4 bg-primary/10 dark:bg-primary/5 border border-primary/20 rounded-2xl shadow-sm flex justify-between items-center flex-wrap gap-3 animate-fade-in-up">
+                  <div className="p-4 bg-[#EFEAFC] dark:bg-indigo-950/40 border border-[#6545D8]/25 rounded-2xl flex justify-between items-center flex-wrap gap-3">
                     <div className="flex items-center gap-2.5 min-w-0">
                       <Button
                         onClick={() => syncWorkspaceWithDoc(null)}
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8 text-primary hover:bg-primary/10 rounded-lg"
+                        className="h-9 w-9 text-[#6545D8] hover:bg-[#6545D8]/10 rounded-xl"
                       >
                         <ArrowLeft className="w-4 h-4" />
                       </Button>
                       <div className="min-w-0">
-                        <span className="text-[10px] bg-primary/20 text-primary px-2 py-0.5 rounded font-bold uppercase tracking-wider">
+                        <span className="text-[10px] bg-[#6545D8] text-white px-2 py-0.5 rounded font-black uppercase tracking-wider">
                           {activeAssignment.type === 'quiz' ? t.practiceQuiz : t.practiceEssay}
                         </span>
-                        <h2 className="text-base font-bold text-foreground truncate mt-1">
+                        <h2 className="text-base font-black text-[#172033] dark:text-white truncate mt-1">
                           {activeAssignment.title}
                         </h2>
                       </div>
                     </div>
 
-                    <div className="text-right text-xs text-primary font-bold">
+                    <div className="text-right text-xs text-[#6545D8] dark:text-indigo-300 font-black">
                       {activeTimeMsg}
                     </div>
                   </div>
                 )}
 
-                {/* Workspace Panels (Split View on Desktop) */}
-                <div className="flex flex-col lg:flex-row gap-6">
+                {/* Công tắc chuyển đổi trên di động: Tài liệu gốc / Kết quả (Mục 4) */}
+                {activeDoc && (
+                  <div className="lg:hidden grid grid-cols-2 gap-1.5 p-1 rounded-xl bg-white dark:bg-[#11131a] border border-[#E4E7F0] dark:border-slate-800">
+                    <button
+                      type="button"
+                      onClick={() => setMobileDocView('source')}
+                      className={`min-h-[40px] rounded-lg text-xs font-black transition-all ${
+                        mobileDocView === 'source'
+                          ? 'bg-[#6545D8] text-white'
+                          : 'text-[#5A6478] dark:text-slate-400'
+                      }`}
+                    >
+                      📄 Tài liệu gốc
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMobileDocView('ai')}
+                      className={`min-h-[40px] rounded-lg text-xs font-black transition-all ${
+                        mobileDocView === 'ai'
+                          ? 'bg-[#6545D8] text-white'
+                          : 'text-[#5A6478] dark:text-slate-400'
+                      }`}
+                    >
+                      ✨ Kết quả & Luyện tập
+                    </button>
+                  </div>
+                )}
+
+                {/* Bố cục 2 cột (Hình 2): Trái = Tài liệu gốc, Phải = 4 Tab (Hiểu bài · Luyện tập · Hỏi AI · Thêm) */}
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
                   
-                  {/* Left Column: PDF/Word Viewer (Desktop) */}
-                  {activeDoc?.pdfUrl && (
-                    <div className="hidden lg:flex lg:w-7/12 bg-white dark:bg-gray-900 rounded-2xl shadow-md border border-gray-300 dark:border-gray-800 overflow-hidden flex-col h-175 xl:h-200 animate-fade-in-up">
-                      <div className="bg-gray-100 dark:bg-gray-800/80 px-4 py-2 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center shrink-0">
-                        <span className="text-xs font-semibold text-gray-500 dark:text-gray-300">
-                          📄 {t.originalDoc} ({activeDoc.fileName.endsWith('.docx') ? 'Word' : (activeDoc.fileName.match(/\.(png|jpe?g|webp)$/i) ? 'Image' : 'PDF')})
+                  {/* Cột Trái: Tài liệu gốc */}
+                  {activeDoc && (
+                    <div className={`${mobileDocView === 'source' ? 'block' : 'hidden'} lg:block lg:col-span-5 bg-white dark:bg-[#11131a] rounded-2xl border border-[#E4E7F0] dark:border-slate-800 overflow-hidden shadow-xs`}>
+                      <div className="px-5 py-3.5 border-b border-[#E4E7F0] dark:border-slate-800 flex items-center justify-between">
+                        <span className="text-sm font-black text-[#172033] dark:text-white">
+                          Tài liệu gốc
+                        </span>
+                        <span className="text-xs font-bold text-[#5A6478] dark:text-slate-400">
+                          Trang 1 / {Math.max(1, Math.ceil((activeDoc.textContent?.length || 3000) / 2500))}
                         </span>
                       </div>
-                      {activeDoc.fileName.endsWith('.docx') ? (
-                        <iframe src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(activeDoc.pdfUrl)}`} className="w-full h-full border-0 bg-gray-50 dark:bg-gray-900" />
-                      ) : activeDoc.fileName.match(/\.(png|jpe?g|webp)$/i) ? (
-                        <div className="w-full h-full bg-gray-50 dark:bg-gray-900 flex items-center justify-center p-4">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={activeDoc.pdfUrl} alt="Document preview" className="max-w-full max-h-full object-contain" />
+
+                      {activeDoc.pdfUrl ? (
+                        <div className="h-[520px] xl:h-[620px] flex flex-col">
+                          {activeDoc.fileName.endsWith('.docx') ? (
+                            <iframe src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(activeDoc.pdfUrl)}`} className="w-full h-full border-0 bg-slate-50 dark:bg-slate-900" />
+                          ) : activeDoc.fileName.match(/\.(png|jpe?g|webp)$/i) ? (
+                            <div className="w-full h-full bg-slate-50 dark:bg-slate-900 flex items-center justify-center p-4">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={activeDoc.pdfUrl} alt="Document preview" className="max-w-full max-h-full object-contain" />
+                            </div>
+                          ) : (
+                            <iframe src={`${activeDoc.pdfUrl}#view=FitH`} className="w-full h-full border-0 bg-slate-50 dark:bg-slate-900" />
+                          )}
                         </div>
                       ) : (
-                        <iframe src={`${activeDoc.pdfUrl}#view=FitH`} className="w-full h-full border-0 bg-gray-50 dark:bg-gray-900" />
+                        <div className="p-5 space-y-4 max-h-[600px] overflow-y-auto">
+                          <h3 className="text-base font-black text-[#172033] dark:text-white">
+                            1. {activeDoc.fileName.replace(/\.(pdf|docx)$/i, '')}
+                          </h3>
+
+                          {/* Đoạn trích nổi bật giống Hình 2 */}
+                          <div className="p-4 rounded-xl bg-[#EFEAFC] dark:bg-indigo-950/40 border-l-4 border-[#6545D8]">
+                            <p className="text-xs sm:text-sm font-semibold text-[#172033] dark:text-slate-200 leading-relaxed">
+                              {(activeDoc.textContent || '').split('\n').filter(Boolean).slice(0, 3).join(' ')}
+                            </p>
+                          </div>
+
+                          <div className="text-xs sm:text-sm text-[#5A6478] dark:text-slate-300 leading-relaxed whitespace-pre-line font-medium">
+                            {(activeDoc.textContent || '').split('\n').slice(3).join('\n')}
+                          </div>
+
+                          {/* Câu hỏi gợi mở giống Hình 2 */}
+                          <div className="p-4 rounded-xl bg-[#F5F6FA] dark:bg-slate-900 border border-[#E4E7F0] dark:border-slate-800 space-y-2">
+                            <p className="text-xs font-black text-[#172033] dark:text-white">
+                              Câu hỏi gợi mở:
+                            </p>
+                            <p className="text-xs font-semibold text-[#5A6478] dark:text-slate-300 leading-relaxed">
+                              Vì sao pha tối không cần ánh sáng trực tiếp nhưng vẫn phụ thuộc vào pha sáng?
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setActiveTab('chat');
+                                setMobileDocView('ai');
+                              }}
+                              className="text-xs font-black text-[#6545D8] dark:text-indigo-400 hover:underline"
+                            >
+                              Thảo luận câu này ở mục Hỏi AI →
+                            </button>
+                          </div>
+                        </div>
                       )}
                     </div>
                   )}
 
-                  {/* Right Column: AI tabs */}
-                  <div className={`w-full ${activeDoc?.pdfUrl ? 'lg:w-5/12' : ''}`}>
+                  {/* Cột Phải: 4 Tab Ngữ Cảnh (Hiểu bài · Luyện tập · Hỏi AI · Thêm) */}
+                  <div className={`${activeDoc && mobileDocView === 'source' ? 'hidden lg:block' : 'block'} ${activeDoc ? 'lg:col-span-7' : 'lg:col-span-12'}`}>
                     <Tabs value={activeTab} onValueChange={setActiveTab}>
-                      <TabsList className="mb-4 bg-white/50 dark:bg-gray-900/50 backdrop-blur-sm border border-gray-300 dark:border-gray-800 p-1.5 rounded-2xl flex flex-row items-center justify-start overflow-x-auto scrollbar-none max-w-full h-auto! flex-nowrap gap-1 w-full">
-                        {activeDoc?.pdfUrl && (
-                          <TabsTrigger
-                            value="document"
-                            className="lg:hidden flex-1 shrink-0 min-w-24 rounded-xl px-3 py-2 text-xs font-semibold data-[state=active]:bg-primary data-[state=active]:text-white transition-all"
-                          >
-                            {t.originalDoc}
-                          </TabsTrigger>
-                        )}
-
+                      <TabsList className="mb-4 bg-white dark:bg-[#11131a] border border-[#E4E7F0] dark:border-slate-800 p-1.5 rounded-2xl grid grid-cols-4 gap-1 h-auto! w-full">
                         <TabsTrigger
                           value="summary"
                           disabled={!!activeAssignment}
-                          className="flex-1 shrink-0 min-w-24 rounded-xl px-3 py-2 text-xs font-semibold data-[state=active]:bg-primary data-[state=active]:text-white transition-all"
+                          className="min-h-[40px] rounded-xl px-2 py-2 text-xs font-black data-[state=active]:bg-[#EFEAFC] data-[state=active]:text-[#6545D8] dark:data-[state=active]:bg-indigo-950/70 dark:data-[state=active]:text-indigo-300 transition-all"
                         >
-                          {t.docSummary}
+                          Hiểu bài
                         </TabsTrigger>
 
                         <TabsTrigger
-                          value="flashcards"
-                          disabled={!!activeAssignment}
-                          className="flex-1 shrink-0 min-w-24 rounded-xl px-3 py-2 text-xs font-semibold data-[state=active]:bg-primary data-[state=active]:text-white transition-all"
+                          value="practice-doc"
+                          className="min-h-[40px] rounded-xl px-2 py-2 text-xs font-black data-[state=active]:bg-[#EFEAFC] data-[state=active]:text-[#6545D8] dark:data-[state=active]:bg-indigo-950/70 dark:data-[state=active]:text-indigo-300 transition-all"
                         >
-                          🃏 Flashcards
+                          Luyện tập
                         </TabsTrigger>
 
                         <TabsTrigger
                           value="chat"
                           disabled={!!activeAssignment}
-                          className="flex-1 shrink-0 min-w-24 rounded-xl px-3 py-2 text-xs font-semibold data-[state=active]:bg-primary data-[state=active]:text-white transition-all"
+                          className="min-h-[40px] rounded-xl px-2 py-2 text-xs font-black data-[state=active]:bg-[#EFEAFC] data-[state=active]:text-[#6545D8] dark:data-[state=active]:bg-indigo-950/70 dark:data-[state=active]:text-indigo-300 transition-all"
                         >
-                          {t.chatWithAi}
+                          Hỏi AI
                         </TabsTrigger>
 
                         <TabsTrigger
-                          value="quiz"
-                          disabled={activeAssignment?.type === 'essay'}
-                          className="flex-1 shrink-0 min-w-24 rounded-xl px-3 py-2 text-xs font-semibold data-[state=active]:bg-primary data-[state=active]:text-white transition-all"
+                          value="more"
+                          disabled={!!activeAssignment}
+                          className="min-h-[40px] rounded-xl px-2 py-2 text-xs font-black data-[state=active]:bg-[#EFEAFC] data-[state=active]:text-[#6545D8] dark:data-[state=active]:bg-indigo-950/70 dark:data-[state=active]:text-indigo-300 transition-all"
                         >
-                          {t.practiceQuiz}
+                          Thêm
                         </TabsTrigger>
-
-                        {(isTeacher || activeAssignment?.type === 'essay') && (
-                          <TabsTrigger
-                            value="essay"
-                            className="flex-1 shrink-0 min-w-24 rounded-xl px-3 py-2 text-xs font-semibold data-[state=active]:bg-primary data-[state=active]:text-white transition-all"
-                          >
-                            {isTeacher ? (language === 'vi' ? 'Đề thi tự luận' : 'Essay Exam') : t.practiceEssay}
-                          </TabsTrigger>
-                        )}
                       </TabsList>
 
                       <AnimatePresence mode="wait">
                         <motion.div
                           key={activeTab}
-                          initial={{ opacity: 0, y: 8 }}
+                          initial={{ opacity: 0, y: 6 }}
                           animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: -8 }}
-                          transition={{ duration: 0.2, ease: 'easeOut' }}
+                          exit={{ opacity: 0, y: -6 }}
+                          transition={{ duration: 0.15 }}
                         >
-                          {/* Tab: Document (Mobile) */}
-                          {activeDoc?.pdfUrl && (
-                            <TabsContent value="document" className="mt-0 outline-none lg:hidden animate-fade-in-up">
-                              <div className="w-full bg-white dark:bg-gray-900 rounded-2xl shadow-md border border-gray-300 dark:border-gray-800 overflow-hidden flex flex-col h-125">
-                                <div className="bg-gray-200 dark:bg-gray-800 px-4 py-2 border-b border-gray-300 dark:border-gray-700 flex justify-between items-center shrink-0">
-                                  <span className="text-xs font-semibold text-gray-500 dark:text-gray-300">
-                                    📄 {t.originalDoc}
-                                  </span>
+                          {/* 1. TAB HIỂU BÀI (Hình 2) */}
+                          <TabsContent value="summary" className="mt-0 outline-none space-y-4">
+                            <div className="bg-white dark:bg-[#11131a] rounded-2xl border border-[#E4E7F0] dark:border-slate-800 p-5 space-y-4 shadow-xs">
+                              <div className="flex items-center justify-between gap-2 flex-wrap">
+                                <h3 className="text-base font-black text-[#172033] dark:text-white">
+                                  Ý chính cần nắm
+                                </h3>
+                                <span className="px-3 py-1 rounded-full bg-[#EFEAFC] dark:bg-indigo-950/60 text-[#6545D8] dark:text-indigo-300 text-[11px] font-black">
+                                  Nguồn tài liệu · trang 12
+                                </span>
+                              </div>
+
+                              {!summary && !isSummaryStreaming && !isLoading && (
+                                <div className="p-6 text-center bg-[#F5F6FA] dark:bg-slate-900 rounded-2xl border border-[#E4E7F0] dark:border-slate-800">
+                                  <BookOpen className="w-10 h-10 text-[#6545D8] mx-auto mb-2" />
+                                  <h4 className="text-sm font-black text-[#172033] dark:text-white">{t.notSummarized}</h4>
+                                  <p className="text-xs text-[#5A6478] dark:text-slate-400 mt-1 mb-4">{t.notSummarizedDesc}</p>
+                                  <Button onClick={() => handleSummarize(false)} className="bg-[#6545D8] hover:bg-[#5436C2] text-white rounded-xl text-xs h-10 px-5 font-black">
+                                    {t.createSummary}
+                                  </Button>
                                 </div>
-                                {activeDoc.fileName.endsWith('.docx') ? (
-                                  <iframe src={`https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(activeDoc.pdfUrl)}`} className="w-full h-full border-0 bg-gray-50 dark:bg-gray-900" />
-                                ) : activeDoc.fileName.match(/\.(png|jpe?g|webp)$/i) ? (
-                                  <div className="w-full h-full bg-gray-50 dark:bg-gray-900 flex items-center justify-center p-4">
-                                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                                    <img src={activeDoc.pdfUrl} alt="Document preview" className="max-w-full max-h-full object-contain" />
-                                  </div>
-                                ) : (
-                                  <iframe src={`${activeDoc.pdfUrl}#view=FitH`} className="w-full h-full border-0 bg-gray-50 dark:bg-gray-900" />
-                                )}
-                              </div>
-                            </TabsContent>
-                          )}
+                              )}
 
-                          {/* Tab: Summary + Mindmap + Podcast + Lesson Plan 5512 */}
-                          <TabsContent value="summary" className="mt-0 outline-none">
-                            {!summary && !isSummaryStreaming && !isLoading && (
-                              <div className="p-8 text-center bg-white dark:bg-gray-900 rounded-2xl shadow-md flex flex-col items-center border border-gray-300 dark:border-gray-800 mb-4">
-                                <BookOpen className="w-12 h-12 text-primary mb-3" />
-                                <h4 className="text-base font-bold text-foreground">{t.notSummarized}</h4>
-                                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 mb-4">{t.notSummarizedDesc}</p>
-                                <Button onClick={() => handleSummarize(false)} className="bg-primary hover:brightness-115 text-white rounded-xl text-sm h-10 px-6 shadow-md font-bold">
-                                  {t.createSummary}
-                                </Button>
-                              </div>
-                            )}
-                            <SummaryPanel
-                              summary={streamingSummary || summary}
-                              isLoading={isSummaryStreaming || loadingType === 'summary'}
-                              pdfText={pdfText}
-                              fileName={activeDoc?.fileName}
-                              userRole={user.role}
-                              modelTier={modelTier}
-                              cachedMindmap={activeDoc?.mindmap}
-                              cachedPodcast={activeDoc?.podcast}
-                              cachedLessonPlan={activeDoc?.lessonPlan || ''}
-                              onUpdateDocumentExtras={(extras) => {
-                                if (activeDoc) {
-                                  updateDocumentOnServer(activeDoc.id, extras);
-                                }
-                              }}
-                              onRequireUpgrade={(msg) => {
-                                showMessage(msg, false);
-                                setShowUpgradeModal(true);
-                              }}
-                            />
-                          </TabsContent>
-
-                          {/* Tab: 3D Flashcards (Spaced Repetition) */}
-                          <TabsContent value="flashcards" className="mt-0 outline-none">
-                            <FlashcardPanel
-                              flashcards={flashcards}
-                              isLoading={loadingType === 'flashcards'}
-                              onGenerate={(force) => handleGenerateFlashcards(force)}
-                            />
-                          </TabsContent>
-
-                          {/* Tab: Chat */}
-                          <TabsContent value="chat" className="mt-0 outline-none space-y-4">
-                            {activeDoc && chatHistory.length > 0 && (
-                              <div className="flex justify-end">
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => {
-                                    if (confirm(language === 'vi' ? 'Bạn có muốn xóa toàn bộ lịch sử trò chuyện trên tài liệu này?' : 'Do you want to clear the chat history on this document?')) {
-                                      localStorage.removeItem(`docChatHistory_${user?.username}_${activeDoc.id}`);
-                                      setChatHistory([]);
-                                      setDocChatResetCount(prev => prev + 1);
+                              {(summary || isSummaryStreaming || loadingType === 'summary') && (
+                                <SummaryPanel
+                                  summary={streamingSummary || summary}
+                                  isLoading={isSummaryStreaming || loadingType === 'summary'}
+                                  pdfText={pdfText}
+                                  fileName={activeDoc?.fileName}
+                                  userRole={user.role}
+                                  modelTier={modelTier}
+                                  cachedMindmap={activeDoc?.mindmap}
+                                  cachedPodcast={activeDoc?.podcast}
+                                  cachedLessonPlan={activeDoc?.lessonPlan || ''}
+                                  onUpdateDocumentExtras={(extras) => {
+                                    if (activeDoc) {
+                                      updateDocumentOnServer(activeDoc.id, extras);
                                     }
                                   }}
-                                  className="h-8 rounded-xl text-xs border border-red-200 dark:border-red-900/30 hover:bg-red-50 dark:hover:bg-red-950/20 text-red-500 font-bold px-3 transition-all"
+                                  onRequireUpgrade={(msg) => {
+                                    showMessage(msg, false);
+                                    setShowUpgradeModal(true);
+                                  }}
+                                />
+                              )}
+
+                              {/* Callout "Bước tiếp theo" chuẩn Hình 2 */}
+                              <div className="p-5 rounded-2xl bg-[#EFEAFC] dark:bg-indigo-950/40 border border-[#6545D8]/20 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                                <div>
+                                  <h4 className="text-sm font-black text-[#172033] dark:text-white">
+                                    Bước tiếp theo
+                                  </h4>
+                                  <p className="text-xs font-semibold text-[#5A6478] dark:text-slate-300 mt-0.5">
+                                    Kiểm tra nhanh mức hiểu bài trước khi sang mục mới.
+                                  </p>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => handleGenerateQuiz(false, 10)}
+                                  className="min-h-[44px] px-5 py-2.5 rounded-xl bg-[#6545D8] hover:bg-[#5436C2] text-white font-black text-xs shrink-0 shadow-sm transition-all"
                                 >
-                                  {language === 'vi' ? 'Xóa lịch sử chat tài liệu' : 'Clear Document Chat History'}
-                                </Button>
+                                  Tạo 10 câu luyện tập
+                                </button>
+                              </div>
+                            </div>
+                          </TabsContent>
+
+                          {/* 2. TAB LUYỆN TẬP (Trắc nghiệm · Thẻ ghi nhớ · Tự luận) */}
+                          <TabsContent value="practice-doc" className="mt-0 outline-none space-y-4">
+                            {!activeAssignment && (
+                              <div className="flex items-center gap-2 p-1 rounded-xl bg-white dark:bg-[#11131a] border border-[#E4E7F0] dark:border-slate-800 w-fit">
+                                <button
+                                  type="button"
+                                  onClick={() => setPracticeSubTab('quiz')}
+                                  className={`min-h-[36px] px-3.5 py-1.5 rounded-lg text-xs font-black transition-all ${
+                                    practiceSubTab === 'quiz'
+                                      ? 'bg-[#6545D8] text-white'
+                                      : 'text-[#5A6478] dark:text-slate-400 hover:text-[#172033]'
+                                  }`}
+                                >
+                                  📝 Trắc nghiệm
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setPracticeSubTab('flashcards');
+                                    if (flashcards.length === 0) handleGenerateFlashcards(false);
+                                  }}
+                                  className={`min-h-[36px] px-3.5 py-1.5 rounded-lg text-xs font-black transition-all ${
+                                    practiceSubTab === 'flashcards'
+                                      ? 'bg-[#6545D8] text-white'
+                                      : 'text-[#5A6478] dark:text-slate-400 hover:text-[#172033]'
+                                  }`}
+                                >
+                                  🃏 Thẻ ghi nhớ
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setPracticeSubTab('essay')}
+                                  className={`min-h-[36px] px-3.5 py-1.5 rounded-lg text-xs font-black transition-all ${
+                                    practiceSubTab === 'essay'
+                                      ? 'bg-[#6545D8] text-white'
+                                      : 'text-[#5A6478] dark:text-slate-400 hover:text-[#172033]'
+                                  }`}
+                                >
+                                  ✏️ Tự luận
+                                </button>
                               </div>
                             )}
+
+                            {practiceSubTab === 'flashcards' && !activeAssignment && (
+                              <FlashcardPanel
+                                flashcards={flashcards}
+                                isLoading={loadingType === 'flashcards'}
+                                onGenerate={(force) => handleGenerateFlashcards(force)}
+                              />
+                            )}
+
+                            {practiceSubTab === 'essay' && (
+                              <EssayPanel
+                                essay={activeAssignment ? (activeAssignment.essay || '') : essay}
+                                isLoading={loadingType === 'essay'}
+                                onGenerate={(metadata) => handleGenerateEssay(essay ? true : false, metadata)}
+                                userRole={user.role}
+                                onAssignEssay={handleAssignEssay}
+                                fileName={activeDoc?.fileName || ''}
+                                hasSubmitted={activeAssignment ? !!activeSubmission : false}
+                                onEssaySubmit={handleEssaySubmit}
+                                previousSubmission={activeSubmission}
+                                canTake={activeAssignment ? canTakeActiveAssignment : true}
+                                timeMessage={activeTimeMsg}
+                                isGrading={loadingType === 'grading-essay'}
+                                availableRooms={teacherClasses}
+                              />
+                            )}
+
+                            {practiceSubTab === 'quiz' && (
+                              <>
+                                {activeAssignment && !canTakeActiveAssignment && !activeSubmission ? (
+                                  <div className="p-12 text-center bg-white dark:bg-gray-900 rounded-2xl border border-dashed border-gray-300 dark:border-gray-800 shadow-md">
+                                    <AlertCircle className="w-10 h-10 text-amber-500 mx-auto mb-2" />
+                                    <p className="text-foreground text-sm font-bold">{activeTimeMsg}</p>
+                                  </div>
+                                ) : (
+                                  <div className="space-y-4">
+                                    {!activeAssignment && (
+                                      <div className="p-4 bg-white dark:bg-[#11131a] rounded-2xl border border-[#E4E7F0] dark:border-slate-800 flex flex-wrap justify-between items-center gap-3">
+                                        <div className="flex flex-wrap items-center gap-3">
+                                          <div className="flex items-center gap-2">
+                                            <span className="text-xs font-bold text-[#5A6478] dark:text-slate-400">{t.numQuestions}:</span>
+                                            <input
+                                              type="number"
+                                              min={1}
+                                              max={20}
+                                              value={questionCount}
+                                              onChange={(e) => setQuestionCount(Math.min(20, Math.max(1, Number(e.target.value))))}
+                                              disabled={isLoading}
+                                              className="w-14 h-9 rounded-lg border border-[#E4E7F0] dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-center text-xs font-black text-[#172033] dark:text-white"
+                                            />
+                                          </div>
+
+                                          <div className="flex items-center gap-1.5">
+                                            <span className="text-xs font-bold text-[#5A6478] dark:text-slate-400">Mức độ:</span>
+                                            <select
+                                              value={quizDifficulty}
+                                              onChange={(e) => setQuizDifficulty(e.target.value as 'basic' | 'standard' | 'advanced')}
+                                              disabled={isLoading}
+                                              className="h-9 rounded-lg border border-[#E4E7F0] dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-2.5 text-xs font-bold text-[#172033] dark:text-white"
+                                            >
+                                              <option value="basic">🟢 Cơ bản</option>
+                                              <option value="standard">🔵 Chuẩn Bộ GD&ĐT</option>
+                                              <option value="advanced">🔥 Vận dụng cao</option>
+                                            </select>
+                                          </div>
+                                        </div>
+
+                                        <Button
+                                          onClick={() => handleGenerateQuiz(true)}
+                                          disabled={isLoading}
+                                          className="bg-[#6545D8] hover:bg-[#5436C2] text-white rounded-xl text-xs h-10 font-black px-4"
+                                        >
+                                          {questions.length > 0 ? t.regenerateQuiz : t.generateQuiz}
+                                        </Button>
+                                      </div>
+                                    )}
+
+                                    {(questions.length > 0 || isLoading) && (
+                                      <QuizPanel
+                                        key={activeAssignment ? `assignment-${activeAssignment.id}` : (activeDoc ? `doc-${activeDoc.id}` : 'quiz')}
+                                        questions={activeSubmission?.questions || questions}
+                                        isLoading={loadingType === 'quiz'}
+                                        userRole={user.role}
+                                        hasSubmitted={activeAssignment ? !!activeSubmission : false}
+                                        onScoreSubmit={handleScoreSubmit}
+                                        previousScoreInfo={activeSubmission ? { score: activeSubmission.score, scale10Score: activeSubmission.scale10Score } : undefined}
+                                        onAssignQuiz={handleAssignQuiz}
+                                        availableRooms={teacherClasses}
+                                        onAdaptiveDrill={!activeAssignment ? handleAdaptiveDrill : undefined}
+                                        previousAnswers={activeSubmission?.studentAnswer ? (() => {
+                                          try {
+                                            return JSON.parse(activeSubmission.studentAnswer) as Record<number, string>;
+                                          } catch {
+                                            return undefined;
+                                          }
+                                        })() : undefined}
+                                      />
+                                    )}
+                                  </div>
+                                )}
+                              </>
+                            )}
+                          </TabsContent>
+
+                          {/* 3. TAB HỎI AI (Bám sát tài liệu - Mục 4 & Mục 9) */}
+                          <TabsContent value="chat" className="mt-0 outline-none space-y-3">
+                            <div className="p-3.5 rounded-2xl bg-[#EFEAFC] dark:bg-indigo-950/40 border border-[#6545D8]/20 flex items-center justify-between gap-2 flex-wrap">
+                              <span className="text-xs font-bold text-[#172033] dark:text-slate-200">
+                                📌 <strong>Chế độ Bám sát tài liệu:</strong> AI ưu tiên trích dẫn từ <em>{activeDoc?.fileName}</em>.
+                              </span>
+                              {activeDoc && chatHistory.length > 0 && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (confirm('Bạn có muốn xóa lịch sử hỏi đáp trên tài liệu này?')) {
+                                      localStorage.removeItem(`docChatHistory_${user?.username}_${activeDoc.id}`);
+                                      setChatHistory([]);
+                                      setDocChatResetCount((prev) => prev + 1);
+                                    }
+                                  }}
+                                  className="text-xs font-black text-[#C83A3A] hover:underline"
+                                >
+                                  Xóa lịch sử hỏi
+                                </button>
+                              )}
+                            </div>
+
                             <ChatBox
                               key={(activeDoc?.id || 'chat') + `_${docChatResetCount}`}
                               pdfText={pdfText}
@@ -3001,101 +3566,127 @@ export default function Home() {
                             />
                           </TabsContent>
 
-                          {/* Tab: Quiz */}
-                          <TabsContent value="quiz" className="mt-0 outline-none">
-                            {activeAssignment && !canTakeActiveAssignment && !activeSubmission ? (
-                              <div className="p-12 text-center bg-white dark:bg-gray-900 rounded-2xl border border-dashed border-gray-300 dark:border-gray-800 shadow-md">
-                                <AlertCircle className="w-10 h-10 text-amber-500 mx-auto mb-2" />
-                                <p className="text-foreground text-sm font-bold">{activeTimeMsg}</p>
+                          {/* 4. TAB THÊM (Dạy lại cho AI, Rút trích từ vựng Tiếng Anh, Mô hình AI - Mục 4 & Mục 10) */}
+                          <TabsContent value="more" className="mt-0 outline-none space-y-4">
+                            {/* Tính năng 1: Dạy lại cho AI (Teach-back) */}
+                            <div className="p-5 rounded-2xl bg-white dark:bg-[#11131a] border border-[#E4E7F0] dark:border-slate-800 space-y-3 shadow-xs">
+                              <div className="flex items-center justify-between gap-2">
+                                <div>
+                                  <span className="text-[11px] font-black uppercase tracking-wider text-[#6545D8] dark:text-indigo-400">
+                                    Học sâu chủ động
+                                  </span>
+                                  <h4 className="text-sm sm:text-base font-black text-[#172033] dark:text-white mt-0.5">
+                                    🗣️ Dạy lại cho AI (Teach-back)
+                                  </h4>
+                                </div>
                               </div>
-                            ) : (
-                              <div className="space-y-4">
-                                {!activeAssignment && (
-                                  <div className="p-4 bg-white dark:bg-gray-900 rounded-2xl shadow-md border border-gray-300 dark:border-gray-800 flex flex-wrap justify-between items-center gap-3">
-                                    <div className="flex flex-wrap items-center gap-3">
-                                      <div className="flex items-center gap-2">
-                                        <span className="text-xs font-bold text-gray-500 dark:text-gray-400">{t.numQuestions}:</span>
-                                        <input
-                                          type="number"
-                                          min={1}
-                                          max={20}
-                                          value={questionCount}
-                                          onChange={(e) => setQuestionCount(Math.min(20, Math.max(1, Number(e.target.value))))}
-                                          disabled={isLoading}
-                                          className="w-14 h-8 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-center text-xs font-bold focus:outline-none focus:ring-2 focus:ring-primary text-foreground"
-                                        />
-                                      </div>
-
-                                      <div className="flex items-center gap-1.5">
-                                        <span className="text-xs font-bold text-gray-500 dark:text-gray-400">Ma trận:</span>
-                                        <select
-                                          value={quizDifficulty}
-                                          onChange={(e) => setQuizDifficulty(e.target.value as 'basic' | 'standard' | 'advanced')}
-                                          disabled={isLoading}
-                                          className="h-8 rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-2 text-xs font-bold text-foreground"
-                                        >
-                                          <option value="basic">🟢 Cơ bản (Nắm chắc gốc)</option>
-                                          <option value="standard">🔵 Chuẩn Bộ GD&ĐT (4 mức độ)</option>
-                                          <option value="advanced">🔥 Vận dụng cao (8+ / HSG)</option>
-                                        </select>
-                                      </div>
-                                    </div>
-
-                                    <Button
-                                      onClick={() => handleGenerateQuiz(true)}
-                                      disabled={isLoading}
-                                      className="bg-primary hover:brightness-110 text-white rounded-xl text-xs h-9 shadow-sm shrink-0 font-bold px-4"
-                                    >
-                                      {questions.length > 0 ? t.regenerateQuiz : t.generateQuiz}
-                                    </Button>
-                                  </div>
-                                )}
-
-                                {(questions.length > 0 || isLoading) && (
-                                  <QuizPanel
-                                    key={activeAssignment ? `assignment-${activeAssignment.id}` : (activeDoc ? `doc-${activeDoc.id}` : 'quiz')}
-                                    questions={activeSubmission?.questions || questions}
-                                    isLoading={loadingType === 'quiz'}
-                                    userRole={user.role}
-                                    hasSubmitted={activeAssignment ? !!activeSubmission : false}
-                                    onScoreSubmit={handleScoreSubmit}
-                                    previousScoreInfo={activeSubmission ? { score: activeSubmission.score, scale10Score: activeSubmission.scale10Score } : undefined}
-                                    onAssignQuiz={handleAssignQuiz}
-                                    availableRooms={teacherClasses}
-                                    onAdaptiveDrill={!activeAssignment ? handleAdaptiveDrill : undefined}
-                                    previousAnswers={activeSubmission?.studentAnswer ? (() => {
-                                      try {
-                                        return JSON.parse(activeSubmission.studentAnswer) as Record<number, string>;
-                                      } catch {
-                                        return undefined;
-                                      }
-                                    })() : undefined}
-                                  />
-                                )}
-                              </div>
-                            )}
-                          </TabsContent>
-
-                          {/* Tab: Essay */}
-                          {(isTeacher || activeAssignment?.type === 'essay') && (
-                            <TabsContent value="essay" className="mt-0 outline-none">
-                              <EssayPanel
-                                 essay={activeAssignment ? (activeAssignment.essay || '') : essay}
-                                isLoading={loadingType === 'essay'}
-                                onGenerate={(metadata) => handleGenerateEssay(essay ? true : false, metadata)}
-                                userRole={user.role}
-                                onAssignEssay={handleAssignEssay}
-                                fileName={activeDoc?.fileName || ''}
-                                hasSubmitted={activeAssignment ? !!activeSubmission : false}
-                                onEssaySubmit={handleEssaySubmit}
-                                previousSubmission={activeSubmission}
-                                canTake={activeAssignment ? canTakeActiveAssignment : true}
-                                timeMessage={activeTimeMsg}
-                                isGrading={loadingType === 'grading-essay'}
-                                availableRooms={teacherClasses}
+                              <p className="text-xs font-medium text-[#5A6478] dark:text-slate-400 leading-relaxed">
+                                Hãy thử diễn đạt lại ý chính của bài <strong>{activeDoc?.fileName}</strong> bằng lời của bạn (2–4 câu). AI sẽ chỉ ra điểm bạn đã hiểu đúng và phần còn thiếu sót.
+                              </p>
+                              <textarea
+                                rows={3}
+                                value={teachBackText}
+                                onChange={(e) => setTeachBackText(e.target.value)}
+                                placeholder="Ví dụ: Quang hợp gồm pha sáng ở màng tilacoit tạo ATP, NADPH, O2 và pha tối ở chất nền stroma dùng ATP, NADPH để cố định CO2 thành đường..."
+                                className="w-full rounded-xl border border-[#E4E7F0] dark:border-slate-700 bg-[#F5F6FA] dark:bg-slate-900 p-3 text-xs sm:text-sm font-semibold text-[#172033] dark:text-white focus:outline-none focus:border-[#6545D8]"
                               />
-                            </TabsContent>
-                          )}
+                              <button
+                                type="button"
+                                onClick={handleEvaluateTeachBack}
+                                disabled={isEvaluatingTeachBack}
+                                className="min-h-[42px] px-4 py-2 rounded-xl bg-[#6545D8] hover:bg-[#5436C2] text-white font-black text-xs transition-all"
+                              >
+                                {isEvaluatingTeachBack ? 'Đang đối chiếu với tài liệu...' : 'Nhờ AI chấm mức độ hiểu bài'}
+                              </button>
+                              {teachBackFeedback && (
+                                <div className="p-4 rounded-xl bg-[#EFEAFC] dark:bg-indigo-950/40 border border-[#6545D8]/25 text-xs sm:text-sm font-medium text-[#172033] dark:text-slate-200 whitespace-pre-line leading-relaxed">
+                                  <ReactMarkdown>{teachBackFeedback}</ReactMarkdown>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Tính năng 2: Rút trích từ vựng Tiếng Anh từ tài liệu sang khu Tiếng Anh */}
+                            <div className="p-5 rounded-2xl bg-white dark:bg-[#11131a] border border-[#E4E7F0] dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs">
+                              <div className="space-y-1">
+                                <span className="text-[11px] font-black uppercase tracking-wider text-[#178A5B] dark:text-emerald-400">
+                                  Liên kết Tài liệu ↔ Tiếng Anh
+                                </span>
+                                <h4 className="text-sm sm:text-base font-black text-[#172033] dark:text-white">
+                                  🇬🇧 Rút trích từ vựng Tiếng Anh chuyên ngành
+                                </h4>
+                                <p className="text-xs font-medium text-[#5A6478] dark:text-slate-400">
+                                  Tự động trích xuất các thuật ngữ Tiếng Anh trong bài học này và lưu thành bộ thẻ ôn trong khu Tiếng Anh.
+                                </p>
+                              </div>
+                              <div className="flex items-center gap-2 shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={handleExtractEnglishVocab}
+                                  className="min-h-[42px] px-4 py-2 rounded-xl bg-[#178A5B] hover:brightness-110 text-white font-black text-xs transition-all"
+                                >
+                                  {extractedVocabCount ? `Đã lưu (${extractedVocabCount} từ)` : 'Trích xuất sang Tiếng Anh'}
+                                </button>
+                                {extractedVocabCount && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      syncWorkspaceWithDoc(null);
+                                      setSidebarTab('english');
+                                    }}
+                                    className="min-h-[42px] px-3.5 py-2 rounded-xl bg-[#EFEAFC] text-[#6545D8] font-black text-xs"
+                                  >
+                                    Mở khu Tiếng Anh →
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Tính năng 3: Chọn mô hình AI nâng cao (đặt gọn trong tab Thêm theo Mục 2 & 4) */}
+                            <div className="p-5 rounded-2xl bg-white dark:bg-[#11131a] border border-[#E4E7F0] dark:border-slate-800 space-y-3 shadow-xs">
+                              <h4 className="text-sm font-black text-[#172033] dark:text-white flex items-center gap-2">
+                                <Layers className="w-4 h-4 text-[#6545D8]" />
+                                Mô hình AI xử lý tài liệu
+                              </h4>
+                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                                <button
+                                  type="button"
+                                  onClick={() => handleModelTierChange('flash')}
+                                  className={`p-3 rounded-xl border text-left transition-all ${
+                                    modelTier === 'flash'
+                                      ? 'border-[#6545D8] bg-[#EFEAFC] dark:bg-indigo-950/50'
+                                      : 'border-[#E4E7F0] dark:border-slate-800'
+                                  }`}
+                                >
+                                  <p className="text-xs font-black text-[#172033] dark:text-white">⚡ Flash 2.5</p>
+                                  <p className="text-[11px] text-[#5A6478] dark:text-slate-400 mt-0.5">Nhanh · Miễn phí</p>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleModelTierChange('pro')}
+                                  className={`p-3 rounded-xl border text-left transition-all ${
+                                    modelTier === 'pro'
+                                      ? 'border-[#6545D8] bg-[#EFEAFC] dark:bg-indigo-950/50'
+                                      : 'border-[#E4E7F0] dark:border-slate-800'
+                                  }`}
+                                >
+                                  <p className="text-xs font-black text-[#172033] dark:text-white">🧠 Pro 2.5 Reasoning</p>
+                                  <p className="text-[11px] text-[#5A6478] dark:text-slate-400 mt-0.5">Phân tích sâu · Gói PRO</p>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleModelTierChange('ultra')}
+                                  className={`p-3 rounded-xl border text-left transition-all ${
+                                    modelTier === 'ultra'
+                                      ? 'border-[#6545D8] bg-[#EFEAFC] dark:bg-indigo-950/50'
+                                      : 'border-[#E4E7F0] dark:border-slate-800'
+                                  }`}
+                                >
+                                  <p className="text-xs font-black text-[#172033] dark:text-white">👑 Ultra Academic</p>
+                                  <p className="text-[11px] text-[#5A6478] dark:text-slate-400 mt-0.5">Học thuật · Gói VIP</p>
+                                </button>
+                              </div>
+                            </div>
+                          </TabsContent>
                         </motion.div>
                       </AnimatePresence>
                     </Tabs>
@@ -3103,12 +3694,30 @@ export default function Home() {
                 </div>
               </div>
             ) : (
-              /* ================== GENERAL PANEL (DASHBOARD VIEWS) ================== */
+              /* ================== GENERAL PANEL (5 MỤC ĐIỀU HƯỚNG THỐNG NHẤT) ================== */
               <div className="space-y-6 animate-fade-in-up">
                 
                 {/* 1. UPLOAD MATERIALS TAB */}
                 {sidebarTab === 'upload' && (
                   <div className="max-w-2xl mx-auto space-y-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h2 className="text-xl font-black text-[#172033] dark:text-white">
+                          Thêm tài liệu học tập mới
+                        </h2>
+                        <p className="text-xs font-semibold text-[#5A6478] dark:text-slate-400 mt-0.5">
+                          Tải lên PDF, Word hoặc ảnh chụp trang sách để AI tóm tắt ý chính và tạo câu hỏi ôn luyện.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setSidebarTab('library')}
+                        className="min-h-[40px] px-3.5 py-2 rounded-xl bg-white dark:bg-slate-900 border border-[#E4E7F0] dark:border-slate-800 text-xs font-black text-[#6545D8]"
+                      >
+                        ← Quay lại Tài liệu
+                      </button>
+                    </div>
+
                     <FileUpload
                       onUploadSuccess={handleUploadSuccess}
                       onExistingDocumentFound={handleExistingDocumentFound}
@@ -3118,23 +3727,40 @@ export default function Home() {
                       existingDocuments={libraryDocs}
                       language={language}
                     />
-
-                    {/* Quick welcome uploader helper */}
-                    <div className="glass-card p-6 rounded-2xl text-center border border-gray-200 dark:border-white/5">
-                      <h4 className="text-sm font-bold text-foreground mb-2 flex items-center justify-center gap-2">
-                        <Sparkles className="w-4 h-4 text-primary" />
-                        {t.guidelineTitle}
-                      </h4>
-                      <p className="text-xs text-gray-600 dark:text-gray-300 leading-relaxed max-w-md mx-auto font-medium">
-                        {t.guidelineDesc}
-                      </p>
-                    </div>
                   </div>
                 )}
 
-                {/* 2. DOCUMENT LIBRARY TAB */}
+                {/* 2. TÀI LIỆU / HỌC LIỆU TAB */}
                 {sidebarTab === 'library' && (
-                  <div className="max-w-4xl mx-auto">
+                  <div className="max-w-5xl mx-auto space-y-5">
+                    <div className="p-5 rounded-2xl bg-white dark:bg-[#11131a] border border-[#E4E7F0] dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs">
+                      <div>
+                        <h2 className="text-xl font-black text-[#172033] dark:text-white">
+                          {isTeachingWorkspace ? 'Kho Học liệu Giảng dạy' : 'Tài liệu học tập của bạn'}
+                        </h2>
+                        <p className="text-xs font-semibold text-[#5A6478] dark:text-slate-400 mt-0.5">
+                          Mở bất kỳ tài liệu nào để xem Ý chính cần nắm, tạo 10 câu luyện tập hoặc hỏi AI bám sát nguồn.
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2.5 flex-wrap">
+                        <button
+                          type="button"
+                          onClick={handleOpenSampleDoc}
+                          className="min-h-[42px] px-4 py-2 rounded-xl bg-[#EFEAFC] dark:bg-indigo-950/60 text-[#6545D8] dark:text-indigo-300 text-xs font-black hover:brightness-95 transition-all"
+                        >
+                          📄 Mở bài mẫu: Quang hợp.pdf
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setSidebarTab('upload')}
+                          className="min-h-[42px] px-4 py-2 rounded-xl bg-[#6545D8] hover:bg-[#5436C2] text-white text-xs font-black flex items-center gap-1.5 shadow-xs transition-all"
+                        >
+                          <Plus className="w-4 h-4" />
+                          <span>Thêm tài liệu</span>
+                        </button>
+                      </div>
+                    </div>
+
                     <DocumentLibrary
                       documents={filteredDocs}
                       activeDocId={null}
@@ -3145,72 +3771,154 @@ export default function Home() {
                   </div>
                 )}
 
-                {/* 3. SETTINGS TAB */}
+                {/* 3. LUYỆN TẬP TAB (PracticeHub - Mục 2 & Mục 9) */}
+                {sidebarTab === 'practice' && (
+                  <PracticeHub
+                    user={user}
+                    englishProgress={englishProgress}
+                    onUpdateEnglishProgress={handleUpdateEnglishProgress}
+                    documents={libraryDocs}
+                    onStartSmartReview={() => {
+                      setEnglishInitialLessonId(null);
+                      setEnglishInitialReviewMode(true);
+                      setSidebarTab('english');
+                    }}
+                    onOpenDocumentPractice={(doc) => {
+                      handleSelectDocument(doc);
+                      setActiveTab('practice-doc');
+                      setPracticeSubTab('quiz');
+                    }}
+                    onOpenSampleDocPractice={() => {
+                      handleOpenSampleDoc();
+                      setActiveTab('practice-doc');
+                      setPracticeSubTab('quiz');
+                    }}
+                    generalChatElement={
+                      <ChatBox
+                        key={`general-chat-${user.username}-${chatResetCount}`}
+                        pdfText=""
+                        userRole={user.role}
+                        userPlan={user.plan || 'free'}
+                        modelTier={modelTier}
+                        onChangeModelTier={handleModelTierChange}
+                        onRequireUpgrade={() => setShowUpgradeModal(true)}
+                        onError={showMessage}
+                        chatHistory={generalChatHistory}
+                        onSendMessage={handleSendGeneralMessage}
+                        className="h-140 sm:h-155 border border-[#E4E7F0] dark:border-slate-800 rounded-2xl"
+                        language={language}
+                      />
+                    }
+                  />
+                )}
+
+                {/* 4. TIẾNG ANH TAB (EnglishLearningHub - Chuẩn Hình 3 & Mục 6, 7, 8) */}
+                {sidebarTab === 'english' && (
+                  <EnglishLearningHub
+                    username={user.username}
+                    progress={englishProgress}
+                    onUpdateProgress={handleUpdateEnglishProgress}
+                    onAwardXp={async (xpAmount) => {
+                      try {
+                        await fetch('/api/users', {
+                          method: 'PUT',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ username: user.username, addXp: xpAmount }),
+                        });
+                        syncUserSessionFromServer(user.username);
+                      } catch {
+                        // ignore
+                      }
+                    }}
+                    onOpenProfile={() => setSidebarTab('settings')}
+                    onSessionActiveChange={(inSession) => setEnglishSessionActive(inSession)}
+                    initialLessonId={englishInitialLessonId}
+                    startInReviewMode={englishInitialReviewMode}
+                    onClearInitialLesson={() => {
+                      setEnglishInitialLessonId(null);
+                      setEnglishInitialReviewMode(false);
+                    }}
+                  />
+                )}
+
+                {/* 5. TIẾN ĐỘ TAB (ProgressHub - Mục 2, 9 & 10) */}
+                {sidebarTab === 'progress' && (
+                  <ProgressHub
+                    user={user}
+                    englishProgress={englishProgress}
+                    quizHistory={isTeachingWorkspace ? quizHistory : studentHistoryList}
+                    documents={libraryDocs}
+                    onOpenLeaderboard={() => setShowLeaderboard(true)}
+                    onOpenShareCard={() => {
+                      setSocialShareData({
+                        score: `${user.xp || 0} XP · Chuỗi ${user.streak || 1} ngày`,
+                        testTitle: 'Thành tích Học tập & Tiếng Anh nền tảng',
+                      });
+                      setShowSocialShare(true);
+                    }}
+                    onStartSmartReview={() => {
+                      setEnglishInitialLessonId(null);
+                      setEnglishInitialReviewMode(true);
+                      setSidebarTab('english');
+                    }}
+                    onGoToEnglish={() => setSidebarTab('english')}
+                  />
+                )}
+
+                {/* 6. SETTINGS / HỒ SƠ & TRỢ GIÚP TAB */}
                 {sidebarTab === 'settings' && (
                   <div className="max-w-xl mx-auto space-y-6">
-                    <div className="glass-card p-6 rounded-2xl border border-gray-200 dark:border-white/5 space-y-4">
-                      <h3 className="text-sm font-bold text-primary uppercase tracking-wider flex items-center gap-2 border-b border-gray-200 dark:border-white/5 pb-3">
+                    <div className="bg-white dark:bg-[#11131a] p-6 rounded-2xl border border-[#E4E7F0] dark:border-slate-800 space-y-4 shadow-xs">
+                      <h3 className="text-sm font-black text-[#6545D8] uppercase tracking-wider flex items-center gap-2 border-b border-[#E4E7F0] dark:border-slate-800 pb-3">
                         <Settings className="w-5 h-5" />
-                        {t.systemSettings}
+                        Hồ sơ cá nhân & Gói dịch vụ
                       </h3>
                       
                       <div className="space-y-4 pt-1 text-sm font-semibold">
                         <div className="flex justify-between items-center">
                           <div>
-                            <p className="font-bold text-foreground">{t.username}</p>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">Account login username</p>
+                            <p className="font-bold text-[#172033] dark:text-white">{t.username}</p>
+                            <p className="text-xs text-[#5A6478] dark:text-slate-400">Tài khoản đăng nhập</p>
                           </div>
-                          <span className="bg-gray-200/50 dark:bg-gray-800 px-3 py-1.5 rounded-lg text-foreground">{user.username}</span>
+                          <span className="bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-lg text-[#172033] dark:text-white font-black">{user.username}</span>
                         </div>
 
-                        <div className="flex justify-between items-center border-t border-gray-300 dark:border-gray-800 pt-3">
+                        <div className="flex justify-between items-center border-t border-[#E4E7F0] dark:border-slate-800 pt-3">
                           <div>
-                            <p className="font-bold text-foreground">{t.role}</p>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">User access permissions</p>
+                            <p className="font-bold text-[#172033] dark:text-white">{t.role}</p>
+                            <p className="text-xs text-[#5A6478] dark:text-slate-400">Vai trò sử dụng</p>
                           </div>
-                          <span className="font-bold text-primary bg-primary/10 px-3 py-1.5 rounded-lg capitalize">
+                          <span className="font-black text-[#6545D8] bg-[#EFEAFC] dark:bg-indigo-950/60 px-3 py-1.5 rounded-lg">
                             {isTeacher ? t.teacherRole : t.studentRole}
                           </span>
                         </div>
 
-                        <div className="flex justify-between items-center border-t border-gray-300 dark:border-gray-800 pt-3">
+                        <div className="flex justify-between items-center border-t border-[#E4E7F0] dark:border-slate-800 pt-3">
                           <div>
-                            <p className="font-bold text-foreground">Gói cước AI hiện tại</p>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                            <p className="font-bold text-[#172033] dark:text-white">Gói dịch vụ hiện tại</p>
+                            <p className="text-xs text-[#5A6478] dark:text-slate-400">
                               {user.planExpiresAt ? `Hết hạn: ${new Date(user.planExpiresAt).toLocaleDateString('vi-VN')}` : 'Gói miễn phí mặc định'}
                             </p>
                           </div>
                           <button
                             onClick={() => setShowUpgradeModal(true)}
-                            className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 text-white text-xs font-black shadow-sm"
+                            className="min-h-[40px] px-4 py-1.5 rounded-xl bg-[#6545D8] hover:bg-[#5436C2] text-white text-xs font-black shadow-xs"
                           >
-                            {(user.plan || 'free').toUpperCase()} • Nâng cấp / Nhập Code
+                            {(user.plan || 'free').toUpperCase()} · Nâng cấp / Nhập Mã
                           </button>
                         </div>
 
-                        {isSuperAdmin && (
-                          <div className="pt-3 border-t border-gray-300 dark:border-gray-800">
-                            <button
-                              onClick={() => setSidebarTab('admin')}
-                              className="w-full px-4 py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-black rounded-xl shadow-md active:scale-98 transition-all flex items-center justify-center gap-2 text-sm"
-                            >
-                              <Shield className="w-5 h-5" />
-                              <span>{language === 'vi' ? '🛡️ Vào Cổng Quản Trị Hệ Thống (SaaS Admin)' : '🛡️ Open SaaS Admin Portal'}</span>
-                            </button>
-                          </div>
-                        )}
-
-                        <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-gray-300 dark:border-gray-800">
+                        <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-[#E4E7F0] dark:border-slate-800">
                           <button
                             onClick={() => setShowChangePasswordModal(true)}
-                            className="flex-1 px-4 py-2.5 bg-primary text-white font-bold rounded-xl shadow hover:brightness-110 active:scale-98 transition-all flex items-center justify-center gap-2 text-sm"
+                            className="flex-1 min-h-[44px] px-4 py-2.5 bg-[#6545D8] text-white font-black rounded-xl hover:bg-[#5436C2] transition-all flex items-center justify-center gap-2 text-xs"
                           >
                             <Lock className="w-4 h-4" />
                             {language === 'vi' ? 'Đổi mật khẩu' : 'Change Password'}
                           </button>
                           <button
                             onClick={handleLogout}
-                            className="flex-1 px-4 py-2.5 bg-red-500 text-white font-bold rounded-xl shadow hover:bg-red-600 active:scale-98 transition-all flex items-center justify-center gap-2 text-sm"
+                            className="flex-1 min-h-[44px] px-4 py-2.5 bg-rose-50 dark:bg-rose-950/40 text-[#C83A3A] font-black rounded-xl hover:bg-rose-100 transition-all flex items-center justify-center gap-2 text-xs"
                           >
                             <LogOut className="w-4 h-4" />
                             {language === 'vi' ? 'Đăng xuất' : 'Log Out'}
@@ -3224,31 +3932,9 @@ export default function Home() {
                   </div>
                 )}
 
-                {/* 4. AI CHAT TAB */}
+                {/* 7. AI CHAT TAB (Fallback) */}
                 {sidebarTab === 'chat' && (
                   <div className="max-w-4xl mx-auto w-full">
-                    <div className="flex justify-between items-center mb-4">
-                      <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
-                        <MessageSquare className="w-6 h-6 text-primary" />
-                        {language === 'vi' ? 'Trợ lý học tập AI' : 'AI Study Assistant'}
-                      </h2>
-                      {generalChatHistory.length > 0 && (
-                        <button 
-                          onClick={() => {
-                            if (confirm(language === 'vi' ? 'Bạn có muốn xóa toàn bộ lịch sử trò chuyện AI?' : 'Do you want to clear the entire AI chat history?')) {
-                              setGeneralChatHistory([]);
-                              if (user) {
-                                localStorage.removeItem(`generalChatHistory_${user.username}`);
-                              }
-                              setChatResetCount(prev => prev + 1);
-                            }
-                          }}
-                          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold border border-red-200 dark:border-red-900/30 hover:bg-red-50 dark:hover:bg-red-950/20 text-red-500 rounded-xl transition-all"
-                        >
-                          {language === 'vi' ? 'Xóa lịch sử chat' : 'Clear Chat History'}
-                        </button>
-                      )}
-                    </div>
                     <ChatBox
                       key={`general-chat-${user.username}-${chatResetCount}`}
                       pdfText=""
@@ -3266,7 +3952,7 @@ export default function Home() {
                   </div>
                 )}
 
-                {/* 5. CLASS MANAGEMENT TAB (Teacher only) */}
+                {/* 8. CLASS MANAGEMENT TAB (Teacher only) */}
                 {isTeacher && sidebarTab === 'class-management' && (
                   <div className="max-w-4xl mx-auto space-y-6">
                     <TeacherClassManagement
@@ -3280,15 +3966,36 @@ export default function Home() {
                   </div>
                 )}
 
-                {/* 6. SUPER ADMIN SAAS PORTAL TAB */}
-                {isSuperAdmin && sidebarTab === 'admin' && (
-                  <div className="max-w-6xl mx-auto">
-                    <AdminPortal currentUser={user} onNotify={(msg, isErr) => showMessage(msg, isErr ?? false)} />
-                  </div>
+                {/* 9. DASHBOARD TAB: HÔM NAY (Học sinh / Cá nhân - Hình 1) HOẶC TỔNG QUAN LỚP HỌC (Giáo viên) */}
+                {sidebarTab === 'dashboard' && !isTeachingWorkspace && (
+                  <TodayDashboard
+                    user={user}
+                    englishProgress={englishProgress}
+                    onUpdateEnglishProgress={handleUpdateEnglishProgress}
+                    documents={libraryDocs}
+                    assignments={roomAssignments}
+                    completedAssignmentIds={studentHistoryList.map((h) => h.assignmentId).filter((id): id is string => Boolean(id))}
+                    joinedRooms={studentClasses.map((c) => ({ id: c.code, name: c.name }))}
+                    onStartEnglishLesson={(lessonId) => {
+                      setEnglishInitialLessonId(lessonId);
+                      setEnglishInitialReviewMode(false);
+                      setSidebarTab('english');
+                    }}
+                    onStartEnglishReview={() => {
+                      setEnglishInitialLessonId(null);
+                      setEnglishInitialReviewMode(true);
+                      setSidebarTab('english');
+                    }}
+                    onOpenDocument={(doc) => handleSelectDocument(doc)}
+                    onOpenSampleBiologyDoc={handleOpenSampleDoc}
+                    onOpenUploadDocument={() => setSidebarTab('upload')}
+                    onOpenAssignment={(asm) => handleSelectAssignment(asm)}
+                    onOpenMyClasses={() => setShowStudentClassesModal(true)}
+                    onJoinClassPrompt={() => setShowJoinClassModal(true)}
+                  />
                 )}
 
-                {/* 4. DASHBOARD TAB (ANALYTICS & ASSIGNMENTS) */}
-                {sidebarTab === 'dashboard' && (
+                {sidebarTab === 'dashboard' && isTeachingWorkspace && (
                   <div className="space-y-6">
                     {/* Header Section */}
                     <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-4">
@@ -4327,28 +5034,124 @@ export default function Home() {
         </div>
       )}
 
-      {/* ===== FLOATING ZALO / HOTLINE CSKH ===== */}
-      {!isZenFocus && <ZaloSupportWidget phone="0923678668" />}
+      {/* ===== MODAL LỚP CỦA TÔI (HỌC SINH XEM BÀI TẬP LỚP & THÊM LỚP) ===== */}
+      {showStudentClassesModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white dark:bg-[#11131a] rounded-3xl shadow-2xl border border-[#E4E7F0] dark:border-slate-800 w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden">
+            <div className="px-6 py-4 bg-[#6545D8] text-white flex items-center justify-between">
+              <div>
+                <h3 className="text-base font-black">Lớp của tôi</h3>
+                <p className="text-xs text-white/85 font-semibold mt-0.5">
+                  Danh sách lớp đã tham gia và bài tập giáo viên giao
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowStudentClassesModal(false);
+                    setShowJoinClassModal(true);
+                  }}
+                  className="px-3 py-1.5 rounded-xl bg-white/15 hover:bg-white/25 text-xs font-black text-white"
+                >
+                  + Thêm lớp
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowStudentClassesModal(false)}
+                  className="w-8 h-8 rounded-full bg-white/15 hover:bg-white/25 flex items-center justify-center text-white font-bold"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
 
-      {/* ===== MOBILE BOTTOM NAVIGATION BAR (NATIVE APP-LIKE) ===== */}
-      {!isZenFocus && (
-        <MobileBottomNav
-          currentTab={sidebarTab}
-          onSelectTab={(tab) => {
-            syncWorkspaceWithDoc(null);
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            setSidebarTab(tab as any);
-            setMobileMenuOpen(false);
-          }}
-          activeDoc={!!activeDoc}
-          onOpenDocWorkspace={() => {
-            setSidebarTab('upload');
-          }}
-          onOpenUpgrade={() => setShowUpgradeModal(true)}
-          userPlan={user.plan}
-          language={language}
-        />
+            <div className="p-6 overflow-y-auto flex-1 space-y-4">
+              {roomAssignments.length === 0 ? (
+                <div className="p-8 text-center rounded-2xl bg-[#F5F6FA] dark:bg-slate-900 border border-[#E4E7F0] dark:border-slate-800">
+                  <p className="text-sm font-black text-[#172033] dark:text-white">
+                    Hiện chưa có bài tập nào được giao trong lớp của bạn
+                  </p>
+                  <p className="text-xs font-semibold text-[#5A6478] dark:text-slate-400 mt-1">
+                    Khi giáo viên giao đề kiểm tra mới, bài sẽ xuất hiện tại đây và trên mục Việc cần làm ở trang Hôm nay.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {roomAssignments.map((asm) => {
+                    const submission = quizHistory.find(
+                      (h) => h.assignmentId === asm.id && h.username === user.username
+                    );
+                    const hasSubmitted = !!submission;
+                    return (
+                      <div
+                        key={asm.id}
+                        className="p-4 rounded-2xl bg-[#F5F6FA] dark:bg-slate-900 border border-[#E4E7F0] dark:border-slate-800 flex items-center justify-between gap-3 flex-wrap"
+                      >
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="px-2 py-0.5 rounded-md bg-[#EFEAFC] text-[#6545D8] text-[10px] font-black">
+                              Lớp {asm.roomId}
+                            </span>
+                            <span className="text-[11px] font-bold text-[#5A6478] dark:text-slate-400">
+                              {asm.type === 'quiz' ? 'Trắc nghiệm' : 'Tự luận'}
+                            </span>
+                          </div>
+                          <h4 className="text-sm font-black text-[#172033] dark:text-white mt-1 truncate">
+                            {asm.title}
+                          </h4>
+                          <p className="text-xs font-semibold text-[#5A6478] dark:text-slate-400 mt-0.5">
+                            Hạn nộp: {new Date(asm.endTime).toLocaleString('vi-VN')}
+                          </p>
+                        </div>
+
+                        <div className="flex items-center gap-2.5 shrink-0">
+                          {hasSubmitted && (
+                            <span className="px-2.5 py-1 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-[#178A5B] dark:text-emerald-300 text-xs font-black">
+                              {submission.scale10Score}/10
+                            </span>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowStudentClassesModal(false);
+                              handleSelectAssignment(asm);
+                            }}
+                            className="min-h-[40px] px-4 py-2 rounded-xl bg-[#6545D8] hover:bg-[#5436C2] text-white text-xs font-black transition-all"
+                          >
+                            {hasSubmitted ? 'Xem lại bài' : 'Làm bài ngay'}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
       )}
+
+      {/* ===== MOBILE BOTTOM NAVIGATION BAR (5 MỤC THỐNG NHẤT) ===== */}
+      <MobileBottomNav
+        currentTab={sidebarTab}
+        onSelectTab={(tab) => {
+          syncWorkspaceWithDoc(null);
+          if (tab === 'english') {
+            setEnglishInitialLessonId(null);
+            setEnglishInitialReviewMode(false);
+          }
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          setSidebarTab(tab as any);
+          setMobileMenuOpen(false);
+        }}
+        activeDoc={!!activeDoc}
+        onOpenUpgrade={() => setShowUpgradeModal(true)}
+        userPlan={user.plan}
+        language={language}
+        isTeachingMode={isTeachingWorkspace}
+        hidden={hideMainNav}
+      />
 
       {/* ===== PWA 1-CLICK INSTALL PROMPT ===== */}
       <PwaInstallPrompt />

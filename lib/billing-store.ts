@@ -56,7 +56,7 @@ export async function readBillingSettings(): Promise<BillingConfigSettings> {
     accountNo: process.env.VIETQR_ACCOUNT_NO || '0988888888',
     accountName: process.env.VIETQR_ACCOUNT_NAME || 'AI STUDY ASSISTANT',
     hotline: process.env.SUPPORT_PHONE || '0923678668',
-    approvalMode: (process.env.BILLING_APPROVAL_MODE as 'instant' | 'manual_review') || 'instant',
+    approvalMode: (process.env.BILLING_APPROVAL_MODE as 'instant' | 'manual_review') || 'manual_review',
   };
 
   if (db) {

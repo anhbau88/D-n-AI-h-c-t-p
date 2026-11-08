@@ -6,6 +6,7 @@ import { QuizQuestion } from './quiz';
 import { ChatMessage } from './chat';
 import { Flashcard, MindmapNode, PodcastTurn } from './index';
 export type FlashcardItem = Flashcard;
+export type SavedDocument = DocumentItem;
 
 export interface DocumentItem {
   id: string;
@@ -15,6 +16,7 @@ export interface DocumentItem {
   fileName: string;
   fileSize: number;
   fileType: string;
+  pages?: number;
   uploadedAt: string;
   lastOpenedAt: string;
   hash: string; // Hash SHA-256 để kiểm tra trùng lặp
