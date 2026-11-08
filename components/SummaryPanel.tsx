@@ -24,8 +24,10 @@ import {
   Sparkles,
   Volume2,
   FileDown,
+  Presentation,
 } from 'lucide-react';
 import { exportMarkdownDocumentToWord } from '@/lib/word-export';
+import { generateLecturePptx } from '@/lib/pptx-generator';
 
 interface SummaryPanelProps {
   summary: string;
@@ -117,7 +119,50 @@ export default function SummaryPanel({
   const [isPlayingPodcast, setIsPlayingPodcast] = useState(false);
   const [currentTurnIdx, setCurrentTurnIdx] = useState<number>(-1);
   const [playbackRate, setPlaybackRate] = useState<number>(1.0);
+  const [isExportingPptx, setIsExportingPptx] = useState(false);
   const isPlayingRef = useRef(false);
+
+  const handleExportPptx = async () => {
+    setIsExportingPptx(true);
+    try {
+      const sourceText = lessonPlan || summary;
+      const lines = sourceText.split('\n').filter((l) => l.trim().length > 0);
+      const sections: Array<{ heading: string; points: string[]; note?: string }> = [];
+      let currentHeading = 'Nội dung cốt lõi bài giảng';
+      let currentPoints: string[] = [];
+
+      lines.forEach((line) => {
+        const trimmed = line.trim();
+        if (
+          trimmed.startsWith('#') ||
+          (trimmed.startsWith('**') && trimmed.endsWith('**') && trimmed.length < 70)
+        ) {
+          if (currentPoints.length > 0) {
+            sections.push({ heading: currentHeading, points: currentPoints.slice(0, 4) });
+            currentPoints = [];
+          }
+          currentHeading = trimmed.replace(/^[#*\s]+|[#*\s]+$/g, '');
+        } else if (trimmed.startsWith('-') || trimmed.startsWith('*') || /^\d+\./.test(trimmed)) {
+          currentPoints.push(trimmed.replace(/^[-*\d.]+\s*/, ''));
+        }
+      });
+
+      if (currentPoints.length > 0) {
+        sections.push({ heading: currentHeading, points: currentPoints.slice(0, 4) });
+      }
+
+      await generateLecturePptx({
+        title: fileName ? fileName.replace(/\.[^/.]+$/, '') : 'Bài Giảng Điện Tử EduGenie',
+        subject: 'Bài Giảng Chuẩn',
+        teacherName: 'Giáo Viên',
+        sections: sections.length > 0 ? sections.slice(0, 6) : [],
+      });
+    } catch (err) {
+      console.error('Lỗi xuất PowerPoint:', err);
+    } finally {
+      setIsExportingPptx(false);
+    }
+  };
 
   useEffect(() => {
     setMindmap(cachedMindmap || null);
@@ -325,7 +370,17 @@ export default function SummaryPanel({
               </div>
             ) : (
               <div className="space-y-3">
-                <div className="flex justify-end">
+                <div className="flex items-center justify-end gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleExportPptx}
+                    disabled={isExportingPptx}
+                    className="rounded-xl text-xs h-8 px-3 border-purple-200 text-purple-600 dark:border-purple-800 dark:text-purple-400 font-bold gap-1 shadow-xs hover:bg-purple-50 dark:hover:bg-purple-950/40"
+                  >
+                    <Presentation className="w-3.5 h-3.5" />
+                    {isExportingPptx ? 'Đang xuất...' : 'Xuất Slide (.pptx)'}
+                  </Button>
                   <Button
                     size="sm"
                     variant="outline"
@@ -517,6 +572,16 @@ export default function SummaryPanel({
               <div className="flex items-center gap-2">
                 {lessonPlan && (
                   <>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={handleExportPptx}
+                      disabled={isExportingPptx}
+                      className="rounded-xl text-xs h-9 px-3 border-purple-300 text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-950/40 font-bold gap-1"
+                    >
+                      <Presentation className="w-3.5 h-3.5" />
+                      {isExportingPptx ? 'Đang xuất Slide...' : 'Xuất Slide PPTX (.pptx)'}
+                    </Button>
                     <Button
                       size="sm"
                       variant="outline"

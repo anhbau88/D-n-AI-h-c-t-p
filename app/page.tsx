@@ -73,6 +73,9 @@ const TodayDashboard = dynamic(() => import('@/components/TodayDashboard'), { ss
 const PracticeHub = dynamic(() => import('@/components/PracticeHub'), { ssr: false });
 const EnglishLearningHub = dynamic(() => import('@/components/EnglishLearningHub'), { ssr: false });
 const ProgressHub = dynamic(() => import('@/components/ProgressHub'), { ssr: false });
+const ParentReportModal = dynamic(() => import('@/components/ParentReportModal'), { ssr: false });
+const ExamSimulator = dynamic(() => import('@/components/ExamSimulator'), { ssr: false });
+const ClassKnowledgeHeatmap = dynamic(() => import('@/components/ClassKnowledgeHeatmap'), { ssr: false });
 
 import {
   getDefaultEnglishProgress,
@@ -381,6 +384,12 @@ export default function Home() {
   const [showJoinClassModal, setShowJoinClassModal] = useState(false);
   const [newClassName, setNewClassName] = useState('');
   const [createdClassCode, setCreatedClassCode] = useState('');
+
+  // 4 Phân Hệ Nâng Cấp Giá Trị Cao States
+  const [showParentReportModal, setShowParentReportModal] = useState(false);
+  const [showExamSimulator, setShowExamSimulator] = useState(false);
+  const [showHeatmapModal, setShowHeatmapModal] = useState(false);
+  const [examSimulatorTitle, setExamSimulatorTitle] = useState('Đề Thi Thử Tốt Nghiệp & ĐGNL Chuẩn Hóa');
 
   // Password Change States
   const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
@@ -4078,22 +4087,51 @@ b) Pha tối / Chu trình Calvin (Diễn ra tại chất nền stroma của lụ
                               <Plus className="w-4 h-4" />
                               <span>{language === 'vi' ? 'Tạo lớp' : 'Create Class'}</span>
                             </button>
+
+                            <button
+                              onClick={() => setShowHeatmapModal(true)}
+                              className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:brightness-110 active:scale-95 text-white transition-all text-xs font-black shadow-md shadow-purple-500/20"
+                              title="Bản đồ Ma trận Lỗ hổng Kiến thức Lớp học"
+                            >
+                              <Sparkles className="w-4 h-4 text-amber-300" />
+                              <span>{language === 'vi' ? 'Ma Trận Lỗ Hổng' : 'Knowledge Heatmap'}</span>
+                            </button>
                           </div>
                         )}
 
                         {!isTeacher && (
-                          <button
-                            onClick={() => {
-                              setJoinClassCode('');
-                              setShowJoinClassModal(true);
-                            }}
-                            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-linear-to-r from-primary to-violet hover:brightness-110 active:scale-95 text-white transition-all text-xs font-bold shadow-sm"
-                          >
-                            <Plus className="w-4 h-4" />
-                            <span>
-                              {language === 'vi' ? 'Thêm lớp học' : 'Add Class'}
-                            </span>
-                          </button>
+                          <>
+                            <button
+                              onClick={() => {
+                                setJoinClassCode('');
+                                setShowJoinClassModal(true);
+                              }}
+                              className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-linear-to-r from-primary to-violet hover:brightness-110 active:scale-95 text-white transition-all text-xs font-bold shadow-sm"
+                            >
+                              <Plus className="w-4 h-4" />
+                              <span>
+                                {language === 'vi' ? 'Thêm lớp' : 'Add Class'}
+                              </span>
+                            </button>
+
+                            <button
+                              onClick={() => setShowParentReportModal(true)}
+                              className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:brightness-110 active:scale-95 text-white transition-all text-xs font-black shadow-md shadow-indigo-500/25"
+                              title="Báo cáo tiến độ gửi Phụ huynh qua Zalo"
+                            >
+                              <Award className="w-4 h-4 text-amber-300" />
+                              <span>{language === 'vi' ? 'Báo Cáo Bố/Mẹ (Zalo)' : 'Parent Report (Zalo)'}</span>
+                            </button>
+
+                            <button
+                              onClick={() => setShowExamSimulator(true)}
+                              className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:brightness-110 active:scale-95 text-white transition-all text-xs font-black shadow-md shadow-emerald-500/20"
+                              title="Chế độ phòng thi thử chuẩn hóa có tính giờ"
+                            >
+                              <Sparkles className="w-4 h-4 text-amber-300" />
+                              <span>{language === 'vi' ? 'Thi Thử Chuẩn Hóa' : 'Mock Exam'}</span>
+                            </button>
+                          </>
                         )}
                         
                         <button 
@@ -5202,6 +5240,124 @@ b) Pha tối / Chu trình Calvin (Diễn ra tại chất nền stroma của lụ
           streak={user.streak || 1}
           language={language}
         />
+      )}
+
+      {/* ===== PHÂN HỆ A: BÁO CÁO TIẾN ĐỘ HỌC TẬP GỬI PHỤ HUYNH QUA ZALO ===== */}
+      {showParentReportModal && (
+        <ParentReportModal
+          isOpen={showParentReportModal}
+          onClose={() => setShowParentReportModal(false)}
+          studentName={user.fullName || user.username}
+          studentUsername={user.username}
+          studentEmail={user.email}
+          historyList={studentHistoryList}
+          classNameList={studentClasses.map((c) => c.name)}
+          streakDays={user.streak || 3}
+          language={language}
+        />
+      )}
+
+      {/* ===== PHÂN HỆ C: CHẾ ĐỘ THI THỬ CHUẨN HÓA & DỰ ĐOÁN PHỔ ĐIỂM ===== */}
+      {showExamSimulator && (
+        <ExamSimulator
+          isOpen={showExamSimulator}
+          onClose={() => setShowExamSimulator(false)}
+          examTitle={examSimulatorTitle}
+          subject={activeDoc ? activeDoc.fileName : 'Khảo Thí Chuẩn Hóa'}
+          durationMinutes={45}
+          questions={
+            questions.length > 0
+              ? questions.map((q, idx) => ({
+                  id: `q-${idx}`,
+                  question: q.question,
+                  options: q.options || [],
+                  answer: q.answer,
+                  explanation: q.explanation,
+                  level:
+                    idx % 4 === 0
+                      ? 'nhan_biet'
+                      : idx % 4 === 1
+                      ? 'thong_hieu'
+                      : idx % 4 === 2
+                      ? 'van_dung'
+                      : 'van_dung_cao',
+                }))
+              : [
+                  {
+                    id: 'q-demo-1',
+                    question: 'Mục tiêu căn bản của phương pháp học tập theo bản chất là gì?',
+                    options: [
+                      'Học vẹt thuộc lòng đáp án',
+                      'Nắm vững quy luật cốt lõi và tư duy phản biện',
+                      'Học mẹo làm bài nhanh',
+                      'Đoán đáp án theo xác suất',
+                    ],
+                    answer: 'B',
+                    level: 'thong_hieu',
+                  },
+                  {
+                    id: 'q-demo-2',
+                    question: 'Khi gặp một bài toán biến đổi nâng cao, bước phân tích đầu tiên cần làm là gì?',
+                    options: [
+                      'Bấm máy tính ngay lập tức',
+                      'Tìm điều kiện xác định và cấu trúc biểu thức',
+                      'Bỏ qua câu hỏi',
+                      'Chọn đáp án dài nhất',
+                    ],
+                    answer: 'B',
+                    level: 'van_dung',
+                  },
+                  {
+                    id: 'q-demo-3',
+                    question: 'Hệ thống EduGenie AI sử dụng công nghệ nào để tự động chẩn đoán lỗ hổng kiến thức?',
+                    options: [
+                      'Không có công nghệ nào',
+                      'Mô hình học máy phân tích ma trận dữ liệu làm bài',
+                      'Phương pháp bốc thăm',
+                      'Nhập liệu thủ công',
+                    ],
+                    answer: 'B',
+                    level: 'nhan_biet',
+                  },
+                ]
+          }
+          studentName={user.fullName || user.username}
+          onSaveResult={(res) => {
+            showMessage(
+              `Hoàn thành thi thử! Điểm số: ${res.score10}/10. Dự đoán phổ điểm: ${res.predictedRange}`,
+              false
+            );
+          }}
+        />
+      )}
+
+      {/* ===== PHÂN HỆ D: BẢN ĐỒ MA TRẬN LỖ HỔNG KIẾN THỨC LỚP HỌC ===== */}
+      {showHeatmapModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-[#11131a] border border-slate-200 dark:border-white/10 rounded-3xl max-w-5xl w-full shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="p-4 border-b border-slate-200 dark:border-white/10 flex items-center justify-between bg-slate-50 dark:bg-white/5">
+              <h3 className="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-primary" />
+                <span>EduGenie Matrix Analytics</span>
+              </h3>
+              <button
+                onClick={() => setShowHeatmapModal(false)}
+                className="w-8 h-8 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-white/10"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="p-4 overflow-y-auto">
+              <ClassKnowledgeHeatmap
+                classNameTitle={dashboardClass || 'Lớp Học'}
+                onCreateRemedialQuiz={(topics) => {
+                  showMessage(`Đã tạo đề ôn bù AI theo ${topics.length} chuyên đề yếu của cả lớp!`, false);
+                  setShowHeatmapModal(false);
+                }}
+              />
+            </div>
+          </div>
+        </div>
       )}
 
       {/* ===== TOAST NOTIFICATION CONTAINER ===== */}
