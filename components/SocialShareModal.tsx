@@ -40,7 +40,7 @@ export default function SocialShareModal({
   if (!isOpen) return null;
 
   const shareUrl = typeof window !== 'undefined' ? window.location.origin : 'https://ai-study-assistant-orcin.vercel.app';
-  const shareText = `🎉 Mình vừa đạt điểm ${score} trong bài kiểm tra "${testTitle}" trên AI Study Assistant! Nền tảng học tập AI thông minh đỉnh cao: ${shareUrl}`;
+  const shareText = `🎉 Mình vừa đạt điểm ${score} trong bài kiểm tra "${testTitle}" trên EduGenie AI! Nền tảng học tập AI thông minh đỉnh cao: ${shareUrl}`;
 
   const handleCopyLink = async () => {
     try {
@@ -86,7 +86,7 @@ export default function SocialShareModal({
       ctx.fillStyle = '#818cf8';
       ctx.font = 'bold 36px sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText('AI STUDY ASSISTANT • CHỨNG NHẬN THÀNH TÍCH', 540, 140);
+      ctx.fillText('EDUGENIE AI • CHỨNG NHẬN THÀNH TÍCH', 540, 140);
 
       // Badge Icon Circle
       ctx.beginPath();
@@ -199,7 +199,7 @@ export default function SocialShareModal({
           className="p-5 rounded-2xl bg-gradient-to-br from-slate-900 via-indigo-950 to-purple-950 text-white border-2 border-amber-400/80 shadow-xl relative overflow-hidden space-y-3.5 text-center"
         >
           <div className="flex justify-between items-center text-[10px] font-black uppercase tracking-wider text-indigo-300">
-            <span>AI Study Assistant</span>
+            <span>EduGenie AI</span>
             <span className="flex items-center gap-1 text-amber-400">
               <Star className="w-3 h-3 fill-amber-400" />
               <span>Chứng nhận</span>

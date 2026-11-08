@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
+import EduGenieLogo from '@/components/EduGenieLogo';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -409,12 +410,7 @@ export default function AuthScreen({ onLogin, language, setLanguage }: AuthScree
       <header className="w-full border-b border-gray-200/80 dark:border-gray-800 bg-white dark:bg-gray-900">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-xl bg-[#6545D8] text-white flex items-center justify-center font-black text-lg shadow-xs">
-              +
-            </div>
-            <span className="font-black text-base sm:text-lg tracking-tight text-[#172033] dark:text-white">
-              Trợ Lý Học Tập
-            </span>
+            <EduGenieLogo size="md" />
           </div>
 
           <div className="flex items-center gap-2.5">
@@ -655,20 +651,12 @@ export default function AuthScreen({ onLogin, language, setLanguage }: AuthScree
           {/* CỘT PHẢI: KHUNG ĐĂNG NHẬP / ĐĂNG KÝ */}
           <div className="lg:col-span-5 order-1 lg:order-2">
             <Card className="w-full p-6 sm:p-7 border border-gray-200 dark:border-gray-800 shadow-sm bg-white dark:bg-gray-900 rounded-2xl">
-              <div className="text-center mb-5">
-                <div className="relative w-14 h-14 mx-auto mb-2.5">
-                  <Image
-                    src="/logo.png"
-                    alt="Trợ Lý Học Tập Logo"
-                    width={56}
-                    height={56}
-                    className="w-full h-full object-contain rounded-2xl border border-gray-100 dark:border-gray-800"
-                  />
-                </div>
-                <h2 className="text-xl font-black text-[#172033] dark:text-white tracking-tight">
-                  Trợ Lý Học Tập
-                </h2>
-                <p className="text-gray-500 dark:text-gray-400 mt-1 text-xs font-medium">{t.systemSubtitle}</p>
+              <div className="flex flex-col items-center justify-center mb-5">
+                <EduGenieLogo
+                  size="lg"
+                  variant="horizontal"
+                  subtitleText={language === 'vi' ? 'Trí tuệ học tập & giảng dạy thế hệ mới' : 'Next-Gen AI Learning & Teaching'}
+                />
               </div>
 
               {/* Tab chuyển đổi giữa Đăng nhập & Đăng ký */}

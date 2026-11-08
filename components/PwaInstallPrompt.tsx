@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Download, X, Smartphone, Share, PlusSquare } from 'lucide-react';
-import Image from 'next/image';
+import { EduGenieIconMark } from '@/components/EduGenieLogo';
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -91,9 +91,7 @@ export default function PwaInstallPrompt() {
     <>
       <div className="fixed top-18 left-4 right-4 md:left-auto md:right-6 md:w-96 z-50 animate-in fade-in slide-in-from-top-4 duration-300">
         <div className="p-3.5 bg-white/95 dark:bg-[#12141e]/95 backdrop-blur-xl border border-indigo-200 dark:border-indigo-900/60 rounded-2xl shadow-xl shadow-indigo-500/10 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl overflow-hidden shadow-md shrink-0 border border-slate-200 dark:border-slate-800 bg-white p-0.5">
-            <Image src="/logo.png" alt="AI Study" width={40} height={40} className="w-full h-full object-contain" />
-          </div>
+          <EduGenieIconMark sizePx={42} />
 
           <div className="flex-1 min-w-0">
             <h4 className="text-xs font-black text-slate-900 dark:text-white flex items-center gap-1.5">

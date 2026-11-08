@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <linearGradient id="fav-box" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#4F46E5"/>
+      <stop offset="50%" stop-color="#7C3AED"/>
+      <stop offset="100%" stop-color="#EC4899"/>
+    </linearGradient>
+    <linearGradient id="fav-core" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#6545D8"/>
+      <stop offset="100%" stop-color="#432A9A"/>
+    </linearGradient>
+    <linearGradient id="fav-cap" x1="20" y1="12" x2="44" y2="24" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#F59E0B"/>
+      <stop offset="100%" stop-color="#EC4899"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="64" height="64" rx="20" fill="url(#fav-box)"/>
+  <rect x="3" y="3" width="58" height="58" rx="17" fill="url(#fav-core)"/>
+  
+  <!-- Open Book Knowledge Wings -->
+  <path d="M14 44C20 40 26 40 32 43.5C38 40 44 40 50 44V21C44 17.5 38 17.5 32 21C26 17.5 20 17.5 14 21V44Z" fill="white" fill-opacity="0.22"/>
+  <path d="M14 44C20 40 26 40 32 43.5M32 43.5C38 40 44 40 50 44M32 43.5V21M32 21C26 17.5 20 17.5 14 21V44M32 21C38 17.5 44 17.5 50 21V44" stroke="white" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+  
+  <!-- Academic Cap Diamond -->
+  <path d="M32 10L45 16.5L32 23L19 16.5L32 10Z" fill="url(#fav-cap)" stroke="white" stroke-width="1.8" stroke-linejoin="round"/>
+  
+  <!-- Radiant AI Core Spark -->
+  <path d="M32 23V36M25 29.5H39" stroke="#FDE047" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="32" cy="29.5" r="3.6" fill="#F59E0B"/>
+  <circle cx="32" cy="29.5" r="1.6" fill="#FFFFFF"/>
+  
+  <!-- Magic Star Sparkle -->
+  <path d="M48 10L49.5 13L52.5 14.5L49.5 16L48 19L46.5 16L43.5 14.5L46.5 13L48 10Z" fill="#FBBF24"/>
+</svg>

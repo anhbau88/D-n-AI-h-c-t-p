@@ -3,6 +3,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Image from 'next/image';
+import EduGenieLogo from '@/components/EduGenieLogo';
 import dynamic from 'next/dynamic';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -113,7 +114,7 @@ const TRANSLATIONS = {
     settings: "Cài đặt tài khoản",
     helpCenter: "Trung tâm trợ giúp",
     searchLibrary: "Tìm kiếm thư viện...",
-    welcomeTitle: "Chào mừng đến với AI Study Assistant!",
+    welcomeTitle: "Chào mừng đến với EduGenie AI!",
     welcomeSubtitleTeacher: "Hệ thống hỗ trợ soạn đề kiểm tra trắc nghiệm & tự luận tự động bằng trí tuệ nhân tạo. Hãy tải tài liệu mới lên hoặc sử dụng thư viện bài giảng để bắt đầu.",
     welcomeSubtitleStudent: "Tự học ôn tập hiệu quả với trợ lý AI. Bạn có thể tự tải lên tài liệu học tập của mình ở cột bên trái để tóm tắt và làm bài kiểm tra thử do AI soạn!",
     autoSummary: "Tóm tắt tự động",
@@ -216,7 +217,7 @@ const TRANSLATIONS = {
     settings: "Settings",
     helpCenter: "Help Center",
     searchLibrary: "Search library...",
-    welcomeTitle: "Welcome to AI Study Assistant!",
+    welcomeTitle: "Welcome to EduGenie AI!",
     welcomeSubtitleTeacher: "AI-powered automated generation of quizzes & essays. Upload new documents or select from the lecture library to begin.",
     welcomeSubtitleStudent: "Study efficiently with AI. Upload your personal documents on the left to summarize and take mock quizzes designed by AI!",
     autoSummary: "Auto Summary",
@@ -2125,17 +2126,7 @@ b) Pha tối / Chu trình Calvin (Diễn ra tại chất nền stroma của lụ
       <div className="min-h-screen bg-[#F5F6FA] dark:bg-[#0b0c10] text-[#172033] dark:text-white flex flex-col">
         <header className="sticky top-0 z-40 h-16 bg-white/95 dark:bg-[#11131a]/95 backdrop-blur-xl border-b border-[#E4E7F0] dark:border-white/10 px-4 lg:px-8 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-[#6545D8] text-white font-black flex items-center justify-center shadow-sm">
-              +
-            </div>
-            <div>
-              <span className="text-sm sm:text-base font-black tracking-tight block leading-none">
-                Trợ Lý Học Tập — Quản trị SaaS
-              </span>
-              <span className="text-[11px] font-bold text-[#5A6478] dark:text-slate-400">
-                Cổng điều hành hệ thống & Duyệt đơn thanh toán gói cước
-              </span>
-            </div>
+            <EduGenieLogo size="md" subtitleText="Cổng Quản Trị Hệ Thống SaaS" />
           </div>
 
           <div className="flex items-center gap-2.5">
@@ -2554,17 +2545,10 @@ b) Pha tối / Chu trình Calvin (Diễn ra tại chất nền stroma của lụ
               }}
               className="flex items-center gap-2.5 cursor-pointer hover:opacity-90 transition-opacity"
             >
-              <div className="w-9 h-9 rounded-xl bg-[#6545D8] text-white font-black flex items-center justify-center shadow-xs shrink-0 text-base">
-                +
-              </div>
-              <div className="min-w-0">
-                <span className="text-sm sm:text-base font-black text-[#172033] dark:text-white tracking-tight truncate block">
-                  Trợ Lý Học Tập
-                </span>
-                <p className="text-[10px] text-[#5A6478] dark:text-slate-400 hidden md:block leading-none mt-0.5 font-bold">
-                  {isTeachingWorkspace ? 'Không gian Giảng dạy' : 'Học từ tài liệu · Luyện Tiếng Anh'}
-                </p>
-              </div>
+              <EduGenieLogo
+                size="md"
+                subtitleText={isTeachingWorkspace ? 'Không gian Giảng dạy' : 'Trí tuệ học tập thế hệ mới'}
+              />
             </div>
           </div>
 
@@ -4306,10 +4290,10 @@ b) Pha tối / Chu trình Calvin (Diễn ra tại chất nền stroma của lụ
                               </div>
 
                               <div className="glass-card min-h-95 rounded-3xl flex flex-col items-center justify-center text-center p-10 overflow-hidden relative border border-gray-300 dark:border-white/5">
-                                <div className="mb-6 mx-auto w-20 h-20 bg-white dark:bg-surface-container-highest rounded-2xl flex items-center justify-center shadow-lg border border-gray-300 dark:border-white/10 p-1">
-                                  <Image src="/logo.png" alt="AI Assistant Icon" width={64} height={64} className="w-16 h-16 object-contain" />
+                                <div className="mb-6 mx-auto">
+                                  <EduGenieLogo size="xl" variant="horizontal" subtitleText="Nền tảng Giáo dục AI Thế hệ Mới" />
                                 </div>
-                                <h2 className="text-2xl sm:text-3xl font-black mb-4">Chào mừng đến với <span className="text-primary">AI Study Assistant!</span></h2>
+                                <h2 className="text-2xl sm:text-3xl font-black mb-4">Chào mừng đến với <span className="text-primary">EduGenie AI!</span></h2>
                                 <p className="text-sm text-gray-600 dark:text-gray-400 max-w-xl mx-auto mb-8 leading-relaxed font-bold">
                                   {t.welcomeSubtitleTeacher}
                                 </p>
@@ -4627,10 +4611,10 @@ b) Pha tối / Chu trình Calvin (Diễn ra tại chất nền stroma của lụ
                                   </Card>
 
                                   <div className="glass-card min-h-95 rounded-3xl flex flex-col items-center justify-center text-center p-10 overflow-hidden relative border border-gray-300 dark:border-white/5">
-                                    <div className="mb-6 mx-auto w-20 h-20 bg-white dark:bg-surface-container-highest rounded-2xl flex items-center justify-center shadow-lg border border-gray-300 dark:border-white/10 p-1">
-                                      <Image src="/logo.png" alt="AI Assistant Icon" width={64} height={64} className="w-16 h-16 object-contain" />
+                                    <div className="mb-6 mx-auto">
+                                      <EduGenieLogo size="xl" variant="horizontal" subtitleText="Nền tảng Giáo dục AI Thế hệ Mới" />
                                     </div>
-                                    <h2 className="text-2xl sm:text-3xl font-black mb-4">Chào mừng đến với <span className="text-primary">AI Study Assistant!</span></h2>
+                                    <h2 className="text-2xl sm:text-3xl font-black mb-4">Chào mừng đến với <span className="text-primary">EduGenie AI!</span></h2>
                                     <p className="text-sm text-gray-600 dark:text-gray-400 max-w-xl mx-auto mb-8 leading-relaxed font-bold">
                                       {t.welcomeSubtitleStudent}
                                     </p>

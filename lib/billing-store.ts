@@ -52,7 +52,7 @@ export async function readBillingSettings(): Promise<BillingConfigSettings> {
   const defaultSettings: BillingConfigSettings = {
     bankId: process.env.VIETQR_BANK_ID || 'MB',
     accountNo: process.env.VIETQR_ACCOUNT_NO || '0988888888',
-    accountName: process.env.VIETQR_ACCOUNT_NAME || 'AI STUDY ASSISTANT',
+    accountName: process.env.VIETQR_ACCOUNT_NAME || 'EDUGENIE AI',
     hotline: process.env.SUPPORT_PHONE || '0923678668',
     approvalMode: (process.env.BILLING_APPROVAL_MODE as 'instant' | 'manual_review') || 'manual_review',
   };

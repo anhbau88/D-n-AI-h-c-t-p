@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <defs>
+    <linearGradient id="pwa-box-512" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#4F46E5"/>
+      <stop offset="50%" stop-color="#7C3AED"/>
+      <stop offset="100%" stop-color="#EC4899"/>
+    </linearGradient>
+    <linearGradient id="pwa-core-512" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#6545D8"/>
+      <stop offset="100%" stop-color="#432A9A"/>
+    </linearGradient>
+    <linearGradient id="pwa-cap-512" x1="130" y1="96" x2="380" y2="192" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#F59E0B"/>
+      <stop offset="100%" stop-color="#EC4899"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="512" height="512" rx="128" fill="url(#pwa-box-512)"/>
+  <rect x="20" y="20" width="472" height="472" rx="112" fill="url(#pwa-core-512)"/>
+  
+  <!-- Open Book Knowledge Wings -->
+  <path d="M112 360C160 330 208 330 256 355C304 330 352 330 400 360V170C352 140 304 140 256 170C208 140 160 140 112 170V360Z" fill="white" fill-opacity="0.22"/>
+  <path d="M112 360C160 330 208 330 256 355M256 355C304 330 352 330 400 360M256 355V170M256 170C208 140 160 140 112 170V360M256 170C304 140 352 140 400 170V360" stroke="white" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
+  
+  <!-- Academic Cap Diamond -->
+  <path d="M256 85L360 138L256 192L152 138L256 85Z" fill="url(#pwa-cap-512)" stroke="white" stroke-width="14" stroke-linejoin="round"/>
+  
+  <!-- Radiant AI Core Spark -->
+  <path d="M256 192V300M202 246H310" stroke="#FDE047" stroke-width="24" stroke-linecap="round"/>
+  <circle cx="256" cy="246" r="30" fill="#F59E0B"/>
+  <circle cx="256" cy="246" r="14" fill="#FFFFFF"/>
+  
+  <!-- Magic Star Sparkle -->
+  <path d="M384 85L395 110L420 120L395 130L384 155L373 130L348 120L373 110L384 85Z" fill="#FBBF24"/>
+</svg>

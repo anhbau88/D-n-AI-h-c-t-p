@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 60" fill="none">
+  <defs>
+    <linearGradient id="eg-box-dark" x1="0" y1="0" x2="48" y2="48" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#6366F1"/>
+      <stop offset="50%" stop-color="#8B5CF6"/>
+      <stop offset="100%" stop-color="#EC4899"/>
+    </linearGradient>
+    <linearGradient id="eg-core-dark" x1="0" y1="0" x2="48" y2="48" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#6545D8"/>
+      <stop offset="100%" stop-color="#432A9A"/>
+    </linearGradient>
+    <linearGradient id="eg-cap-dark" x1="14" y1="8" x2="34" y2="18" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#F59E0B"/>
+      <stop offset="100%" stop-color="#EC4899"/>
+    </linearGradient>
+    <linearGradient id="eg-text-dark" x1="0" y1="0" x2="100" y2="0" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#818CF8"/>
+      <stop offset="50%" stop-color="#A78BFA"/>
+      <stop offset="100%" stop-color="#F472B6"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Icon Mark Container (Squircle) -->
+  <g transform="translate(6, 6)">
+    <rect width="48" height="48" rx="16" fill="url(#eg-box-dark)"/>
+    <rect x="2" y="2" width="44" height="44" rx="14" fill="url(#eg-core-dark)"/>
+    
+    <!-- Open Book Knowledge Wings -->
+    <path d="M10 34C15 31 20 31 24 33.5C28 31 33 31 38 34V16C33 13.5 28 13.5 24 16C20 13.5 15 13.5 10 16V34Z" fill="white" fill-opacity="0.2"/>
+    <path d="M10 34C15 31 20 31 24 33.5M24 33.5C28 31 33 31 38 34M24 33.5V16M24 16C20 13.5 15 13.5 10 16V34M24 16C28 13.5 33 13.5 38 16V34" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    
+    <!-- Academic Cap Diamond -->
+    <path d="M24 8L34 13L24 18L14 13L24 8Z" fill="url(#eg-cap-dark)" stroke="white" stroke-width="1.5" stroke-linejoin="round"/>
+    
+    <!-- Radiant AI Core Spark -->
+    <path d="M24 18V28M19 23H29" stroke="#FDE047" stroke-width="2.2" stroke-linecap="round"/>
+    <circle cx="24" cy="23" r="2.8" fill="#F59E0B"/>
+    <circle cx="24" cy="23" r="1.2" fill="#FFFFFF"/>
+    
+    <!-- Tiny Magic Star -->
+    <path d="M36 8L37 10L39 11L37 12L36 14L35 12L33 11L35 10L36 8Z" fill="#FBBF24"/>
+  </g>
+
+  <!-- Wordmark Text (White in dark mode) -->
+  <text x="66" y="34" font-family="Plus Jakarta Sans, Lexend, sans-serif" font-size="24" font-weight="900" fill="#F8FAFC">Edu<tspan fill="url(#eg-text-dark)">Genie</tspan></text>
+  
+  <!-- AI Badge -->
+  <rect x="178" y="18" width="28" height="18" rx="5" fill="#78350F" fill-opacity="0.6" stroke="#F59E0B" stroke-width="1"/>
+  <text x="184" y="31" font-family="Plus Jakarta Sans, sans-serif" font-size="10" font-weight="900" fill="#FDE047">AI</text>
+  
+  <!-- Subtitle -->
+  <text x="67" y="47" font-family="Plus Jakarta Sans, sans-serif" font-size="10.5" font-weight="700" fill="#94A3B8" letter-spacing="0.2">TRÍ TUỆ HỌC TẬP THẾ HỆ MỚI</text>
+</svg>

@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono, Roboto, Lexend, Plus_Jakarta_Sans, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { AccessibilityProvider } from "@/components/AccessibilityContext";
@@ -34,10 +34,19 @@ const jetBrainsMono = JetBrains_Mono({
   variable: "--font-jetbrains-mono",
 });
 
+export const viewport: Viewport = {
+  themeColor: "#6545D8",
+};
+
 export const metadata: Metadata = {
-  title: "AI Study Assistant - Trợ lý học tập thông minh",
-  description: "Ứng dụng AI giúp sinh viên tóm tắt tài liệu PDF, chat hỏi đáp và tạo câu hỏi trắc nghiệm ôn tập. Powered by Google Gemini.",
-  keywords: ["AI", "học tập", "PDF", "tóm tắt", "trắc nghiệm", "sinh viên"],
+  title: "EduGenie AI — Trí Tuệ Học Tập & Giảng Dạy Thế Hệ Mới",
+  description: "EduGenie AI: Nền tảng trợ lý học tập và giảng dạy toàn diện. Tóm tắt tài liệu, soạn giáo án, xuất slide PowerPoint 1-chạm, luyện thi chuẩn hóa và theo dõi tiến độ học tập thông minh.",
+  keywords: ["EduGenie", "AI học tập", "EduGenie AI", "trợ lý học tập", "soạn giáo án", "xuất slide powerpoint", "thi thử chuẩn hóa", "luyện thi"],
+  icons: {
+    icon: "/favicon.svg",
+    apple: "/icons/icon-192.svg",
+  },
+  manifest: "/manifest.json",
 };
 
 export default function RootLayout({

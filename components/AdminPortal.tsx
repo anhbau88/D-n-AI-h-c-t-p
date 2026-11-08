@@ -89,7 +89,7 @@ export default function AdminPortal({
   // Cấu hình Ngân hàng VietQR
   const [bankId, setBankId] = useState('MB');
   const [accountNo, setAccountNo] = useState('0988888888');
-  const [accountName, setAccountName] = useState('AI STUDY ASSISTANT');
+  const [accountName, setAccountName] = useState('EDUGENIE AI');
   const [hotline, setHotline] = useState('0923678668');
   const [approvalMode, setApprovalMode] = useState<'instant' | 'manual_review'>('manual_review');
   const [isSavingSettings, setIsSavingSettings] = useState(false);
@@ -125,7 +125,7 @@ export default function AdminPortal({
       if (data.billingSettings) {
         setBankId(data.billingSettings.bankId || 'MB');
         setAccountNo(data.billingSettings.accountNo || '0988888888');
-        setAccountName(data.billingSettings.accountName || 'AI STUDY ASSISTANT');
+        setAccountName(data.billingSettings.accountName || 'EDUGENIE AI');
         setHotline(data.billingSettings.hotline || '0923678668');
         setApprovalMode(data.billingSettings.approvalMode || 'manual_review');
       }
@@ -473,7 +473,7 @@ export default function AdminPortal({
               <span>Không Gian Quản Trị Hệ Thống (SaaS Admin)</span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-black text-[#172033] dark:text-white">
-              Cổng Quản Trị Trợ Lý Học Tập
+              Cổng Quản Trị EduGenie SaaS
             </h1>
             <p className="text-xs sm:text-sm text-gray-500 mt-1">
               Quản lý người dùng, xác nhận tiền chuyển khoản để gửi Mã Code kích hoạt, phát hành ưu đãi và giám sát vận hành.

@@ -80,7 +80,7 @@ export default function UpgradeModal({
   const [bankInfo, setBankInfo] = useState({
     bankId: 'MB',
     accountNo: '0988888888',
-    accountName: 'AI STUDY ASSISTANT',
+    accountName: 'EDUGENIE AI',
   });
 
   const isTopup = selectedPlan === 'topup_small' || selectedPlan === 'topup_std';
@@ -94,7 +94,7 @@ export default function UpgradeModal({
         setBankInfo({
           bankId: data.bankConfig.bankId || 'MB',
           accountNo: data.bankConfig.accountNo || '0988888888',
-          accountName: data.bankConfig.accountName || 'AI STUDY ASSISTANT',
+          accountName: data.bankConfig.accountName || 'EDUGENIE AI',
         });
       }
       if (Array.isArray(data.myOrders)) {

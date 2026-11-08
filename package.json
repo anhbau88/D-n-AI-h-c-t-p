@@ -1,6 +1,7 @@
 {
-  "name": "ai-study-assistant",
-  "version": "0.1.0",
+  "name": "edugenie",
+  "version": "2.0.0",
+  "description": "EduGenie AI - Nền tảng Giáo dục & Trợ lý Học tập Thông minh Thế hệ Mới",
   "private": true,
   "scripts": {
     "dev": "next dev",

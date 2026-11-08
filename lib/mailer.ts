@@ -13,7 +13,7 @@ export interface EmailSendResult {
  */
 async function dispatchEmail(to: string, subject: string, html: string): Promise<EmailSendResult> {
   const resendApiKey = (process.env.RESEND_API_KEY || '').trim();
-  const fromEmail = (process.env.EMAIL_FROM || 'AI Study Assistant <onboarding@resend.dev>').trim();
+  const fromEmail = (process.env.EMAIL_FROM || 'EduGenie AI <onboarding@resend.dev>').trim();
 
   // 1. Ưu tiên gửi qua Resend REST API nếu có RESEND_API_KEY
   if (resendApiKey) {
@@ -84,17 +84,17 @@ async function dispatchEmail(to: string, subject: string, html: string): Promise
  * Gửi mã OTP 6 chữ số để xác minh địa chỉ Email khi đăng ký tài khoản
  */
 export async function sendRegistrationOtpEmail(email: string, otpCode: string, fullName?: string): Promise<EmailSendResult> {
-  const subject = `[AI Study Assistant] Mã xác minh tài khoản của bạn là: ${otpCode}`;
+  const subject = `[EduGenie AI] Mã xác minh tài khoản của bạn là: ${otpCode}`;
   const html = `
     <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 560px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 16px; overflow: hidden; background: #ffffff;">
       <div style="background: linear-gradient(135deg, #4f46e5, #7c3aed); padding: 28px 24px; color: #ffffff; text-align: center;">
-        <h1 style="margin: 0; font-size: 22px; font-weight: 800;">AI Study Assistant</h1>
-        <p style="margin: 6px 0 0; font-size: 13px; opacity: 0.9;">Nền tảng Học tập & Khảo thí Trí tuệ nhân tạo</p>
+        <h1 style="margin: 0; font-size: 22px; font-weight: 800;">EduGenie AI</h1>
+        <p style="margin: 6px 0 0; font-size: 13px; opacity: 0.9;">Nền tảng Giáo dục & Trợ lý Học tập Trí tuệ Nhân tạo</p>
       </div>
       <div style="padding: 28px 24px; color: #1e293b;">
         <p style="font-size: 15px; margin-top: 0;">Xin chào <strong>${fullName || email}</strong>,</p>
         <p style="font-size: 14px; line-height: 1.6; color: #475569;">
-          Cảm ơn bạn đã đăng ký tài khoản tại <strong>AI Study Assistant</strong>. Để hoàn tất quá trình xác minh địa chỉ email, vui lòng nhập mã OTP gồm 6 chữ số dưới đây:
+          Cảm ơn bạn đã đăng ký tài khoản tại <strong>EduGenie AI</strong>. Để hoàn tất quá trình xác minh địa chỉ email, vui lòng nhập mã OTP gồm 6 chữ số dưới đây:
         </p>
         <div style="margin: 24px 0; padding: 20px; background: #f8fafc; border: 2px dashed #6366f1; border-radius: 12px; text-align: center;">
           <span style="font-size: 32px; font-weight: 900; letter-spacing: 8px; color: #4f46e5; font-family: monospace;">${otpCode}</span>
@@ -131,17 +131,17 @@ export async function sendLicenseCodeEmail(params: {
     vip: 'Giáo Viên Pro (2.000 Điểm AI)',
   };
   const planName = planMap[params.plan] || params.plan.toUpperCase();
-  const subject = `[AI Study Assistant] Mã kích hoạt gói ${planName} (${params.durationDays} ngày): ${params.licenseCode}`;
+  const subject = `[EduGenie AI] Mã kích hoạt gói ${planName} (${params.durationDays} ngày): ${params.licenseCode}`;
   const html = `
     <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 580px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 16px; overflow: hidden; background: #ffffff;">
       <div style="background: linear-gradient(135deg, #4f46e5, #9333ea); padding: 28px 24px; color: #ffffff; text-align: center;">
-        <h1 style="margin: 0; font-size: 22px; font-weight: 800;">🎉 Mã Kích Hoạt Gói Cước AI Study Assistant</h1>
-        <p style="margin: 6px 0 0; font-size: 13px; opacity: 0.9;">Mở khóa Model AI Tư Duy Sâu & Trọn bộ tính năng Pro</p>
+        <h1 style="margin: 0; font-size: 22px; font-weight: 800;">🎉 Mã Kích Hoạt Gói Cước EduGenie AI</h1>
+        <p style="margin: 6px 0 0; font-size: 13px; opacity: 0.9;">Mở khóa Model AI Tư Duy Sâu & Trọn bộ tính năng Nâng cao</p>
       </div>
       <div style="padding: 28px 24px; color: #1e293b;">
         <p style="font-size: 15px; margin-top: 0;">Xin chào <strong>${params.fullName || params.email}</strong>,</p>
         <p style="font-size: 14px; line-height: 1.6; color: #475569;">
-          Yêu cầu đăng ký gói <strong>${planName}</strong> với thời hạn <strong>${params.durationDays} ngày</strong> của bạn đã được khởi tạo thành công. Dưới đây là mã kích hoạt độc quyền của bạn:
+          Yêu cầu đăng ký gói <strong>${planName}</strong> với thời hạn <strong>${params.durationDays} ngày</strong> của bạn đã được quản trị viên xác nhận thành công. Dưới đây là mã kích hoạt của bạn:
         </p>
         <div style="margin: 24px 0; padding: 22px; background: linear-gradient(135deg, #eef2ff, #f5f3ff); border: 2px solid #6366f1; border-radius: 14px; text-align: center;">
           <p style="margin: 0 0 8px; font-size: 11px; text-transform: uppercase; font-weight: 700; color: #6366f1; letter-spacing: 1px;">MÃ CODE KÍCH HOẠT CỦA BẠN</p>
@@ -152,8 +152,8 @@ export async function sendLicenseCodeEmail(params: {
         </div>
         <h4 style="font-size: 14px; margin-bottom: 8px; color: #1e293b;">Hướng dẫn kích hoạt trong 5 giây:</h4>
         <ol style="font-size: 13px; line-height: 1.7; color: #475569; padding-left: 20px;">
-          <li>Đăng nhập vào ứng dụng <strong>AI Study Assistant</strong>.</li>
-          <li>Bấm vào nút <strong>"💎 Nâng cấp Pro / Nhập Code"</strong> trên thanh công cụ.</li>
+          <li>Đăng nhập vào ứng dụng <strong>EduGenie AI</strong>.</li>
+          <li>Bấm vào nút <strong>"💎 Nâng cấp / Nhập Code"</strong> trên thanh công cụ.</li>
           <li>Dán mã <code>${params.licenseCode}</code> vào ô <strong>Nhập Mã Kích Hoạt</strong> và nhấn <strong>Kích hoạt ngay</strong>.</li>
         </ol>
       </div>
@@ -168,12 +168,12 @@ export async function sendLicenseCodeEmail(params: {
  * Gửi mã OTP 6 chữ số để lấy lại mật khẩu tài khoản
  */
 export async function sendForgotPasswordOtpEmail(email: string, otpCode: string, fullName?: string): Promise<EmailSendResult> {
-  const subject = `[AI Study Assistant] Mã xác nhận đặt lại mật khẩu: ${otpCode}`;
+  const subject = `[EduGenie AI] Mã xác nhận đặt lại mật khẩu: ${otpCode}`;
   const html = `
     <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 560px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 16px; overflow: hidden; background: #ffffff;">
       <div style="background: linear-gradient(135deg, #e11d48, #be123c); padding: 28px 24px; color: #ffffff; text-align: center;">
         <h1 style="margin: 0; font-size: 22px; font-weight: 800;">🔒 Đặt Lại Mật Khẩu Tài Khoản</h1>
-        <p style="margin: 6px 0 0; font-size: 13px; opacity: 0.9;">Hệ thống học tập AI Study Assistant</p>
+        <p style="margin: 6px 0 0; font-size: 13px; opacity: 0.9;">Hệ thống EduGenie AI</p>
       </div>
       <div style="padding: 28px 24px; color: #1e293b;">
         <p style="font-size: 15px; margin-top: 0;">Xin chào <strong>${fullName || email}</strong>,</p>
