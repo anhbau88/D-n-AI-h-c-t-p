@@ -368,9 +368,29 @@ export default function QuizPanel({
         
         <div className="flex flex-wrap items-center gap-2">
           {isSubmitted && (
-            <Badge variant="default" className="bg-blue-500 hover:bg-blue-600 text-white shadow-md px-3 py-1">
+            <Badge variant="default" className="bg-blue-500 hover:bg-blue-600 text-white shadow-md px-3 py-1 font-bold">
               Điểm số: {displayScale10}/10 ({displayScore}/{shuffledQuestions.length} câu)
             </Badge>
+          )}
+
+          {isSubmitted && (
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => {
+                window.dispatchEvent(
+                  new CustomEvent('open-social-share', {
+                    detail: {
+                      score: `${displayScale10}/10`,
+                      testTitle: assignTitle || 'Bài Thi Trắc Nghiệm AI',
+                    },
+                  })
+                );
+              }}
+              className="h-8 px-3 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:brightness-110 text-white text-xs font-black shadow-md flex items-center gap-1.5 active:scale-95 transition-all"
+            >
+              🏆 Khoe thành tích
+            </Button>
           )}
 
           {isSubmitted && wrongCount > 0 && onAdaptiveDrill && (

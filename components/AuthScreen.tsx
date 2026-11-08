@@ -371,22 +371,23 @@ export default function AuthScreen({ onLogin, language, setLanguage }: AuthScree
       <div className="fixed top-1/4 -left-20 w-80 h-80 bg-indigo-500/10 dark:bg-indigo-500/5 rounded-full blur-3xl pointer-events-none"></div>
       <div className="fixed bottom-1/4 -right-20 w-96 h-96 bg-purple-500/10 dark:bg-purple-500/5 rounded-full blur-3xl pointer-events-none"></div>
 
-      <div className="relative z-10 w-full max-w-6xl grid grid-cols-1 lg:grid-cols-12 gap-8 items-center my-8">
-        {/* LEFT COLUMN: COMMERCIAL SAAS HERO SHOWCASE */}
-        <div className="lg:col-span-7 space-y-6 pr-0 lg:pr-4">
+      <div className="relative z-10 w-full max-w-6xl grid grid-cols-1 lg:grid-cols-12 gap-8 items-center my-4 lg:my-8">
+        
+        {/* LEFT COLUMN (ON DESKTOP) / BOTTOM COLUMN (ON MOBILE): COMMERCIAL SAAS HERO SHOWCASE */}
+        <div className="lg:col-span-7 order-2 lg:order-1 space-y-6 pr-0 lg:pr-4">
           <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-indigo-100 dark:bg-indigo-950/60 border border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 text-xs font-black">
             <Sparkles className="w-3.5 h-3.5" />
             <span>NỀN TẢNG EDTECH AI ALL-IN-ONE THẾ HỆ MỚI</span>
           </div>
 
-          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-black text-slate-900 dark:text-white tracking-tight leading-[1.15]">
+          <h1 className="text-2xl sm:text-4xl lg:text-5xl font-black text-slate-900 dark:text-white tracking-tight leading-[1.15]">
             Học thông minh gấp 10 lần với{' '}
             <span className="bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
               AI Đa Mô Hình
             </span>
           </h1>
 
-          <p className="text-sm sm:text-base text-slate-600 dark:text-slate-300 font-medium leading-relaxed">
+          <p className="text-xs sm:text-base text-slate-600 dark:text-slate-300 font-medium leading-relaxed">
             Hội tụ tinh hoa của <strong>NotebookLM</strong>, <strong>ChatGPT Plus</strong>, <strong>Prep.vn</strong>, <strong>Quizlet</strong> và <strong>MagicSchool AI</strong> trong một nền tảng duy nhất dành cho Học sinh & Giáo viên Việt Nam.
           </p>
 
@@ -449,8 +450,8 @@ export default function AuthScreen({ onLogin, language, setLanguage }: AuthScree
           </div>
         </div>
 
-        {/* RIGHT COLUMN: AUTHENTICATION CARD */}
-        <div className="lg:col-span-5">
+        {/* RIGHT COLUMN (ON DESKTOP) / TOP COLUMN (ON MOBILE): AUTHENTICATION CARD */}
+        <div className="lg:col-span-5 order-1 lg:order-2">
           <Card className="relative w-full p-6 sm:p-8 border border-gray-200 dark:border-gray-800/60 shadow-[0_20px_50px_rgba(99,102,241,0.1)] bg-white/85 dark:bg-gray-900/80 backdrop-blur-2xl transition-all duration-300 rounded-3xl">
             <div className="text-center mb-5">
               <div className="relative w-16 h-16 mx-auto mb-3 hover:scale-105 transition-all duration-300">

@@ -13,7 +13,7 @@ export default function ZaloSupportWidget({ phone = '0923678668' }: ZaloSupportW
   const cleanPhone = phone.replace(/[^0-9]/g, '');
 
   return (
-    <div className="fixed bottom-5 right-5 z-50 flex flex-col items-end gap-2 group">
+    <div className="fixed bottom-20 right-4 sm:bottom-5 sm:right-5 z-40 flex flex-col items-end gap-2 group">
       {/* Tooltip chào hỏi */}
       <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white dark:bg-gray-900 border border-indigo-200 dark:border-indigo-800 text-xs font-bold text-gray-700 dark:text-gray-200 shadow-xl opacity-90 group-hover:opacity-100 transition-all">
         <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />

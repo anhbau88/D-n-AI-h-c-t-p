@@ -311,3 +311,45 @@ html {
   will-change: transform;
   backface-visibility: hidden;
 }
+
+/* Safe area insets for iOS notch / Home Indicator and Android gesture bars */
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 16px);
+}
+.safe-area-top {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+/* Glassmorphism 2.0 Ultra */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+}
+.dark .glass-panel {
+  background: rgba(15, 17, 26, 0.82);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Mobile bottom nav floating pill */
+.mobile-nav-shadow {
+  box-shadow: 0 -4px 24px -2px rgba(0, 0, 0, 0.08), 0 -1px 4px 0 rgba(0, 0, 0, 0.04);
+}
+.dark .mobile-nav-shadow {
+  box-shadow: 0 -4px 24px -2px rgba(0, 0, 0, 0.4), 0 -1px 4px 0 rgba(255, 255, 255, 0.03);
+}
+
+/* Aurora Glow Backgrounds */
+.aurora-bg {
+  background: radial-gradient(circle at 15% 15%, rgba(99, 102, 241, 0.15) 0%, transparent 40%),
+              radial-gradient(circle at 85% 85%, rgba(168, 85, 247, 0.15) 0%, transparent 40%),
+              radial-gradient(circle at 50% 50%, rgba(59, 130, 246, 0.08) 0%, transparent 50%);
+}
+.dark .aurora-bg {
+  background: radial-gradient(circle at 15% 15%, rgba(99, 102, 241, 0.22) 0%, transparent 40%),
+              radial-gradient(circle at 85% 85%, rgba(168, 85, 247, 0.18) 0%, transparent 40%),
+              radial-gradient(circle at 50% 50%, rgba(20, 184, 166, 0.08) 0%, transparent 50%);
+}

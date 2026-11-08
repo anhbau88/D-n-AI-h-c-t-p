@@ -37,7 +37,8 @@ import {
   Star,
   Shield,
   Download,
-  KeyRound
+  KeyRound,
+  Trophy
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import { useCompletion } from 'ai/react';
@@ -62,6 +63,13 @@ const DocumentLibrary = dynamic(() => import('@/components/DocumentLibrary'), { 
 const UserManagement = dynamic(() => import('@/components/UserManagement'), { ssr: false });
 const TeacherClassManagement = dynamic(() => import('@/components/TeacherClassManagement'), { ssr: false });
 const ZaloSupportWidget = dynamic(() => import('@/components/ZaloSupportWidget'), { ssr: false });
+const SocialShareModal = dynamic(() => import('@/components/SocialShareModal'), { ssr: false });
+const LeaderboardModal = dynamic(() => import('@/components/LeaderboardModal'), { ssr: false });
+
+import MobileBottomNav from '@/components/MobileBottomNav';
+import PwaInstallPrompt from '@/components/PwaInstallPrompt';
+import ZenFocusMode from '@/components/ZenFocusMode';
+import PomodoroPlayer from '@/components/PomodoroPlayer';
 
 
 import { FileInfo, QuizQuestion, User, Assignment, QuizHistoryItem, DocumentItem, ChatMessage, AIModelTier } from '@/types';
@@ -349,6 +357,13 @@ export default function Home() {
   // Toast notifications state
   const [toasts, setToasts] = useState<Toast[]>([]);
 
+  // New Feature Upgrade States (Zen Focus, Social Share, Leaderboard, Mobile Profile)
+  const [isZenFocus, setIsZenFocus] = useState(false);
+  const [showSocialShare, setShowSocialShare] = useState(false);
+  const [showLeaderboard, setShowLeaderboard] = useState(false);
+  const [socialShareData, setSocialShareData] = useState<{ score: string; testTitle: string }>({ score: '10/10', testTitle: 'Bài thi AI' });
+  const [mobileProfileMenuOpen, setMobileProfileMenuOpen] = useState(false);
+
   // Function to add a toast message
   const addToast = useCallback((
     type: 'success' | 'error' | 'info' | 'assignment',
@@ -517,6 +532,23 @@ export default function Home() {
       setChatHistory([]);
     }
   }, [setActiveTab]);
+
+  // Listen for open-social-share custom events
+  useEffect(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const handleOpenShare = (e: any) => {
+      if (e.detail) {
+        setSocialShareData({
+          score: e.detail.score || '10/10',
+          testTitle: e.detail.testTitle || 'Bài thi AI',
+        });
+        setShowSocialShare(true);
+      }
+    };
+    window.addEventListener('open-social-share', handleOpenShare);
+    return () => window.removeEventListener('open-social-share', handleOpenShare);
+  }, []);
+
 
   // Load public documents
   const loadLibraryDocuments = useCallback(async () => {
@@ -1016,6 +1048,13 @@ export default function Home() {
 
     syncWorkspaceWithDoc(null);
     setSidebarTab('dashboard');
+    if (parseFloat(scale10Score) >= 7.5) {
+      setSocialShareData({
+        score: `${scale10Score}/10`,
+        testTitle: activeAssignment.title || activeAssignment.fileName,
+      });
+      setShowSocialShare(true);
+    }
     showMessage(language === 'vi' ? `Đã nộp bài! Điểm của bạn là ${scale10Score}/10 (+XP)` : `Exam submitted! Your score is ${scale10Score}/10`, false);
   };
 
@@ -1825,7 +1864,7 @@ export default function Home() {
     <div className="flex min-h-screen bg-slate-50 dark:bg-background text-foreground transition-all duration-300">
       
       {/* ===== LEFT SIDEBAR ===== */}
-      <aside className={`fixed left-0 top-16 h-[calc(100vh-64px)] w-64 bg-white dark:bg-[#0b0c10] border-r border-gray-300 dark:border-white/5 flex flex-col p-4 space-y-6 transition-all duration-300 z-40 lg:translate-x-0 ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
+      <aside className={`${isZenFocus ? 'hidden' : 'flex'} fixed left-0 top-16 h-[calc(100vh-64px)] w-64 bg-white dark:bg-[#0b0c10] border-r border-gray-300 dark:border-white/5 flex-col p-4 space-y-6 transition-all duration-300 z-40 lg:translate-x-0 ${mobileMenuOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
         
         {/* Main Actions */}
         <div className="space-y-2">
@@ -2029,17 +2068,27 @@ export default function Home() {
       )}
 
       {/* ===== MAIN CONTENT CANVAS ===== */}
-      <div className="flex-1 lg:pl-64 flex flex-col min-h-screen">
+      <div className={`flex-1 ${isZenFocus ? 'pl-0' : 'lg:pl-64'} flex flex-col min-h-screen transition-all duration-300`}>
         
+        {/* Floating Exit Button when in Zen Focus Mode */}
+        {isZenFocus && (
+          <ZenFocusMode
+            isFocusMode={true}
+            onToggle={() => setIsZenFocus(false)}
+            language={language}
+          />
+        )}
+
         {/* ===== TOP NAVIGATION BAR ===== */}
-        <header className="fixed top-0 left-0 w-full z-50 flex justify-between items-center px-4 lg:px-margin-desktop py-4 h-16 bg-white/95 dark:bg-[#0b0c10]/95 backdrop-blur-md border-b border-gray-200 dark:border-white/5 shadow-sm">
-          <div className="flex items-center gap-3.5">
-            {/* Mobile Sidebar Toggle */}
+        <header className={`${isZenFocus ? 'hidden' : 'flex'} fixed top-0 left-0 w-full z-40 justify-between items-center px-3 sm:px-4 lg:px-margin-desktop py-3 h-16 bg-white/95 dark:bg-[#0b0c10]/95 backdrop-blur-xl border-b border-gray-200/90 dark:border-white/5 shadow-xs`}>
+          <div className="flex items-center gap-2.5 sm:gap-3.5">
+            {/* Mobile Sidebar Toggle (For full drawers) */}
             <button 
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="lg:hidden p-1.5 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-800 text-foreground transition-colors"
+              className="lg:hidden p-1.5 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 text-foreground transition-colors"
+              title="Menu mở rộng"
             >
-              {mobileMenuOpen ? <X className="w-5.5 h-5.5" /> : <Menu className="w-5.5 h-5.5" />}
+              {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>
 
             {/* Logo and App Title - Navigation Trigger */}
@@ -2049,27 +2098,27 @@ export default function Home() {
                 setSidebarTab('dashboard');
                 setMobileMenuOpen(false);
               }}
-              className="flex items-center gap-3.5 cursor-pointer hover:opacity-90 transition-opacity"
+              className="flex items-center gap-2.5 sm:gap-3 cursor-pointer hover:opacity-90 transition-opacity"
             >
               <Image 
                 src="/logo.png" 
                 alt="Logo" 
-                width={48} 
-                height={48} 
-                className="w-12 h-12 rounded-xl shadow-md border border-gray-200 dark:border-white/10 p-0.5 bg-white" 
+                width={42} 
+                height={42} 
+                className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl shadow-md border border-gray-200 dark:border-white/10 p-0.5 bg-white shrink-0" 
               />
-              <div>
-                <span className="text-base sm:text-lg font-black text-primary tracking-tight">
+              <div className="min-w-0">
+                <span className="text-sm sm:text-base lg:text-lg font-black text-primary tracking-tight truncate block">
                   <span className="hidden sm:inline">AI Study Assistant</span>
                   <span className="sm:hidden">AI Study</span>
                 </span>
-                <p className="text-xs text-gray-500 dark:text-gray-400 opacity-80 hidden md:block leading-none mt-1 font-bold">The Sophisticated Mentor</p>
+                <p className="text-[10px] text-gray-500 dark:text-gray-400 opacity-80 hidden md:block leading-none mt-0.5 font-bold">The Sophisticated Mentor</p>
               </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-3">
-            {/* Global Multi-Tier AI Model Switcher (Flash / Pro / Ultra) */}
+          <div className="flex items-center gap-1.5 sm:gap-2.5">
+            {/* Global Multi-Tier AI Model Switcher (Flash / Pro / Ultra) - Desktop */}
             <div className="hidden xl:flex items-center gap-1 p-1 rounded-full bg-gray-100 dark:bg-gray-900 border border-gray-200 dark:border-gray-800">
               <button
                 type="button"
@@ -2114,24 +2163,41 @@ export default function Home() {
               </button>
             </div>
 
-            {/* Gamification Streak & XP Pill */}
-            <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-50 dark:bg-amber-950/30 border border-amber-200/80 dark:border-amber-800/50 text-xs font-black">
-              <span className="flex items-center gap-1 text-orange-600 dark:text-orange-400" title="Chuỗi ngày học liên tiếp (Streak)">
+            {/* Pomodoro Timer & Ambient Sound Player */}
+            <PomodoroPlayer language={language} />
+
+            {/* Gamification Streak & Leaderboard Pill */}
+            <button
+              type="button"
+              onClick={() => setShowLeaderboard(true)}
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full bg-amber-50 dark:bg-amber-950/30 border border-amber-200/80 dark:border-amber-800/50 text-xs font-black hover:scale-105 active:scale-95 transition-all shadow-xs"
+              title="Xem Bảng Vàng Vinh Danh & Điểm XP"
+            >
+              <span className="flex items-center gap-1 text-orange-600 dark:text-orange-400">
                 <Flame className="w-3.5 h-3.5 fill-orange-500" />
-                {user.streak || 1}
+                <span>{user.streak || 1}d</span>
               </span>
-              <span className="text-gray-300 dark:text-gray-700">|</span>
-              <span className="flex items-center gap-1 text-amber-600 dark:text-amber-400" title="Điểm kinh nghiệm học tập (XP)">
+              <span className="hidden sm:inline text-gray-300 dark:text-gray-700">|</span>
+              <span className="hidden sm:flex items-center gap-1 text-amber-600 dark:text-amber-400">
                 <Star className="w-3.5 h-3.5 fill-amber-400" />
-                {user.xp || 0} XP
+                <span>{user.xp || 0} XP</span>
               </span>
+            </button>
+
+            {/* Zen Focus Mode Button */}
+            <div className="hidden sm:block">
+              <ZenFocusMode
+                isFocusMode={isZenFocus}
+                onToggle={() => setIsZenFocus(!isZenFocus)}
+                language={language}
+              />
             </div>
 
             {/* Upgrade / Redeem Code Button */}
             <button
               type="button"
               onClick={() => setShowUpgradeModal(true)}
-              className={`px-3 py-1.5 rounded-full text-xs font-black flex items-center gap-1.5 shadow-sm transition-all hover:scale-105 active:scale-95 ${
+              className={`px-2.5 sm:px-3 py-1.5 rounded-full text-xs font-black flex items-center gap-1.5 shadow-sm transition-all hover:scale-105 active:scale-95 ${
                 user.plan === 'vip'
                   ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white'
                   : user.plan === 'pro'
@@ -2141,13 +2207,13 @@ export default function Home() {
               title="Nâng cấp gói hoặc Nhập mã Code kích hoạt"
             >
               <Crown className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">
+              <span className="hidden md:inline">
                 {user.plan === 'vip' ? 'VIP ULTRA' : user.plan === 'pro' ? 'PRO AI' : 'Nâng cấp / Nhập Code'}
               </span>
             </button>
 
-            {/* Bilingual and Theme Switcher Pill */}
-            <div className="flex items-center gap-3 px-4 py-1.5 rounded-full bg-gray-200/50 dark:bg-surface-variant/20 border border-gray-300/40 dark:border-white/5">
+            {/* Desktop Only: Bilingual and Theme Switcher Pill */}
+            <div className="hidden lg:flex items-center gap-3 px-3 py-1 rounded-full bg-gray-200/50 dark:bg-surface-variant/20 border border-gray-300/40 dark:border-white/5">
               <button 
                 onClick={() => {
                   const nextLang = language === 'vi' ? 'en' : 'vi';
@@ -2158,26 +2224,26 @@ export default function Home() {
                 className="text-primary hover:scale-110 active:scale-95 transition-transform flex items-center"
                 title={language === 'vi' ? 'Switch to English' : 'Chuyển sang tiếng Việt'}
               >
-                <span className="material-symbols-outlined text-[22px] cursor-pointer">translate</span>
+                <span className="material-symbols-outlined text-[20px] cursor-pointer">translate</span>
               </button>
               <ThemeToggle />
             </div>
 
-            {/* Accessibility Settings */}
-            <div className="bg-gray-200/50 dark:bg-surface-variant/10 rounded-full flex items-center justify-center">
+            {/* Desktop Only: Accessibility Settings */}
+            <div className="hidden lg:flex bg-gray-200/50 dark:bg-surface-variant/10 rounded-full items-center justify-center">
               <AccessibilitySettings />
             </div>
 
-            {/* User Profile info */}
-            <div className="hidden lg:flex items-center gap-3 ml-2 border-l border-gray-200 dark:border-white/10 pl-4">
-              <div className="text-right hidden sm:block">
-                <p className="text-sm font-bold leading-none">{user.username}</p>
-                <p className="text-[10px] text-gray-500 dark:text-gray-400 uppercase tracking-wider font-bold mt-1.5">
+            {/* User Profile Info - Desktop */}
+            <div className="hidden lg:flex items-center gap-3 ml-1 border-l border-gray-200 dark:border-white/10 pl-3">
+              <div className="text-right hidden xl:block">
+                <p className="text-xs font-bold leading-none">{user.username}</p>
+                <p className="text-[9px] text-gray-500 dark:text-gray-400 uppercase tracking-wider font-bold mt-1">
                   {isTeacher ? `${t.teacher}` : `${t.student} • ${userRooms.length > 0 ? userRooms.length + ' ' + (language === 'vi' ? 'lớp' : 'classes') : t.unassigned}`}
                 </p>
               </div>
               
-              <div className="w-9 h-9 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center font-black text-primary text-sm capitalize">
+              <div className="w-8 h-8 rounded-full bg-primary/20 border border-primary/30 flex items-center justify-center font-black text-primary text-xs capitalize">
                 {user.username.charAt(0)}
               </div>
 
@@ -2199,8 +2265,89 @@ export default function Home() {
                 <LogOut className="w-4 h-4" />
               </button>
             </div>
+
+            {/* Mobile Profile & Quick Settings Menu Trigger */}
+            <div className="relative lg:hidden">
+              <button
+                type="button"
+                onClick={() => setMobileProfileMenuOpen(!mobileProfileMenuOpen)}
+                className="w-8 h-8 rounded-full bg-gradient-to-tr from-primary to-purple-600 text-white flex items-center justify-center font-black text-xs shadow-sm capitalize active:scale-90 transition-transform"
+                title="Tài khoản & Cài đặt"
+              >
+                {user.username.charAt(0)}
+              </button>
+
+              {/* Mobile Quick Dropdown */}
+              {mobileProfileMenuOpen && (
+                <div className="absolute right-0 top-11 w-64 p-3 rounded-2xl bg-white/95 dark:bg-[#12141e]/95 backdrop-blur-2xl border border-slate-200 dark:border-white/10 shadow-2xl space-y-3 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+                  <div className="flex items-center gap-2.5 pb-2 border-b border-slate-200 dark:border-slate-800">
+                    <div className="w-9 h-9 rounded-full bg-primary/10 text-primary font-black flex items-center justify-center text-sm capitalize">
+                      {user.username.charAt(0)}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-black truncate">{user.fullName || user.username}</p>
+                      <p className="text-[10px] text-slate-500 capitalize">{user.role} • Gói: {(user.plan || 'free').toUpperCase()}</p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    <button
+                      onClick={() => {
+                        const nextLang = language === 'vi' ? 'en' : 'vi';
+                        setLanguage(nextLang);
+                        localStorage.setItem('language', nextLang);
+                      }}
+                      className="p-2 rounded-xl bg-slate-100 dark:bg-slate-800 font-bold flex items-center justify-center gap-1.5"
+                    >
+                      <span className="material-symbols-outlined text-[16px]">translate</span>
+                      <span>{language === 'vi' ? 'Tiếng Anh' : 'Tiếng Việt'}</span>
+                    </button>
+                    <div className="p-1 rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+                      <ThemeToggle />
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      setIsZenFocus(true);
+                      setMobileProfileMenuOpen(false);
+                    }}
+                    className="w-full py-2 px-3 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 text-primary font-bold text-xs flex items-center gap-2"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>Bật Chế độ tập trung (Focus)</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setShowLeaderboard(true);
+                      setMobileProfileMenuOpen(false);
+                    }}
+                    className="w-full py-2 px-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 font-bold text-xs flex items-center gap-2"
+                  >
+                    <Trophy className="w-3.5 h-3.5" />
+                    <span>Xem Bảng Vàng (Leaderboard)</span>
+                  </button>
+
+                  <div className="pt-1 border-t border-slate-200 dark:border-slate-800">
+                    <button
+                      onClick={() => {
+                        setMobileProfileMenuOpen(false);
+                        handleLogout();
+                      }}
+                      className="w-full py-2 px-3 rounded-xl text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 font-bold text-xs flex items-center gap-2 transition-colors"
+                    >
+                      <LogOut className="w-3.5 h-3.5" />
+                      <span>{language === 'vi' ? 'Đăng xuất tài khoản' : 'Log out'}</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
           </div>
         </header>
+
 
         {/* ===== BANNER CẢNH BÁO SẮP HẾT HẠN GÓI CƯỚC ===== */}
         {user.plan && user.plan !== 'free' && user.planExpiresAt && (() => {
@@ -2537,7 +2684,7 @@ export default function Home() {
         )}
 
         {/* ===== MAIN WORKSPACE OR DASHBOARD PANEL ===== */}
-        <main className="pt-16 px-4 lg:px-margin-desktop py-8 bg-slate-50 dark:bg-[#0c0f0f] relative flex-1">
+        <main className={`${isZenFocus ? 'pt-4' : 'pt-16'} px-3 sm:px-4 lg:px-margin-desktop py-6 pb-24 lg:pb-8 bg-slate-50 dark:bg-[#0b0c10] relative flex-1 transition-all duration-300`}>
           {/* Ambient Decorative Blurs */}
           <div className="absolute top-20 right-20 w-96 h-96 bg-primary/5 rounded-full blur-[120px] pointer-events-none blur-decor transition-transform duration-300"></div>
           <div className="absolute bottom-20 left-20 w-80 h-80 bg-primary/5 rounded-full blur-[100px] pointer-events-none blur-decor transition-transform duration-300"></div>
@@ -4126,7 +4273,53 @@ export default function Home() {
       )}
 
       {/* ===== FLOATING ZALO / HOTLINE CSKH ===== */}
-      <ZaloSupportWidget phone="0923678668" />
+      {!isZenFocus && <ZaloSupportWidget phone="0923678668" />}
+
+      {/* ===== MOBILE BOTTOM NAVIGATION BAR (NATIVE APP-LIKE) ===== */}
+      {!isZenFocus && (
+        <MobileBottomNav
+          currentTab={sidebarTab}
+          onSelectTab={(tab) => {
+            syncWorkspaceWithDoc(null);
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            setSidebarTab(tab as any);
+            setMobileMenuOpen(false);
+          }}
+          activeDoc={!!activeDoc}
+          onOpenDocWorkspace={() => {
+            setSidebarTab('upload');
+          }}
+          onOpenUpgrade={() => setShowUpgradeModal(true)}
+          userPlan={user.plan}
+          language={language}
+        />
+      )}
+
+      {/* ===== PWA 1-CLICK INSTALL PROMPT ===== */}
+      <PwaInstallPrompt />
+
+      {/* ===== GAMIFICATION 2.0 LEADERBOARD MODAL ===== */}
+      {showLeaderboard && (
+        <LeaderboardModal
+          isOpen={showLeaderboard}
+          onClose={() => setShowLeaderboard(false)}
+          currentUser={user}
+          language={language}
+        />
+      )}
+
+      {/* ===== SOCIAL SHARE ACHIEVEMENT CERTIFICATE MODAL ===== */}
+      {showSocialShare && (
+        <SocialShareModal
+          isOpen={showSocialShare}
+          onClose={() => setShowSocialShare(false)}
+          username={user.fullName || user.username}
+          score={socialShareData.score}
+          testTitle={socialShareData.testTitle}
+          streak={user.streak || 1}
+          language={language}
+        />
+      )}
 
       {/* ===== TOAST NOTIFICATION CONTAINER ===== */}
       <ToastContainer toasts={toasts} onClose={handleCloseToast} />
